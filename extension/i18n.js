@@ -1,4 +1,15 @@
 const entries=`
+识别服务未就绪，请完成安装引导。|Recognition service is not ready. Complete the installation guide.
+本地识别服务无法连接。请运行安装包中的|Cannot connect to local recognition. Run the installer in the download:
+，然后重新加载马莫签到助手。|, then reload Mamo Check-in.
+本地识别未返回有效结果|Local recognition returned no valid result
+本地识别连接已关闭|Local recognition connection closed
+本地识别响应超时，已停止本次连接；原图由本机服务保存。|Local recognition timed out. The connection was closed; the original image is saved locally.
+正在使用本地识别（最多 30 秒）|Recognizing locally (up to 30 seconds)
+复用本地识别结果|Reusing cached recognition
+本地识别完成|Local recognition complete
+识别服务未就绪，请运行对应系统的识别服务安装程序。|Recognition is not ready. Run the installer for your operating system.
+
 先安装 Windows 识别服务|Install the Windows recognition service first
 安装 Tesseract OCR|Install Tesseract OCR
 下载 Tesseract Windows 安装程序 ↗|Download the Tesseract Windows installer ↗

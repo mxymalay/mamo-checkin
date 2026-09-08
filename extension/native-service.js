@@ -30,12 +30,11 @@ export async function localService({onProgress=async()=>{},timeoutMs=35000}={}){
   };
   return {call(payload){
     const job=queue.catch(()=>{}).then(async()=>{
-      if(payload.op==='ocr')await report({message:'正在使用 本地识别（最多 30 秒）',service:{busy:true,stage:ocrEngine}});
+      if(payload.op==='ocr')await report({message:'正在使用本地识别（最多 30 秒）',service:{busy:true,stage:ocrEngine}});
       const started=Date.now();
       let result;
       try{result=await request(payload);}catch(error){if(payload.op==='ocr')await report({message:'图片识别失败：'+error.message,service:{busy:false,binaryReady:false,stage:'识别失败'}});throw error;}
-      if(payload.op==='ping'&&!result.binaryReady)throw new Error('本地识别程序尚未就绪，请重新运行“'+installerName+'”。');
-      if(payload.op==='ocr')await report({message:(result.cached?'复用 本地识别结果':'本地识别完成')+`（${((Date.now()-started)/1000).toFixed(2)} 秒）`,service:{busy:false,binaryReady:true,stage:ocrEngine},...(result.cached&&{increment:{cached:1}})});
+      if(payload.op==='ocr')await report({message:(result.cached?'复用本地识别结果':'本地识别完成')+`（${((Date.now()-started)/1000).toFixed(2)} 秒）`,service:{busy:false,binaryReady:true,stage:ocrEngine},...(result.cached&&{increment:{cached:1}})});
       return result;
     });
     queue=job;return job;

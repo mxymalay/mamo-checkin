@@ -205,6 +205,7 @@ async function run(manual=false,course=null){
     await chrome.storage.local.set({diagnostics:[]});
     await cleanOwnedTabs(state);
     const health=await native.call({op:'ping'});
+    if(!health.binaryReady)throw new Error(health.healthError||'识别服务未就绪，请完成安装引导。');
     await state.progress({message:'正在签到；图片识别会在需要时启动',service:health});
     try{await inspectSchedule(state);}catch(error){await diagnose(state,{scope:'timetable',error:'课表预检查失败，将继续寻找签到码：'+error.message});}
     for(const [scope,collect] of [['gmail',collectMail],['moodle',collectMoodle]])try{await collect(state,native);}catch(error){await diagnose(state,{scope,error:error.message});}
