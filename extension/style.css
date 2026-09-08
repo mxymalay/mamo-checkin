@@ -24,3 +24,5 @@ body[data-setup]:not([data-setup=complete]) .status-card,body[data-setup]:not([d
 .name-hint{display:block;margin-top:8px;font-size:14px;line-height:1.6;color:#526477;font-weight:400}.name-hint a{margin:0 3px;text-decoration:underline}
 
 .state.waiting_code{background:#fff3dc;color:#8b601a}
+
+header{flex-wrap:wrap}#language{width:auto;min-width:125px;margin:0;font-size:14px;padding:8px 10px;align-self:flex-start}.header-actions{flex-wrap:wrap}

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "马莫签到助手",
-  "description": "在 Mac 本机使用 Apple Vision 识别 Gmail 和 Moodle 签到图片，保存并提交最近 7 天的匹配场次。",
-  "version": "0.9.1",
+  "name": "__MSG_appName__",
+  "description": "__MSG_appDescription__",
+  "version": "0.10.0",
   "minimum_chrome_version": "120",
   "permissions": [
     "alarms",
@@ -21,7 +21,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "打开马莫签到助手",
+    "default_title": "__MSG_appName__",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -39,5 +39,6 @@
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
-  }
+  },
+  "default_locale": "en"
 }

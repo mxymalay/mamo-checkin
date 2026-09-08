@@ -1,0 +1,8 @@
+{
+  "appName": {
+    "message": "馬莫簽到助手"
+  },
+  "appDescription": {
+    "message": "在 Mac 本機識別 Gmail 和 Moodle 簽到碼，保存並提交最近 7 天的匹配場次。"
+  }
+}

@@ -7,6 +7,7 @@ const html=await readFile(new URL('../extension/options.html',import.meta.url),'
 
 function installDom(sendMessage){
   const dom=new JSDOM(html,{url:'https://extension.test/options.html'});
+  Object.defineProperty(dom.window.navigator,'language',{value:'zh-CN',configurable:true});
   globalThis.window=dom.window;
   globalThis.document=dom.window.document;
   globalThis.Blob=dom.window.Blob;
@@ -326,7 +327,7 @@ test('records switch by course and group into labeled weeks',async()=>{
  try{
   await import(`../extension/options.js?tabs=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   assert.match(document.querySelector('.week-heading').textContent,/Week 7/);assert.doesNotMatch(document.getElementById('records').textContent,/DEF34/);
-  document.querySelectorAll('#record-course-tabs button')[1].click();assert.match(document.getElementById('records').textContent,/DEF34/);assert.match(document.querySelector('.week-heading').textContent,/自然周/);
+  document.querySelectorAll('#record-course-tabs button')[1].click();assert.match(document.getElementById('records').textContent,/DEF34/);assert.match(document.querySelector('.week-heading').textContent,/2026-09-07 — 2026-09-13/);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 

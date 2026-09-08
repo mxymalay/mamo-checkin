@@ -1,0 +1,8 @@
+{
+  "appName": {
+    "message": "Mamo Check-in"
+  },
+  "appDescription": {
+    "message": "Read attendance codes from Gmail and Moodle on your Mac and check in to matching recent sessions."
+  }
+}
