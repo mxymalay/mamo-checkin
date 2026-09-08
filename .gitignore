@@ -15,3 +15,6 @@ tests/browser-ocr.test.js
 tests/test_native.py
 tests/manual-ocr.html
 tests/manual-ocr.js
+
+# PyInstaller intermediate specifications
+/*.spec

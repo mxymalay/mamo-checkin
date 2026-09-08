@@ -4,7 +4,11 @@
 import base64
 import binascii
 from contextlib import contextmanager
-import fcntl
+import sys
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 import hashlib
 import json
 import os
@@ -23,7 +27,8 @@ MAX_OCR_OUTPUT_BYTES = MAX_RESPONSE_BYTES - 64 * 1024
 OCR_TIMEOUT_SECONDS = 30
 OCR_CACHE_VERSION = 1
 PROTOCOL_VERSION = 1
-OCR_ENGINE = "Apple Vision"
+IS_WINDOWS = sys.platform == "win32"
+OCR_ENGINE = "Tesseract" if IS_WINDOWS else "Apple Vision"
 COURSE_PATTERN = re.compile(r"[A-Z]{2,10}\d{3,6}\Z")
 META_FIELDS = ("course", "messageId", "sourceUrl", "sentAt", "subject")
 MIME_EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg"}
@@ -96,10 +101,19 @@ def image_lock(images_directory, image_id):
     lock_path = images_directory / f".{image_id}.lock"
     descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        if IS_WINDOWS:
+            os.write(descriptor, b"0")
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
+        else:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
         yield
     finally:
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        if IS_WINDOWS:
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)
 
 
@@ -139,6 +153,12 @@ def valid_observations(observations):
 
 
 def run_ocr(image_path):
+    if IS_WINDOWS:
+        from windows_ocr import recognize
+        try:
+            return recognize(image_path)
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            raise RequestError(str(error)) from error
     if not OCR_BINARY.is_file() or not os.access(OCR_BINARY, os.X_OK):
         raise RequestError("OCR binary is not ready")
     try:
@@ -322,18 +342,21 @@ def handle_request(request):
             ready = isinstance(payload, dict) and payload.get("ok") is True
         except (OSError, ValueError, subprocess.TimeoutExpired):
             pass
-        if not ready:
+        if IS_WINDOWS:
+            from windows_ocr import self_test
+            ready, health_error = self_test()
+        if not ready and not IS_WINDOWS:
             health_error = "attendance-ocr 未通过启动自检。请安装新版识别服务；若 macOS 阻止此程序，请到系统设置 → 隐私与安全性 → 仍要打开，允许 attendance-ocr 后点击重新检测。"
         return {
             "ok": True,
             "binaryReady": ready,
-            "nativeBlocked": not ready and OCR_BINARY.is_file(),
+            "nativeBlocked": not IS_WINDOWS and not ready and OCR_BINARY.is_file(),
             "healthError": health_error,
             "binaryPath": str(OCR_BINARY),
             "archiveDir": str(archive_directory()),
             "engine": OCR_ENGINE,
             "busy": False,
-            "stage": "Mac 原生识别已就绪" if ready else "Mac 原生识别未通过启动自检",
+            "stage": ("Local OCR ready" if ready else "Local OCR self-test failed") if IS_WINDOWS else ("Mac 原生识别已就绪" if ready else "Mac 原生识别未通过启动自检"),
             "protocolVersion": PROTOCOL_VERSION,
         }
     if operation == "ocr":
@@ -366,6 +389,9 @@ def send_response(stream, response):
 
 def main():
     os.umask(0o077)
+    if IS_WINDOWS:
+        msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
+        msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
     input_stream = sys.stdin.buffer
     output_stream = sys.stdout.buffer
     while True:

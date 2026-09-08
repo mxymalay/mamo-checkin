@@ -213,7 +213,7 @@ async function run(manual=false,course=null){
     await submit(state,native);
     syncSessionRecords(state);
     await save(state,native);
-    await state.progress({message:'正在写入 Mac 本地归档'});
+    await state.progress({message:'正在写入本地归档'});
     try{await native.call({op:'archive',records:state.records});}catch(error){await diagnose(state,{scope:'archive',error:'记录已存于扩展，下载归档待重试：'+error.message});}
     const attention=state.records.filter(r=>['review','uncertain','attempting'].includes(r.status)).length;
     const failures=state.diagnostics.length,lastFailure=state.diagnostics.at(-1)?.error;

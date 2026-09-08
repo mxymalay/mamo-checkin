@@ -1,4 +1,20 @@
 const entries=`
+先安装 Windows 识别服务|Install the Windows recognition service first
+安装 Tesseract OCR|Install Tesseract OCR
+下载 Tesseract Windows 安装程序 ↗|Download the Tesseract Windows installer ↗
+使用默认安装位置，保留 English 语言数据。|Keep the default installation folder and English language data.
+连接浏览器|Connect Chrome
+双击 Install Windows OCR.exe，等待安装成功。|Run Install Windows OCR.exe and wait for installation to finish.
+无需安装 Python，也无需开启定时签到。|No Python installation is needed. Scheduled check-in is optional.
+Windows 阻止了安装程序？|Windows blocked the installer?
+确认文件来自本项目 Release 后，在 SmartScreen 中选择“更多信息 → 仍要运行”。学校管理的电脑若不允许，请联系管理员。|Verify the file came from this project, then choose More info → Run anyway in SmartScreen. For managed computers, contact your administrator if blocked.
+本地图片识别|Local image recognition
+Mac 使用 Apple Vision；Windows 使用 Tesseract，均在本机识别。|Mac uses Apple Vision; Windows uses Tesseract. Both run locally.
+首次安装请按安装引导运行对应系统的识别服务安装程序。|Follow the installation guide for your operating system.
+正在写入本地归档|Saving the local archive
+本地识别|Local recognition
+本地原生识别|Local recognition
+
 Attendance系统|Attendance system
 
 安装命令授权|Allow the installer

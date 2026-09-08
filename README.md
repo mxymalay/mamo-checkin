@@ -1,8 +1,8 @@
 # 马莫签到助手 · Mamo Check-in
 
-从 Gmail 和 Monash Moodle 识别签到码，自动匹配课程并签到。支持文字和图片，使用 Mac 本机识别。
+从 Gmail 和 Monash Moodle 识别签到码，自动匹配课程并签到。支持文字和图片，在本机识别（Mac：Apple Vision；Windows：Tesseract）。
 
-**[下载最新版](https://github.com/mxymalay/mamo-checkin/releases/latest)** · **[安装与升级指南](INSTALL.md)** · macOS 12+ / Chrome
+**[下载最新版](https://github.com/mxymalay/mamo-checkin/releases/latest)** · **[Mac 安装](INSTALL.md)** · **[Windows 安装](INSTALL-WINDOWS.md)** · Chrome / macOS 12+ / Windows 10、11 x64（预览版）
 
 ## 三步开始
 
