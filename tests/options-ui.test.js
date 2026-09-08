@@ -185,7 +185,7 @@ test('save and scan acknowledge clicks before the background replies',async()=>{
   await import(`../extension/options.js?feedback=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   document.getElementById('settings').dispatchEvent(new env.dom.window.Event('submit',{cancelable:true}));
   assert.match(document.getElementById('notice').textContent,/正在保存/);assert.equal(document.getElementById('notice').dataset.tone,'info');
-  assert.equal(document.querySelector('button[type="submit"]').disabled,true);
+  assert.equal(document.querySelector('#settings button[type="submit"]').disabled,true);
   resolveSave({ok:true});await new Promise(r=>setTimeout(r,0));
   document.getElementById('scan').click();
   assert.match(document.getElementById('notice').textContent,/正在请求/);
@@ -235,7 +235,7 @@ test('unanswered save reports timeout and restores its button',async()=>{
   document.getElementById('settings').dispatchEvent(new env.dom.window.Event('submit',{cancelable:true}));
   await new Promise(r=>originalTimeout(r,20));
   assert.match(document.getElementById('notice').textContent,/响应超时.*尚未确认/);
-  assert.equal(document.querySelector('button[type="submit"]').disabled,false);
+  assert.equal(document.querySelector('#settings button[type="submit"]').disabled,false);
  }finally{globalThis.setTimeout=originalTimeout;env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
@@ -244,7 +244,7 @@ test('native form validation gives visible feedback without sending a save',asyn
  const env=installDom(async p=>{if(p.type==='settings')saves++;return p.type==='health'?{ok:true}:{settings:{},records:[]};});
  try{
   await import(`../extension/options.js?invalid=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
-  document.querySelector('button[type="submit"]').click();
+  document.querySelector('#settings button[type="submit"]').click();
   assert.equal(saves,0);assert.match(document.getElementById('notice').textContent,/无法保存/);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
@@ -331,7 +331,7 @@ test('schedules start collapsed, help is selective, and destructive actions requ
  const env=installDom(async p=>{calls.push(p.type);return p.type==='health'?{ok:true}:p.type==='clearCourses'?{ok:true}:state;});
  try{
   await import(`../extension/options.js?collapse-confirm=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
-  assert.equal(document.querySelector('.schedule-details').open,false);assert.match(document.querySelector('summary').textContent,/1 场/);
+  assert.equal(document.querySelector('.schedule-details').open,false);assert.match(document.querySelector('.schedule-details summary').textContent,/1 场/);
   for(const field of ['course','weekday','time','type','group'])assert.equal(document.querySelector(`[data-field="${field}"]`).closest('label').querySelector('.help-button'),null);
   env.dom.window.confirm=()=>false;document.getElementById('redetect').click();document.getElementById('clear-courses').click();await new Promise(r=>setTimeout(r,0));
   assert.equal(calls.includes('redetect'),false);assert.equal(calls.includes('clearCourses'),false);
@@ -373,5 +373,17 @@ test('save is hidden without courses and follows adding or removing the last cou
   const save=document.querySelector('#settings button[type=submit]');assert.equal(save.hidden,true);
   document.getElementById('add-course').click();assert.equal(save.hidden,false);
   document.querySelector('.rule-head>button').click();assert.equal(save.hidden,true);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('setup gates course discovery until service installation and offers reload on recovery',async()=>{
+ const originalSetInterval=globalThis.setInterval;let ready=false,discoveries=0;
+ const env=installDom(async p=>{if(p.type==='redetect')discoveries++;return p.type==='health'?{ok:true,binaryReady:ready}:{settings:{courses:[]},records:[],setupGuide:true,discoveryAvailable:true};});
+ try{
+  await import('../extension/options.js?install-gate='+Date.now());await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.body.dataset.setup,'install');assert.equal(discoveries,0);
+  assert.ok(env.intervals.some(i=>i.ms===5000));
+  ready=true;document.getElementById('setup-check').click();await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.getElementById('setup-reload').hidden,false);assert.equal(document.body.dataset.setup,'install');assert.equal(discoveries,0);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });

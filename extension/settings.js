@@ -1,4 +1,10 @@
 export const DEFAULTS={enabled:false,email:'',name:'',intervalMinutes:1440,academicYear:new Date().getFullYear(),mailQuery:'attendance',courses:[],senders:{},subjectKeywords:{},moodleUrls:{},schedules:{}};
+export function normalizeIdentity(existing,update,hasRecords=false){
+ const email=String(update.email||'').trim().toLowerCase(),name=String(update.name||'').trim();
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!name)throw new Error('请填写有效的学校邮箱和学校系统显示的姓名');
+ if(hasRecords&&(email!==existing.email||name!==existing.name))throw new Error('已有签到记录，请使用独立的 Chrome 配置文件切换账号');
+ return {email,name};
+}
 export function normalizeSettings(existing,update,hasRecords=false){
   const cfg={...existing,...update};
   cfg.email=String(cfg.email||'').trim().toLowerCase();cfg.name=String(cfg.name||'').trim();

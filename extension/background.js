@@ -5,7 +5,7 @@ import {submitPending} from './runner.js';
 import {cleanupOwnedTabs,processCollectedMessages,reconcileScanAlarm,recordDiagnostic} from './workflow.js';
 import {moodleAdapter} from './moodle.js';
 import {localService} from './native-service.js';
-import {DEFAULTS,normalizeSettings,gmailQuery} from './settings.js';
+import {DEFAULTS,normalizeSettings,normalizeIdentity,gmailQuery} from './settings.js';
 import {crawlMoodle} from './moodle-frontier.js';
 import {createRunProgress} from './progress.js';
 import {scanSinceDate,messageOutsideWindow,outsideAttendanceWindow} from './recent-window.js';
@@ -31,7 +31,13 @@ async function save(state,native){
   // and every extracted code are already durable in extension storage.
 }
 const collectionAdapter=(state,native,readImage=getImage)=>({getImage:readImage,ocr:(payload,meta)=>native.call({op:'ocr',...payload,meta}),save:()=>save(state,native),saveDiagnostics:()=>chrome.storage.local.set({diagnostics:state.diagnostics}),recentOnly:true,progress:event=>state.progress(event),shouldContinue:msg=>courseNeedsSource(state,msg.course)});
-async function diagnose(state,details){await state.progress?.({message:details.error,level:'error',context:{course:details.course,subject:details.subject,sourceUrl:details.sourceUrl}});await recordDiagnostic(state,details,()=>chrome.storage.local.set({diagnostics:state.diagnostics}));}
+async function diagnose(state,details){
+ if(/登录|账号|tab|页面没有及时加载/i.test(details.error||'')){
+  const site=details.scope==='gmail'?'Gmail':details.scope==='moodle'?'Moodle':'签到系统';
+  details={...details,error:`${details.error}。请在同一个 Chrome 配置文件打开 ${site} 并完成登录，确认学校邮箱和姓名与设置一致，再返回助手重试。`};
+ }
+ await state.progress?.({message:details.error,level:'error',context:{course:details.course,subject:details.subject,sourceUrl:details.sourceUrl}});await recordDiagnostic(state,details,()=>chrome.storage.local.set({diagnostics:state.diagnostics}));
+}
 async function collectMail(state,native){
   const cfg={...state.settings,courses:state.settings.courses.filter(course=>courseNeedsSource(state,course))};
   // authuser binds the new tab to the configured account; DOM still verifies it.
@@ -218,10 +224,11 @@ async function run(){
 function start(){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run().finally(()=>{activeRun=null;});return activeRun;}
 async function redetect(){
  const state=await loadState();
+ if(!state.settings.email||!state.settings.name)throw new Error('请先在第 2 步填写并保存学校邮箱和姓名，再登录签到系统检测课程');
  try{
   const tab=await createOwnedTab(state,UNITS);
   state.progress=async()=>{};
-  const data=await poll(()=>runFunction(tab,attendanceAdapter,'discover',{}),r=>Array.isArray(r?.activities));
+  const data=await poll(()=>runFunction(tab,attendanceAdapter,'activities',state.settings),r=>Array.isArray(r?.activities));
   state.activities=data.activities.map(a=>({...a,...parseActivity(a.rawText,siteDate(a.dateToken))}));
   const schedules={},issues=[];
   const courses=[...new Set(state.activities.filter(a=>!outsideAttendanceWindow(a)).map(a=>a.course).filter(Boolean))];
@@ -237,7 +244,21 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(message.target==='ocr-offscreen')return false;
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('')))return false;
   const handle=async()=>{
-    if(message.type==='status'){const state=await loadState();if(!activeRun&&state.status?.running){state.status={...state.status,running:false,error:true,finishedAt:new Date().toISOString(),message:'上次检查已中断，已保存进度，可以重新开始检查'};await chrome.storage.local.set({status:state.status});}return {...state,discoveryAvailable:true};}
+    if(message.type==='status'){const state=await loadState();if(!activeRun&&state.status?.running){state.status={...state.status,running:false,error:true,finishedAt:new Date().toISOString(),message:'上次检查已中断，已保存进度，可以重新开始检查'};await chrome.storage.local.set({status:state.status});}return {...state,discoveryAvailable:true,setupGuide:true};}
+    if(message.type==='identity'){
+      if(activeRun||activeDetection)throw new Error('请等待当前检查结束再修改身份');
+      const state=await loadState(),identity=normalizeIdentity(state.settings,message,state.records.length>0);
+      await chrome.storage.local.set({settings:{...state.settings,...identity}});return {ok:true};
+    }
+    if(message.type==='reset'){
+      if(activeRun||activeDetection)throw new Error('请等待当前检查结束后再重置');
+      await chrome.alarms.clear('scan');
+      await chrome.storage.local.clear();
+      if(chrome.storage.session)await chrome.storage.session.clear();
+      if(globalThis.caches)for(const key of await caches.keys())await caches.delete(key);
+      if(globalThis.indexedDB?.databases)for(const db of await indexedDB.databases())if(db.name)await new Promise((resolve,reject)=>{const deletion=indexedDB.deleteDatabase(db.name);deletion.onsuccess=resolve;deletion.onerror=()=>reject(new Error('缓存清理失败，请关闭其他助手页面后重试'));deletion.onblocked=()=>reject(new Error('缓存正被其他助手页面使用，请关闭其他助手页面后重试'));});
+      await chrome.action.setBadgeText({text:''});return {ok:true};
+    }
     if(message.type==='scan'){if(activeDetection)throw new Error('正在重新检测课程，请稍后检查签到');const state=await loadState();if(!state.settings.enabled)throw new Error('自动运行已暂停，请开启并保存设置后再检查');void start();return {ok:true};}
     if(message.type==='redetect'){if(activeRun||activeDetection)throw new Error('正在运行，请等待当前检查结束再重新检测课程');activeDetection=redetect().finally(()=>{activeDetection=null;});return activeDetection;}
     if(message.type==='clearCourses'){

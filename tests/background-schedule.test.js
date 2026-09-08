@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {expectedSessions} from '../extension/timetable.js';
 const event=()=>({addListener(){},removeListener(){}});
-async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false){
+async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false,reset=false){
  const previous=globalThis.chrome,tabs=new Map(),opened=[],queries=[];
  const settings={enabled:true,email:'student@example.edu',name:'Example Student',academicYear:2026,intervalMinutes:15,courses:['ABC1234','DEF1234'],senders:{ABC1234:'a@example.edu',DEF1234:'d@example.edu'},subjectKeywords:{ABC1234:'ABC1234',DEF1234:'DEF1234'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1'],DEF1234:['https://learning.monash.edu/course/view.php?id=2']},schedules:{ABC1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}],DEF1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}]}};
  const values={settings,records:[],seenMessages:{},seenThreads:{}};let listener,alarmListener;
@@ -11,14 +11,14 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
    return {rawText:`${course} Workshop 01 6:00PM`,dateToken:`${+day}_${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+month-1]}_${year.slice(2)}`,state:completed.includes(course)?'completed':'available'};
  }));
  if(automatic)settings.schedules={};
- if(discovery){settings.courses=[];settings.name='';settings.email='';}
+ if(discovery){settings.courses=[];}
  globalThis.chrome={
   runtime:{id:'test',getURL:path=>'chrome-extension://test/'+path,onInstalled:event(),onStartup:event(),onMessage:{addListener(fn){listener=fn;}},connectNative(){
     let onMessage;return {onMessage:{addListener(fn){onMessage=fn;},removeListener(){}},onDisconnect:event(),postMessage(payload){queueMicrotask(()=>onMessage({ok:true,binaryReady:true,archiveDir:'test',op:payload.op}));},disconnect(){}};
   }},
   alarms:{onAlarm:{addListener(fn){alarmListener=fn;}},get:async()=>({periodInMinutes:15}),create:async()=>{},clear:async()=>{}},
   action:{onClicked:event(),setBadgeText:async()=>{}},
-  storage:{local:{get:async keys=>Object.fromEntries(keys.map(key=>[key,structuredClone(values[key])])),set:async update=>Object.assign(values,structuredClone(update))}},
+  storage:{local:{get:async keys=>Object.fromEntries(keys.map(key=>[key,structuredClone(values[key])])),set:async update=>Object.assign(values,structuredClone(update)),clear:async()=>{for(const key of Object.keys(values))delete values[key];}}},
   tabs:{create:async({url})=>{const tab={id:tabs.size+1,url,status:'complete'};tabs.set(tab.id,tab);opened.push(url);return tab;},get:async id=>tabs.get(id),update:async(id,update)=>Object.assign(tabs.get(id),update),remove:async()=>{}},
   scripting:{executeScript:async({args})=>{
     const [command,cfg]=args;
@@ -29,7 +29,8 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   }}
  };
  try{
-  await import(`../extension/background.js?scenario=${completed.join('-')}&alarm=${viaAlarm}&auto=${automatic}&discover=${discovery}&clear=${clear}`);
+  await import(`../extension/background.js?scenario=${completed.join('-')}&alarm=${viaAlarm}&auto=${automatic}&discover=${discovery}&clear=${clear}&reset=${reset}`);
+  if(reset){const result=await new Promise(resolve=>listener({type:'reset'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);assert.deepEqual(values,{});return result;}
   if(clear){values.records=[{id:'saved-record',code:'ABC12'}];const result=await new Promise(resolve=>listener({type:'clearCourses'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);return {settings:values.settings,records:values.records};}
   if(discovery){const result=await new Promise(resolve=>listener({type:'redetect'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(values.status,undefined);assert.equal(values.settings.courses.length,0);return result;}
   if(viaAlarm)alarmListener({name:'scan'});
@@ -60,6 +61,8 @@ test('alarm runs the background scan without an options page or scan message',as
 
 test('automatic timetable reads pending website sessions without manual weekly settings',async()=>{const result=await runScenario(['ABC1234'],false,true);assert.deepEqual(result.queries,[['DEF1234']]);assert.equal(result.settings.schedules.ABC1234.length,1);assert.equal(result.settings.schedules.DEF1234.length,1);});
 
-test('first-time discovery returns all recent courses without configured courses or submitting',async()=>{const result=await runScenario([],false,false,true);assert.equal(result.ok,true);assert.deepEqual(result.courses,['ABC1234','DEF1234']);assert.equal(result.schedules.ABC1234.length,1);});
+test('first-time discovery returns all recent courses after identity setup without configured courses or submitting',async()=>{const result=await runScenario([],false,false,true);assert.equal(result.ok,true);assert.deepEqual(result.courses,['ABC1234','DEF1234']);assert.equal(result.schedules.ABC1234.length,1);});
 
 test('clearing courses also deletes collected records and pauses automation',async()=>{const result=await runScenario([],false,false,false,true);assert.deepEqual(result.settings.courses,[]);assert.deepEqual(result.settings.schedules,{});assert.equal(result.settings.enabled,false);assert.equal(result.settings.autoDiscover,false);assert.deepEqual(result.records,[]);});
+
+test('fresh-start reset removes identity, courses, records and local state',async()=>{const result=await runScenario([],false,false,false,false,true);assert.equal(result.ok,true);});

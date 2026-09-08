@@ -18,7 +18,7 @@ await cp(path.join(root,'build/attendance-ocr'),path.join(bundle,'build/attendan
 await cp(path.join(root,'scripts/install-native.py'),path.join(bundle,'install-native.py'));
 const command=path.join(bundle,'安装Mac识别服务.command');
 await writeFile(command,'#!/bin/sh\nset -eu\ncd -- "$(dirname -- "$0")"\n/usr/bin/python3 ./install-native.py\n');await chmod(command,0o755);
-await cp(path.join(root,'README.md'),path.join(bundle,'安装说明.md'));
+await cp(path.join(root,'INSTALL.md'),path.join(bundle,'安装说明.md'));
 const files={};
 async function add(folder,prefix=''){
   for(const entry of await readdir(folder,{withFileTypes:true})){

@@ -1,7 +1,9 @@
+import {createSetupGuide} from './setup-guide.js';
 import {DEFAULTS} from './settings.js';
 import {parseConfiguration} from './configuration.js';
 const $=id=>document.getElementById(id);
 const labels={ready:'等待匹配',submitted:'已签到',expired:'已过期',review:'需要核对',attempting:'核对提交结果',uncertain:'结果待确认'};
+let guide;
 let latest={},editing=false,refreshing=false,refreshQueued=false,refreshSettings=false,healthPending=false,healthWarning=false,saving=false,scanPending=false;
 const request=async payload=>{
   if(!globalThis.chrome?.runtime?.sendMessage)throw new Error('请先在 Chrome 加载此扩展，再从扩展图标打开设置');
@@ -20,15 +22,15 @@ function configAlert(message){
 }
 async function discoverCourses(automatic=false){
  if(discovering)return;if(editing&&!automatic){configAlert('请先保存正在编辑的配置，再重新检测课程。');return;}
- discovering=true;$('redetect').disabled=true;$('redetect').textContent='正在检测课程…';notice('正在读取签到页面最近 7 天的课程，请保持学校账号已登录…');
+ discovering=true;guide?.detecting(true);guide?.message('正在读取签到系统。若需要登录，请先打开上方签到系统链接完成登录，再回来重试。');$('redetect').disabled=true;$('redetect').textContent='正在检测课程…';notice('正在读取签到页面最近 7 天的课程，请保持学校账号已登录…');
  try{
   const result=await request({type:'redetect'});if(!result.courses?.length)throw new Error('最近 7 天未发现课程，请确认签到页面已登录，或手动添加课程。');
   if(editing)throw new Error('检测完成，但你正在编辑配置。请先保存，再重新检测以免覆盖改动。');
   const draft={...latest.settings,courses:[...new Set([...(latest.settings?.courses||[]),...result.courses])],schedules:{...latest.settings?.schedules,...result.schedules}};
-  $('courses').replaceChildren();for(const course of draft.courses)courseRule(course,draft);editing=true;
+  $('courses').replaceChildren();for(const course of draft.courses)courseRule(course,draft);editing=true;guide?.message('课程检测完成。请在下方选择各课程来源并核对课表，点击保存全部设置完成配置。');
   notice(`已检测到 ${result.courses.length} 门课程。请为每门课选择签到码来源，核对课表后保存。`);
   configAlert(`已生成可编辑的课程与课表，请选择邮件、Moodle 或两者，并填写对应来源后保存。${(result.issues||[]).join('；')}`);
- }catch(error){notice(error.message,'error');configAlert(error.message);}finally{discovering=false;$('redetect').disabled=false;$('redetect').textContent='重新检测课程';}
+ }catch(error){const detail=/登录|账号|页面|tab|fetch|权限/i.test(error.message)?'无法确认签到系统登录状态或读取课程。请点击“打开签到系统并登录”，使用刚填写的学校账号完成登录；确认姓名一致，再回到这里重试。原始信息：'+error.message:error.message;guide?.message(detail,true);notice(detail,'error');configAlert(detail);}finally{guide?.detecting(false);discovering=false;$('redetect').disabled=false;$('redetect').textContent='重新检测课程';}
 }
 let observedRun=false,lastResult=null;
 let selectedRecordCourse='';
@@ -44,13 +46,13 @@ function recordWeek(record){
 }
 function showResult(state){
  const status=state.status||{},summary=status.summary||{},confirm=summary.needsConfirmation??(!(status.counts?.records)||state.settings?.courses?.some(c=>!state.settings.schedules?.[c]?.length));
- let box=$('result-dialog');if(!box){box=document.createElement('dialog');box.id='result-dialog';box.setAttribute('aria-labelledby','result-title');box.innerHTML='<h2 id="result-title"></h2><p id="result-message"></p><ul id="result-records"></ul><div class="result-actions"><button id="result-edit" type="button">核对课程配置</button><button id="result-close" type="button">确认</button></div>';document.body.append(box);const close=()=>{if(box.close)box.close();else box.removeAttribute('open');};$('result-close').onclick=close;$('result-edit').onclick=()=>{close();document.querySelector('.courses-card').scrollIntoView?.({behavior:'smooth'});document.querySelector('[data-field="course"]')?.focus();};}
+ let box=$('result-dialog');if(!box){box=document.createElement('dialog');box.id='result-dialog';box.setAttribute('aria-labelledby','result-title');box.innerHTML='<h2 id="result-title"></h2><p id="result-message"></p><ul id="result-records"></ul><div id="result-login-links" class="setup-links" hidden><a href="https://attendance.monash.edu.my/student/Units.aspx" target="_blank" rel="noreferrer">登录签到系统 ↗</a><a href="https://mail.google.com/" target="_blank" rel="noreferrer">登录 Gmail ↗</a><a href="https://learning.monash.edu/" target="_blank" rel="noreferrer">登录 Moodle ↗</a></div><div class="result-actions"><button id="result-edit" type="button">核对课程配置</button><button id="result-close" type="button">确认</button></div>';document.body.append(box);const close=()=>{if(box.close)box.close();else box.removeAttribute('open');};$('result-close').onclick=close;$('result-edit').onclick=()=>{close();document.querySelector('.courses-card').scrollIntoView?.({behavior:'smooth'});document.querySelector('[data-field="course"]')?.focus();};}
  $('result-title').textContent=status.error?'检查未全部成功':summary.submitted?'签到成功':'检查成功';
  $('result-message').textContent=status.error?(status.message||'请查看运行明细并核对配置。'):`${summary.submitted?`本轮已确认 ${summary.submitted} 场签到成功。`:'本轮检查已完成。'}${confirm?'请确认课程、日期、星期、时间和组别；未填写课表或未检测到数据，不代表已经签到成功。':status.message||''}`;
  if(summary.issues?.length)$('result-message').textContent+=' '+summary.issues.join('；');
  $('result-records').replaceChildren();for(const r of summary.records||[]){const li=document.createElement('li');li.textContent=`${r.course} · ${r.date} ${weekday(r.date)} ${r.time||''} · ${r.type||''} ${r.group||''} · ${labels[r.status]||r.status||''}`;$('result-records').append(li);}
  if(!summary.records?.length&&!status.error){const li=document.createElement('li');li.textContent='暂无可确认的近期场次，请核对课表及签到码来源。';$('result-records').append(li);}
- $('result-edit').hidden=!confirm&&!status.error;$('result-close').textContent=confirm?'已核对，关闭':'知道了';if(!box.open){if(box.showModal)box.showModal();else box.setAttribute('open','');}
+ $('result-login-links').hidden=!status.error;$('result-edit').hidden=!confirm&&!status.error;$('result-close').textContent=confirm?'已核对，关闭':'知道了';if(!box.open){if(box.showModal)box.showModal();else box.setAttribute('open','');}
 }
 let noticeTimer;
 function notice(message,kind='general'){
@@ -93,7 +95,7 @@ function courseRule(code='',cfg={}){
  rule.querySelector('button').addEventListener('click',()=>{rule.remove();editing=true;syncSaveButton();});fieldHelp(rule);$('courses').append(rule);syncSaveButton();
 }
 function render(state,settings=false){
-  latest=state;
+  latest=state;guide?.update(state);
   const config=state.settings||{},status=state.status||{};
   if(status.running)observedRun=true;
   if(!status.running&&status.finishedAt&&status.finishedAt!==lastResult&&(observedRun||(scanPending&&status.finishedAt!==scanPreviousFinish)||scanNotice&&status.finishedAt!==scanPreviousFinish)){lastResult=status.finishedAt;observedRun=false;showResult(state);}
@@ -125,8 +127,8 @@ function render(state,settings=false){
   }
   }
 }
-async function refresh(settings=false){if(refreshing){refreshQueued=true;refreshSettings||=settings;return;}refreshing=true;try{const state=await request({type:'status'});render(state,settings);if(state.discoveryAvailable&&state.settings?.autoDiscover!==false&&!state.settings?.courses?.length&&!discoveryStarted&&!editing){discoveryStarted=true;if(window.confirm('是否检测课程信息？确认后将打开已登录的签到页面，读取最近 7 天的课程并生成可编辑课表。此步骤不会提交签到。'))void discoverCourses(true);}}catch(e){notice(e.message,'error');}finally{refreshing=false;if(refreshQueued){const nextSettings=refreshSettings;refreshQueued=false;refreshSettings=false;void refresh(nextSettings);}}}
-async function health(manual=false){if(healthPending){if(manual)notice('正在检查识别服务，请稍候（最多等待 10 秒）。');return;}healthPending=true;$('check-health').disabled=true;$('check-health').textContent='正在检查识别服务…';if(manual)notice('正在检查识别服务（最多等待 10 秒）…');try{const r=await request({type:'health'});renderHealth(r);healthWarning=false;if(manual)notice(r.binaryReady?'识别服务检查通过，可以识别图片。':'识别服务未就绪，请运行 Mac 识别服务安装命令。',r.binaryReady?'success':'warning');if(r.archiveDir)$('archive').textContent=r.archiveDir;}catch(e){renderHealth({});healthWarning=true;notice(e.message,'error');}finally{healthPending=false;$('check-health').disabled=false;$('check-health').textContent='检查识别服务';}}
+async function refresh(settings=false){if(refreshing){refreshQueued=true;refreshSettings||=settings;return;}refreshing=true;try{const state=await request({type:'status'});render(state,settings);if(state.discoveryAvailable&&!guide?.active&&state.settings?.autoDiscover!==false&&!state.settings?.courses?.length&&!discoveryStarted&&!editing){discoveryStarted=true;if(window.confirm('是否检测课程信息？确认后将打开已登录的签到页面，读取最近 7 天的课程并生成可编辑课表。此步骤不会提交签到。'))void discoverCourses(true);}}catch(e){notice(e.message,'error');}finally{refreshing=false;if(refreshQueued){const nextSettings=refreshSettings;refreshQueued=false;refreshSettings=false;void refresh(nextSettings);}}}
+async function health(manual=false){if(healthPending){if(manual)notice('正在检查识别服务，请稍候（最多等待 10 秒）。');return;}healthPending=true;$('check-health').disabled=true;$('check-health').textContent='正在检查识别服务…';if(manual)notice('正在检查识别服务（最多等待 10 秒）…');try{const r=await request({type:'health'});renderHealth(r);guide?.health(r);healthWarning=false;if(manual)notice(r.binaryReady?'识别服务检查通过，可以识别图片。':'识别服务未就绪，请运行 Mac 识别服务安装命令。',r.binaryReady?'success':'warning');if(r.archiveDir)$('archive').textContent=r.archiveDir;}catch(e){renderHealth({});guide?.health(null,e.message);healthWarning=true;notice(e.message,'error');}finally{healthPending=false;$('check-health').disabled=false;$('check-health').textContent='检查识别服务';}}
 $('settings').addEventListener('input',()=>{editing=true;});
 $('settings').addEventListener('submit',async e=>{e.preventDefault();if(saving)return;saving=true;const button=$('settings').querySelector('button[type=submit]');button.disabled=true;button.textContent='正在保存…';notice('正在保存设置…');try{const courses=[],senders={},subjectKeywords={},moodleUrls={},schedules={};for(const row of $('courses').children){const value=f=>row.querySelector(`[data-field="${f}"]`).value.trim();const c=value('course').toUpperCase();if(courses.includes(c))throw new Error('课程代码重复：'+c);if(!value('source-mode'))throw new Error(c+' 请选择签到码来源');courses.push(c);senders[c]=value('source-mode')==='moodle'?'':value('sender');subjectKeywords[c]=value('keyword')||c;moodleUrls[c]=value('source-mode')==='email'?[]:value('urls').split('\n').map(s=>s.trim()).filter(Boolean);schedules[c]=[...row.querySelectorAll('.schedule-row')].map(item=>{const field=name=>item.querySelector(`[data-field="${name}"]`).value.trim(),weekday=Number(field('weekday')),time=field('time');if(!weekday||!time)throw new Error(`${c||'该课程'} 请填写每个场次的星期和时间`);return {weekday,time,type:field('type'),group:field('group')};});}await request({type:'settings',settings:{email:$('email').value,name:$('name').value,enabled:$('enabled').checked,intervalMinutes:Number($('interval').value),academicYear:Number($('year').value),mailQuery:$('mail-query').value,courses,senders,subjectKeywords,moodleUrls,schedules}});editing=false;notice('设置已保存。','success');await refresh(true);}catch(e){notice(e.message,'error');configAlert(e.message);}finally{saving=false;button.disabled=false;button.textContent='保存全部设置';}});
 $('redetect').addEventListener('click',()=>{if(window.confirm('重新检测最近 7 天的课程和课表？检测结果会填入编辑区，保存后替换原课表。'))void discoverCourses();});
@@ -147,4 +149,6 @@ $('check-health').addEventListener('click',()=>health(true));
 $('settings').addEventListener('invalid',event=>{const input=event.target,label=input.closest('label'),text=label?.firstChild?.textContent?.trim()||'配置字段';const message='无法保存：请检查'+text+'，'+input.validationMessage;input.closest('details')?.setAttribute('open','');notice(message,'warning');configAlert(message);},true);
 fieldHelp($('settings'));
 $('export').addEventListener('click',()=>{const fields=['date','time','course','type','group','code','status','reason','sourceUrl','imagePath'];const escape=value=>'"'+String(value??'').replace(/"/g,'""').replace(/^[=+@-]/,"'$&")+'"';const csv='\uFEFF'+[fields,...(latest.records||[]).map(r=>fields.map(f=>r[f]))].map(row=>row.map(escape).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='签到记录.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
-render({settings:DEFAULTS},true);globalThis.chrome?.storage?.onChanged?.addListener((changes,area)=>{if(area==='local'&&(changes.status||changes.settings))void refresh(Boolean(changes.settings));});setInterval(()=>renderProgress(latest.status||{}),1000);setInterval(()=>refresh(),2000);void refresh(true);if(globalThis.chrome?.runtime?.id)void health();
+guide=createSetupGuide({request,refresh,detect:()=>discoverCourses(true),checkHealth:()=>health(true),reload:()=>window.location.reload(),reset:async()=>{if(!window.confirm('确定清空助手的姓名、邮箱、课程、签到记录和浏览器内缓存吗？此操作不可撤销，自动运行会停止。'))return;try{await request({type:'reset'});window.location.reload();}catch(error){configAlert(error.message);}}});
+setInterval(()=>{if(guide.needsHealth()&&!healthPending)void health();},5000);
+render({settings:DEFAULTS,setupGuide:true},true);globalThis.chrome?.storage?.onChanged?.addListener((changes,area)=>{if(area==='local'&&(changes.status||changes.settings))void refresh(Boolean(changes.settings));});setInterval(()=>renderProgress(latest.status||{}),1000);setInterval(()=>refresh(),2000);void refresh(true);if(globalThis.chrome?.runtime?.id)void health();
