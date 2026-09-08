@@ -7,3 +7,11 @@ export function parseConfiguration(text,existing,hasRecords=false){
   const update=Object.fromEntries(FIELDS.filter(field=>Object.hasOwn(value.settings,field)).map(field=>[field,value.settings[field]]));
   return normalizeSettings(existing,update,hasRecords);
 }
+
+export function exportConfiguration(settings){
+ const normalized=normalizeSettings(settings,{},false);
+ const selected=Object.fromEntries(FIELDS.filter(field=>Object.hasOwn(normalized,field)).map(field=>[field,normalized[field]]));
+ const text=JSON.stringify({format:'attendance-settings-v1',settings:selected},null,2)+'\n';
+ if(text.length>131072)throw new Error('配置文件超过 128 KB');
+ return text;
+}

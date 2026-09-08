@@ -2,7 +2,7 @@ import {checkinResult} from './checkin-result.js';
 import {schoolEmail,emailPrefix,configureEmailInput} from './school-email.js';
 import {createSetupGuide} from './setup-guide.js';
 import {DEFAULTS,normalizeSettings} from './settings.js';
-import {parseConfiguration} from './configuration.js';
+import {parseConfiguration,exportConfiguration} from './configuration.js';
 const $=id=>document.getElementById(id);
 const labels={ready:'等待匹配',submitted:'已签到',expired:'已过期',review:'需要核对',attempting:'核对提交结果',uncertain:'结果待确认'};
 let guide,savedFormSnapshot;
@@ -142,6 +142,16 @@ $('redetect').addEventListener('click',()=>{if(window.confirm('重新检测最�
 $('clear-courses').addEventListener('click',async()=>{if(!window.confirm('确定清空所有课程、来源、课表及收集记录吗？此操作不可撤销，自动运行会暂停。本机已归档的图片文件不受影响。'))return;const button=$('clear-courses');button.disabled=true;notice('正在清空课程…');try{await request({type:'clearCourses'});discoveryStarted=true;editing=false;await refresh(true);notice('所有课程和收集记录已清空，自动运行已暂停。','success');}catch(error){notice(error.message,'error');configAlert(error.message);}finally{button.disabled=false;}});
 $('add-course').addEventListener('click',()=>{courseRule();editing=true;});
 $('import-settings').addEventListener('click',()=>{$('settings-file').click();});
+$('export-settings').addEventListener('click',async()=>{
+ const button=$('export-settings');button.disabled=true;button.textContent='正在导出…';
+ try{
+  const state=await request({type:'status'}),text=exportConfiguration(state.settings||DEFAULTS);
+  const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));
+  const link=document.createElement('a');link.href=url;link.download='mamo-checkin-config.json';document.body.append(link);
+  try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  notice(hasUnsavedChanges()?'已导出上次保存的个人配置；页面尚未保存的修改未包含在文件中。':'个人配置已导出，可通过“导入个人配置”恢复。','success');
+ }catch(error){notice('导出失败：'+error.message,'error');}finally{button.disabled=false;button.textContent='导出个人配置';}
+});
 $('settings-file').addEventListener('change',async()=>{
   const file=$('settings-file').files?.[0];if(!file)return;
   try{

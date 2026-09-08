@@ -366,7 +366,7 @@ test('first visit cancelled discovery does not read course pages or prompt again
   await import('../extension/options.js?cancel-onboarding='+Date.now());await new Promise(r=>setTimeout(r,0));
   env.listeners[0]({status:{newValue:{}}},'local');await new Promise(r=>setTimeout(r,0));
   assert.equal(prompts,1);assert.equal(discoveries,0);assert.equal(document.querySelectorAll('.course-rule').length,0);
-  assert.deepEqual([...document.querySelector('.header-actions').children].filter(e=>!e.hidden).map(e=>e.id),['import-settings','mode']);
+  assert.deepEqual([...document.querySelector('.header-actions').children].filter(e=>!e.hidden).map(e=>e.id),['import-settings','export-settings','mode']);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
