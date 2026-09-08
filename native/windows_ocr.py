@@ -51,9 +51,13 @@ def recognize(image_path):
     data = Path(sys.executable).parent / 'tessdata' if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1] / 'build' / 'windows' / 'host' / 'tessdata'
     if getattr(sys, 'frozen', False) and not (data / 'eng.traineddata').is_file():
         raise FileNotFoundError('Bundled English model is missing. Run the latest Install Windows OCR.exe again.')
-    options = ['--tessdata-dir', str(data)] if (data / 'eng.traineddata').is_file() else []
-    result = subprocess.run([binary(), str(image_path), 'stdout', *options, '-l', 'eng', '--psm', '11', '-c', 'tessedit_create_tsv=1'],
+    bundled = (data / 'eng.traineddata').is_file()
+    # Tesseract's data loader uses narrow paths on Windows. CreateProcessW can
+    # enter a Unicode working directory; keep the model argument ASCII.
+    options = ['--tessdata-dir', 'tessdata'] if bundled else []
+    result = subprocess.run([binary(), str(Path(image_path).resolve()), 'stdout', *options, '-l', 'eng', '--psm', '11', '-c', 'tessedit_create_tsv=1'],
                             stdin=subprocess.DEVNULL, capture_output=True, timeout=30,
+                            cwd=str(data.parent) if bundled else None,
                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     if result.returncode:
         raise ValueError(result.stderr.decode('utf-8', errors='replace')[:500] or 'Tesseract failed')
