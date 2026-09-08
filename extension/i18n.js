@@ -1,4 +1,12 @@
 const entries=`
+安装命令授权|Allow the installer
+attendance-ocr 授权|Allow attendance-ocr
+如被阻止：系统设置 → 隐私与安全性 → 仍要打开。|If blocked: System Settings → Privacy & Security → Open Anyway.
+第一步允许后，识别程序还需要单独授权。|After allowing the installer, the recognition executable needs separate approval.
+被阻止，请再次前往|is blocked, go again to
+允许后回到这里重新检测。|After allowing it, return here and check again.
+如果|If
+
 正在检查识别服务…|Checking recognition service…
 请确认课程配置|Review course configuration
 正在检测课程…|Detecting courses…

@@ -26,3 +26,5 @@ body[data-setup]:not([data-setup=complete]) .status-card,body[data-setup]:not([d
 .state.waiting_code{background:#fff3dc;color:#8b601a}
 
 header{flex-wrap:wrap}#language{width:auto;min-width:125px;margin:0;font-size:14px;padding:8px 10px;align-self:flex-start}.header-actions{flex-wrap:wrap}
+
+#setup-guide .authorization-step{list-style:none;display:flex;gap:16px;background:#eff5fc;border:1px solid #dbe7f5;border-radius:14px;padding:20px;margin:14px 0 14px -24px;align-items:flex-start}#setup-guide .authorization-number{display:flex;align-items:center;justify-content:center;flex:0 0 32px;height:32px;background:#006dae;color:#fff;border-radius:9px;font-size:18px;font-weight:700}#setup-guide .authorization-title{display:block;font-size:19px;color:#164d73}#setup-guide .authorization-step p{margin:8px 0 0;font-size:15px;line-height:1.7}
