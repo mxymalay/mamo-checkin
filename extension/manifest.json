@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "马莫签到助手",
   "description": "在 Mac 本机使用 Apple Vision 识别 Gmail 和 Moodle 签到图片，保存并提交最近 7 天的匹配场次。",
-  "version": "0.8.8",
+  "version": "0.8.9",
   "minimum_chrome_version": "120",
   "permissions": [
     "alarms",
