@@ -15,6 +15,10 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -31,8 +35,9 @@ jobs:
           exe = str(pathlib.Path('build/windows/host/mamo-host.exe').resolve())
           with tempfile.TemporaryDirectory(prefix='Mamo test ') as folder:
               env = dict(os.environ, ATTENDANCE_ARCHIVE_DIR=folder)
-              image = Image.new('RGB',(1200,180),'white')
-              ImageDraw.Draw(image).text((30,35),'ATTENDANCE AB123',font=ImageFont.truetype('C:/Windows/Fonts/arial.ttf',64),fill='black')
+              image = Image.new('RGB',(1000,43),'#ffe0e0')
+              draw=ImageDraw.Draw(image); font=ImageFont.truetype('C:/Windows/Fonts/arialbd.ttf',20)
+              for x,text in [(5,'Seminar'),(365,'Friday, 4 Sep'),(545,'01'),(695,'5:00PM'),(931,'AB123')]: draw.text((x,12),text,font=font,fill='black')
               path = pathlib.Path(folder)/'test.png'; image.save(path)
               meta=dict(course='ABC1234',messageId='fixture',sourceUrl='https://example.edu',sentAt='2026-09-08',subject='Test')
               requests=[dict(op='ping'),dict(op='ocr',mimeType='image/png',imageBase64=base64.b64encode(path.read_bytes()).decode(),meta=meta),dict(op='archive',records=[])]
@@ -43,8 +48,9 @@ jobs:
               while output:
                   size=struct.unpack('<I',output[:4])[0]; replies.append(json.loads(output[4:4+size])); output=output[4+size:]
               assert len(replies)==3 and all(r.get('ok') for r in replies), replies
-              assert replies[0]['binaryReady'] and replies[0]['engine']=='Tesseract', replies[0]
+              assert replies[0]['binaryReady'] and replies[0]['engine']=='Tesseract' and replies[0]['ocrRevision']==2, replies[0]
               assert 'AB123' in ' '.join(o['text'] for o in replies[1]['observations']), replies[1]
+              assert '01' in [o['text'] for o in replies[1]['observations']], replies[1]
               assert pathlib.Path(replies[2]['archivePath']).exists()
       - name: Exercise installer and Chrome registration
         shell: python

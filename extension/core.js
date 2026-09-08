@@ -88,7 +88,12 @@ export function parseImageRows(observations,meta) {
 export function mergeRecords(existing,incoming) {
   const map=new Map(existing.map(r=>[r.id,{...r}]));
   for(const r of incoming){
-    const old=map.get(r.id);
+    let old=map.get(r.id);
+    const sameRow=x=>r.imageId&&r.messageId&&['course','date','time','type','imageId','messageId'].every(k=>r[k]&&x[k]===r[k]);
+    if(r.group&&r.code&&incoming.filter(sameRow).length===1){
+      const partials=[...map.values()].filter(x=>x.id!==r.id&&!x.group&&!x.code&&!x.attemptedAt&&['review','expired'].includes(x.status)&&sameRow(x));
+      for(const partial of partials){map.delete(partial.id);if(!old&&partial.status==='expired')old={...partial,id:r.id,sessionOnly:true};}
+    }
     if(!old){map.set(r.id,{...r});continue;}
     if(old.sessionOnly&&!old.code){map.set(r.id,{...r,...(['submitted','expired'].includes(old.status)?{status:old.status,reason:old.reason}:{})});continue;}
     const sources=[...new Map([...recordSources(old),...recordSources(r)].map(source=>[[source.sourceUrl,source.messageId,source.imagePath].join('|'),source])).values()];

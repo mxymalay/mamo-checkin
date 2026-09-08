@@ -34,6 +34,7 @@ export async function localService({onProgress=async()=>{},timeoutMs=35000}={}){
       const started=Date.now();
       let result;
       try{result=await request(payload);}catch(error){if(payload.op==='ocr')await report({message:'图片识别失败：'+error.message,service:{busy:false,binaryReady:false,stage:'识别失败'}});throw error;}
+      if(payload.op==='ping'&&result.engine==='Tesseract'&&!(result.ocrRevision>=2)){result={...result,binaryReady:false,healthError:'Please run the latest Install Windows OCR.exe to install the corrected English model.'};}
       if(payload.op==='ocr')await report({message:(result.cached?'复用本地识别结果':'本地识别完成')+`（${((Date.now()-started)/1000).toFixed(2)} 秒）`,service:{busy:false,binaryReady:true,stage:ocrEngine},...(result.cached&&{increment:{cached:1}})});
       return result;
     });

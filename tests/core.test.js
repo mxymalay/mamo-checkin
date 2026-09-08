@@ -113,3 +113,9 @@ test('configured course-shaped identifiers are parsed and can become eligible',(
  const parsed=parseImageRows([observation('Tutorial Monday,7 Sep 02 6:00PM BC234')],{...meta,course:'COMP90024',sentAt:'2026-09-07T19:00:00+08:00'})[0];
  assert.deepEqual([parsed.type,parsed.status],['Tutorial','ready']);
 });
+test('re-reading the same image replaces an incomplete row without duplicate historical records',()=>{
+ const common={course:'ABC1234',date:'2026-09-04',time:'17:00',type:'Seminar',imageId:'fixture',messageId:'mail'};
+ const partial={...common,id:'mail|fixture|row-0',group:null,code:null,status:'expired'};
+ const full={...common,id:'ABC1234|2026-09-04|Seminar|01|17:00',group:'01',code:'AB123',status:'review'};
+ const rows=mergeRecords([partial],[full]);assert.equal(rows.length,1);assert.equal(rows[0].id,full.id);assert.equal(rows[0].status,'expired');
+});

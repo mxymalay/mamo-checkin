@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import sys
 
 
 def binary():
@@ -47,7 +48,11 @@ def parse_tsv(value):
 
 
 def recognize(image_path):
-    result = subprocess.run([binary(), str(image_path), 'stdout', '-l', 'eng', '--psm', '11', 'tsv'],
+    data = Path(sys.executable).parent / 'tessdata' if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1] / 'build' / 'windows' / 'host' / 'tessdata'
+    if getattr(sys, 'frozen', False) and not (data / 'eng.traineddata').is_file():
+        raise FileNotFoundError('Bundled English model is missing. Run the latest Install Windows OCR.exe again.')
+    options = ['--tessdata-dir', str(data)] if (data / 'eng.traineddata').is_file() else []
+    result = subprocess.run([binary(), str(image_path), 'stdout', *options, '-l', 'eng', '--psm', '11', 'tsv'],
                             stdin=subprocess.DEVNULL, capture_output=True, timeout=30,
                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     if result.returncode:

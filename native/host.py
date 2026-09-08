@@ -25,7 +25,7 @@ MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_OCR_OUTPUT_BYTES = MAX_RESPONSE_BYTES - 64 * 1024
 OCR_TIMEOUT_SECONDS = 30
-OCR_CACHE_VERSION = 1
+OCR_CACHE_VERSION = 2 if sys.platform == "win32" else 1
 PROTOCOL_VERSION = 1
 IS_WINDOWS = sys.platform == "win32"
 OCR_ENGINE = "Tesseract" if IS_WINDOWS else "Apple Vision"
@@ -355,6 +355,7 @@ def handle_request(request):
             "binaryPath": str(OCR_BINARY),
             "archiveDir": str(archive_directory()),
             "engine": OCR_ENGINE,
+            "ocrRevision": OCR_CACHE_VERSION,
             "busy": False,
             "stage": ("Local OCR ready" if ready else "Local OCR self-test failed") if IS_WINDOWS else ("Mac 原生识别已就绪" if ready else "Mac 原生识别未通过启动自检"),
             "protocolVersion": PROTOCOL_VERSION,
