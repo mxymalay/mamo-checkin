@@ -423,6 +423,6 @@ test('a codeless waiting session shows a retry action for its own course',async(
  const env=installDom(async p=>{if(p.type==='retry'){calls.push(p);return {ok:true};}return p.type==='health'?{ok:true,binaryReady:true}:state;});
  try{await import(`../extension/options.js?waiting-retry=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
  assert.match(document.getElementById('records').textContent,/等待签到码/);assert.equal(document.querySelector('[aria-label="复制签到码"]'),null);
- const retry=[...document.querySelectorAll('#records button')].find(b=>b.textContent==='重试');assert.ok(retry);retry.click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(calls,[{type:'retry',course:'ABC1234'}]);
+ const retry=[...document.querySelectorAll('#records button')].find(b=>b.textContent==='重试');assert.ok(retry);assert.equal(retry.closest('td').cellIndex,2);retry.click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(calls,[{type:'retry',course:'ABC1234'}]);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
