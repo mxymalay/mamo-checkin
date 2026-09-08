@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "马莫签到",
+  "description": "在 Mac 本机使用 Apple Vision 识别 Gmail 和 Moodle 签到图片，保存并提交最近 7 天的匹配场次。",
+  "version": "0.7.5",
+  "minimum_chrome_version": "120",
+  "permissions": [
+    "alarms",
+    "storage",
+    "scripting",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://*.googleusercontent.com/*",
+    "https://attendance.monash.edu.my/*",
+    "https://learning.monash.edu/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "打开马莫签到",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy8Qzo9R0sKhqW740xqOyCBfj3ROka2FKaE8/V+Y98cGFmWGuOA9y+l0AvOBrg6SkBCXh59PKv71Y5+xU8A34gXe+KJZ5S/S5UxxfkW2gMhRONUkPQeA7S2nepFlpJUjISeSGpQneciK2cUPE+eix1oawgytK2iB1jTZHWLLiGPQyyAu7YFrcLeID8zQVUlZ1jAqBXYZ81HlVHOXpGnpCRKq22QaBT74eFrAM+JoO3XGv6++lZy0QDjfwRaH/vyKDiMHqBfM2LK1MtC+kl9+8BCq60lMVi9DEFTYp4u6Dsdrralz9fQ3NCEzMlQ9suE4vRdkMYwECZ56t0Z613hlv0wIDAQAB",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

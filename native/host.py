@@ -1,0 +1,384 @@
+#!/usr/bin/env python3
+"""Chrome Native Messaging host for local attendance OCR and archiving."""
+
+import base64
+import binascii
+from contextlib import contextmanager
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import struct
+import subprocess
+import sys
+import tempfile
+
+
+MAX_REQUEST_BYTES = 16 * 1024 * 1024
+MAX_RESPONSE_BYTES = 1024 * 1024
+MAX_IMAGE_BYTES = 12 * 1024 * 1024
+MAX_OCR_OUTPUT_BYTES = MAX_RESPONSE_BYTES - 64 * 1024
+OCR_TIMEOUT_SECONDS = 30
+OCR_CACHE_VERSION = 1
+PROTOCOL_VERSION = 1
+OCR_ENGINE = "Apple Vision"
+COURSE_PATTERN = re.compile(r"[A-Z]{2,10}\d{3,6}\Z")
+META_FIELDS = ("course", "messageId", "sourceUrl", "sentAt", "subject")
+MIME_EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg"}
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+OCR_BINARY = PROJECT_ROOT / "build" / "attendance-ocr"
+
+
+class RequestError(Exception):
+    pass
+
+
+def archive_directory():
+    configured = os.environ.get("ATTENDANCE_ARCHIVE_DIR")
+    if configured:
+        path = Path(configured).expanduser()
+    else:
+        path = Path.home() / "Documents" / "签到助手归档"
+    return path.resolve()
+
+
+def atomic_write(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", prefix=f".{path.name}.", suffix=".tmp", dir=path.parent, delete=False
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            temporary.write(data)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def atomic_write_once(path, data):
+    """Publish immutable bytes atomically, leaving an existing file untouched."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", prefix=f".{path.name}.", suffix=".tmp", dir=path.parent, delete=False
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            temporary.write(data)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        try:
+            os.link(temporary_path, path)
+        except FileExistsError:
+            pass
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
+@contextmanager
+def image_lock(images_directory, image_id):
+    """Serialize one image's immutable original, provenance, and OCR cache."""
+    images_directory.mkdir(parents=True, exist_ok=True)
+    lock_path = images_directory / f".{image_id}.lock"
+    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def json_bytes(value):
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
+
+
+def validate_meta(meta):
+    if not isinstance(meta, dict):
+        raise RequestError("meta must be an object")
+    for field in META_FIELDS:
+        if not isinstance(meta.get(field), str) or not meta[field]:
+            raise RequestError(f"meta.{field} must be a non-empty string")
+    if COURSE_PATTERN.fullmatch(meta["course"]) is None:
+        raise RequestError("meta.course must match [A-Z]{2,10} followed by 3-6 digits")
+
+
+def valid_observations(observations):
+    if not isinstance(observations, list):
+        return False
+    for observation in observations:
+        if not isinstance(observation, dict) or not isinstance(observation.get("text"), str):
+            return False
+        for field in ("confidence", "x", "y", "width", "height"):
+            value = observation.get(field)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return False
+            if value < 0 or value > 1:
+                return False
+        if observation["x"] + observation["width"] > 1.000001:
+            return False
+        if observation["y"] + observation["height"] > 1.000001:
+            return False
+    return True
+
+
+def run_ocr(image_path):
+    if not OCR_BINARY.is_file() or not os.access(OCR_BINARY, os.X_OK):
+        raise RequestError("OCR binary is not ready")
+    try:
+        completed = subprocess.run(
+            [str(OCR_BINARY), str(image_path)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=OCR_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RequestError("OCR timed out") from error
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise RequestError(detail[:500] or "OCR failed")
+    if len(completed.stdout) > MAX_OCR_OUTPUT_BYTES:
+        raise RequestError("OCR output is too large")
+    try:
+        observations = json.loads(completed.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RequestError("OCR returned invalid JSON") from error
+    if not valid_observations(observations):
+        raise RequestError("OCR returned an invalid observation list")
+    return observations
+
+
+def load_sidecar(path, image_id):
+    if not path.exists():
+        return {"imageId": image_id, "sources": []}
+    try:
+        sidecar = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RequestError("image metadata sidecar is invalid") from error
+    if not isinstance(sidecar, dict) or sidecar.get("imageId") != image_id:
+        raise RequestError("image metadata sidecar does not match the image")
+    sources = sidecar.get("sources")
+    if not isinstance(sources, list) or not all(isinstance(source, dict) for source in sources):
+        sources = []
+    legacy_meta = sidecar.get("meta")
+    if isinstance(legacy_meta, dict):
+        sources.insert(0, legacy_meta)
+    sidecar["sources"] = deduplicate_sources(sources)
+    return sidecar
+
+
+def deduplicate_sources(sources):
+    result = []
+    seen = set()
+    for source in sources:
+        key = json_bytes(source)
+        if key not in seen:
+            seen.add(key)
+            result.append(source)
+    return result
+
+
+def existing_image_path(images_directory, image_id, preferred_extension, sidecar):
+    image_file = sidecar.get("imageFile")
+    if isinstance(image_file, str) and image_file in {
+        f"{image_id}.png",
+        f"{image_id}.jpg",
+    }:
+        candidate = images_directory / image_file
+        if candidate.exists():
+            return candidate
+    for extension in (preferred_extension, ".png", ".jpg"):
+        candidate = images_directory / f"{image_id}{extension}"
+        if candidate.exists():
+            return candidate
+    return images_directory / f"{image_id}{preferred_extension}"
+
+
+def verify_original(path, expected_image_id):
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as error:
+        raise RequestError("archived original image cannot be read") from error
+    if digest.hexdigest() != expected_image_id:
+        raise RequestError("archived original image does not match its hash")
+
+
+def handle_ocr(request):
+    mime_type = request.get("mimeType")
+    if mime_type not in MIME_EXTENSIONS:
+        raise RequestError("mimeType must be image/png or image/jpeg")
+    meta = request.get("meta")
+    validate_meta(meta)
+    encoded_image = request.get("imageBase64")
+    if not isinstance(encoded_image, str) or not encoded_image:
+        raise RequestError("imageBase64 must be a non-empty string")
+    try:
+        image_data = base64.b64decode(encoded_image, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise RequestError("imageBase64 is invalid") from error
+    if not image_data:
+        raise RequestError("image is empty")
+    if len(image_data) > MAX_IMAGE_BYTES:
+        raise RequestError("image is too large")
+
+    image_id = hashlib.sha256(image_data).hexdigest()
+    images_directory = archive_directory() / "images"
+    sidecar_path = images_directory / f"{image_id}.json"
+    with image_lock(images_directory, image_id):
+        sidecar = load_sidecar(sidecar_path, image_id)
+        image_path = existing_image_path(
+            images_directory, image_id, MIME_EXTENSIONS[mime_type], sidecar
+        )
+        atomic_write_once(image_path, image_data)
+        verify_original(image_path, image_id)
+
+        sources = deduplicate_sources([*sidecar.get("sources", []), meta])
+        old_mime_types = sidecar.get("mimeTypes")
+        if not isinstance(old_mime_types, list) or not all(
+            isinstance(value, str) for value in old_mime_types
+        ):
+            old_mime_types = []
+        original_mime_type = sidecar.get("mimeType")
+        if original_mime_type not in MIME_EXTENSIONS:
+            original_mime_type = mime_type
+        sidecar.update(
+            {
+                "imageId": image_id,
+                "imageFile": image_path.name,
+                "mimeType": original_mime_type,
+                "mimeTypes": list(dict.fromkeys([*old_mime_types, mime_type])),
+                "meta": sources[0],
+                "sources": sources,
+            }
+        )
+        cached_ocr = sidecar.get("ocr")
+        cached = bool(
+            isinstance(cached_ocr, dict)
+            and cached_ocr.get("version") == OCR_CACHE_VERSION
+            and cached_ocr.get("engine") == OCR_ENGINE
+            and valid_observations(cached_ocr.get("observations"))
+        )
+        if cached:
+            observations = cached_ocr["observations"]
+        else:
+            # Save source provenance even when Vision later fails or times out.
+            atomic_write(sidecar_path, json_bytes(sidecar) + b"\n")
+            observations = run_ocr(image_path)
+            sidecar["ocr"] = {
+                "version": OCR_CACHE_VERSION,
+                "engine": OCR_ENGINE,
+                "observations": observations,
+            }
+        atomic_write(sidecar_path, json_bytes(sidecar) + b"\n")
+    return {
+        "ok": True,
+        "imageId": image_id,
+        "imagePath": str(image_path),
+        "observations": observations,
+        "cached": cached,
+    }
+
+
+def handle_archive(request):
+    records = request.get("records")
+    if not isinstance(records, list):
+        raise RequestError("records must be an array")
+    archive_path = archive_directory() / "records.json"
+    atomic_write(archive_path, json_bytes(records) + b"\n")
+    return {"ok": True, "archivePath": str(archive_path)}
+
+
+def handle_request(request):
+    if not isinstance(request, dict):
+        raise RequestError("request must be a JSON object")
+    operation = request.get("op")
+    if operation == "ping":
+        return {
+            "ok": True,
+            "binaryReady": OCR_BINARY.is_file() and os.access(OCR_BINARY, os.X_OK),
+            "archiveDir": str(archive_directory()),
+            "engine": OCR_ENGINE,
+            "busy": False,
+            "stage": "Mac 原生识别已就绪",
+            "protocolVersion": PROTOCOL_VERSION,
+        }
+    if operation == "ocr":
+        return handle_ocr(request)
+    if operation == "archive":
+        return handle_archive(request)
+    raise RequestError("unsupported op")
+
+
+def read_exact(stream, size):
+    chunks = []
+    remaining = size
+    while remaining:
+        chunk = stream.read(remaining)
+        if not chunk:
+            raise RequestError("truncated native message")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
+def send_response(stream, response):
+    encoded = json_bytes(response)
+    if len(encoded) > MAX_RESPONSE_BYTES:
+        encoded = json_bytes({"ok": False, "error": "response is too large"})
+    stream.write(struct.pack("<I", len(encoded)))
+    stream.write(encoded)
+    stream.flush()
+
+
+def main():
+    os.umask(0o077)
+    input_stream = sys.stdin.buffer
+    output_stream = sys.stdout.buffer
+    while True:
+        header = input_stream.read(4)
+        if not header:
+            return 0
+        if len(header) != 4:
+            send_response(output_stream, {"ok": False, "error": "truncated native header"})
+            return 0
+        length = struct.unpack("<I", header)[0]
+        if length > MAX_REQUEST_BYTES:
+            send_response(output_stream, {"ok": False, "error": "native message is too large"})
+            return 0
+        try:
+            body = read_exact(input_stream, length)
+            try:
+                request = json.loads(body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise RequestError("request is not valid UTF-8 JSON") from error
+            response = handle_request(request)
+        except RequestError as error:
+            response = {"ok": False, "error": str(error)}
+        except Exception:
+            response = {"ok": False, "error": "internal native host error"}
+        send_response(output_stream, response)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

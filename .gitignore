@@ -1,0 +1,17 @@
+samples/
+archive/
+build/
+node_modules/
+.DS_Store
+__pycache__/
+*.pyc
+.superpowers/
+private/
+
+# Local development reports and real-image verification stay private.
+docs/
+tests/mac-service.test.js
+tests/browser-ocr.test.js
+tests/test_native.py
+tests/manual-ocr.html
+tests/manual-ocr.js
