@@ -11,6 +11,14 @@ class AdapterTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0], dict(text='AB123', confidence=.825, x=.1, y=.7, width=.2, height=.1))
         self.assertNotIn('codeVerified', rows[0])
+    def test_tsv_format_does_not_depend_on_external_config_files(self):
+        from unittest.mock import patch
+        import subprocess
+        result=subprocess.CompletedProcess([],0,(HEADER+'1\t1\t0\t0\t0\t0\t0\t0\t64\t64\t-1\t\n').encode(),b'')
+        with patch.object(windows_ocr,'binary',return_value='tesseract'), patch.object(windows_ocr.subprocess,'run',return_value=result) as run:
+            self.assertEqual(windows_ocr.recognize('test.png'),[])
+            self.assertIn('tessedit_create_tsv=1',run.call_args.args[0])
+            self.assertNotIn('tsv',run.call_args.args[0])
     def test_malformed_output_is_rejected(self):
         with self.assertRaises(ValueError): windows_ocr.parse_tsv(HEADER)
     @unittest.skipUnless(sys.platform == 'win32', 'Windows integration test')
