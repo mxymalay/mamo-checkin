@@ -20,3 +20,5 @@ body[data-setup]:not([data-setup=complete]) .status-card,body[data-setup]:not([d
 .school-email-field{display:flex;align-items:center;gap:12px;border:0;background:transparent;margin-top:8px}.school-email-field input{min-width:0;width:100%;margin:0;flex:1}.school-email-suffix{padding:12px;color:#53667b;font-size:14px;white-space:nowrap}
 
 #settings button[type=submit],#save-general{width:100%;max-width:none}#result-success-icon{width:64px;height:64px;border-radius:50%;background:#e7f5ee;color:#168457;display:flex;align-items:center;justify-content:center;margin:0 0 20px}#result-success-icon[hidden]{display:none}#result-dialog{max-width:600px}#result-records{padding:0;list-style:none}#result-records li{padding:12px 0;border-bottom:1px solid #e3eaf1;line-height:1.6}.course-result strong{display:block;color:#174b70;margin-bottom:4px}.course-result span{color:#526477}
+
+.name-hint{display:block;margin-top:8px;font-size:14px;line-height:1.6;color:#526477;font-weight:400}.name-hint a{margin:0 3px;text-decoration:underline}
