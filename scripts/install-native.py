@@ -27,7 +27,7 @@ def install(bundle, home):
     registry = home / 'Library' / 'Application Support' / 'Google' / 'Chrome' / 'NativeMessagingHosts'
     registry.mkdir(parents=True, exist_ok=True)
     target = registry / 'com.attendanceassistant.vision.json'
-    target.write_text(json.dumps({'name':'com.attendanceassistant.vision','description':'马莫签到 Mac 本地图片识别','path':str(launcher),'type':'stdio','allowed_origins':['chrome-extension://' + extension_id + '/']}, ensure_ascii=False, indent=2)+'\n')
+    target.write_text(json.dumps({'name':'com.attendanceassistant.vision','description':'马莫签到助手 Mac 本地图片识别','path':str(launcher),'type':'stdio','allowed_origins':['chrome-extension://' + extension_id + '/']}, ensure_ascii=False, indent=2)+'\n')
     os.chmod(target, 0o600)
     return launcher, target, extension_id
 
@@ -47,5 +47,5 @@ if __name__ == '__main__':
     if not health.get('ok') or not health.get('binaryReady'):
         raise SystemExit('安装后的本机通信自检未通过。')
     print('Mac 原生识别服务已安装，自检通过。')
-    print('请在 Chrome 中重新加载马莫签到，然后重新打开设置页。')
+    print('请在 Chrome 中重新加载马莫签到助手，然后重新打开设置页。')
     print('扩展 ID：' + extension_id)

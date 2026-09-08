@@ -28,6 +28,6 @@ async function add(folder,prefix=''){
   }
 }
 await add(bundle);
-const output=path.join(root,'build','马莫签到-Mac.zip');
+const output=path.join(root,'build','马莫签到助手-Mac.zip');
 await writeFile(output,zipSync(files,{level:6}));
 console.log('Mac 安装包：'+output);

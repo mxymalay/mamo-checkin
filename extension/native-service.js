@@ -1,5 +1,5 @@
 const HOST='com.attendanceassistant.vision';
-const connectionError=detail=>new Error('Mac 原生识别服务无法连接。请运行安装包中的“安装Mac识别服务.command”，然后重新加载马莫签到。'+(detail?'（'+detail+'）':''));
+const connectionError=detail=>new Error('Mac 原生识别服务无法连接。请运行安装包中的“安装Mac识别服务.command”，然后重新加载马莫签到助手。'+(detail?'（'+detail+'）':''));
 
 export async function localService({onProgress=async()=>{},timeoutMs=35000}={}){
   let port;

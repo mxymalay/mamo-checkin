@@ -7,7 +7,7 @@ const request=async payload=>{
   if(!globalThis.chrome?.runtime?.sendMessage)throw new Error('请先在 Chrome 加载此扩展，再从扩展图标打开设置');
   let timer;
   try{
-    const result=await Promise.race([chrome.runtime.sendMessage(payload),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('后台响应超时，操作结果尚未确认。请重新打开马莫签到查看状态；若刚升级扩展，请关闭旧页面后重新打开。')),payload.type==='redetect'?30000:10000);})]);
+    const result=await Promise.race([chrome.runtime.sendMessage(payload),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('后台响应超时，操作结果尚未确认。请重新打开马莫签到助手查看状态；若刚升级扩展，请关闭旧页面后重新打开。')),payload.type==='redetect'?30000:10000);})]);
     if(!result)throw new Error('后台未返回结果，请关闭此页面，从扩展图标重新打开');
     if(result.ok===false)throw new Error(result.error);return result;
   }finally{clearTimeout(timer);}
