@@ -4,7 +4,7 @@ import {expectedSessions} from '../extension/timetable.js';
 const event=()=>({addListener(){},removeListener(){}});
 async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false,reset=false){
  const previous=globalThis.chrome,tabs=new Map(),opened=[],queries=[];
- const settings={enabled:true,email:'student@example.edu',name:'Example Student',academicYear:2026,intervalMinutes:15,courses:['ABC1234','DEF1234'],senders:{ABC1234:'a@example.edu',DEF1234:'d@example.edu'},subjectKeywords:{ABC1234:'ABC1234',DEF1234:'DEF1234'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1'],DEF1234:['https://learning.monash.edu/course/view.php?id=2']},schedules:{ABC1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}],DEF1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}]}};
+ const settings={enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,intervalMinutes:15,courses:['ABC1234','DEF1234'],senders:{ABC1234:'a@example.edu',DEF1234:'d@example.edu'},subjectKeywords:{ABC1234:'ABC1234',DEF1234:'DEF1234'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1'],DEF1234:['https://learning.monash.edu/course/view.php?id=2']},schedules:{ABC1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}],DEF1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}]}};
  const values={settings,records:[],seenMessages:{},seenThreads:{}};let listener,alarmListener;
  const activities=settings.courses.flatMap(course=>expectedSessions(settings,course).map(slot=>{
    const [year,month,day]=slot.date.split('-');

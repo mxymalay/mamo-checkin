@@ -314,13 +314,26 @@ def handle_request(request):
         raise RequestError("request must be a JSON object")
     operation = request.get("op")
     if operation == "ping":
+        ready = False
+        health_error = ""
+        try:
+            probe = subprocess.run([str(OCR_BINARY), "--self-test"], capture_output=True, timeout=6, check=False)
+            payload = json.loads(probe.stdout.decode("utf-8")) if probe.returncode == 0 else None
+            ready = isinstance(payload, dict) and payload.get("ok") is True
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            pass
+        if not ready:
+            health_error = "attendance-ocr 未通过启动自检。请安装新版识别服务；若 macOS 阻止此程序，请到系统设置 → 隐私与安全性 → 仍要打开，允许 attendance-ocr 后点击重新检测。"
         return {
             "ok": True,
-            "binaryReady": OCR_BINARY.is_file() and os.access(OCR_BINARY, os.X_OK),
+            "binaryReady": ready,
+            "nativeBlocked": not ready and OCR_BINARY.is_file(),
+            "healthError": health_error,
+            "binaryPath": str(OCR_BINARY),
             "archiveDir": str(archive_directory()),
             "engine": OCR_ENGINE,
             "busy": False,
-            "stage": "Mac 原生识别已就绪",
+            "stage": "Mac 原生识别已就绪" if ready else "Mac 原生识别未通过启动自检",
             "protocolVersion": PROTOCOL_VERSION,
         }
     if operation == "ocr":

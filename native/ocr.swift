@@ -64,6 +64,14 @@ func recognize(imagePath: String) throws -> [Observation] {
 }
 
 do {
+    if CommandLine.arguments == [CommandLine.arguments[0], "--self-test"] {
+        let context = CGContext(data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 256, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        try VNImageRequestHandler(cgImage: context.makeImage()!, options: [:]).perform([VNRecognizeTextRequest()])
+        FileHandle.standardOutput.write(Data("{\"ok\":true}\n".utf8))
+        exit(0)
+    }
     guard CommandLine.arguments.count == 2 else {
         throw OCRError.usage
     }

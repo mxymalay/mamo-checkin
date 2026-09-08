@@ -45,7 +45,10 @@ if __name__ == '__main__':
     size = struct.unpack('<I',response[:4])[0]
     health = json.loads(response[4:4+size])
     if not health.get('ok') or not health.get('binaryReady'):
-        raise SystemExit('安装后的本机通信自检未通过。')
+        print('识别服务文件已安装，但 attendance-ocr 启动自检尚未通过。')
+        print('请到 系统设置 → 隐私与安全性 → 仍要打开，允许 attendance-ocr。')
+        print('识别程序位置：' + health.get('binaryPath', ''))
+        raise SystemExit('完成后回到助手页面，点击“已在系统设置允许，重新检测”。不要跳过这一步。')
     print('Mac 原生识别服务已安装，自检通过。')
     print('请在 Chrome 中重新加载马莫签到助手，然后重新打开设置页。')
     print('扩展 ID：' + extension_id)

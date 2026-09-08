@@ -23,3 +23,17 @@ test('installer registers only the intended extension and launcher works with sp
     assert.equal(JSON.parse(response.stdout.subarray(4)).binaryReady,true);
   }finally{await rm(directory,{recursive:true,force:true});}
 });
+test('native health does not report ready when the executable fails or returns malformed output',()=>{
+ const code=`import importlib.util, pathlib, sys
+from unittest.mock import patch
+from subprocess import CompletedProcess
+spec=importlib.util.spec_from_file_location('host',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+for result in [CompletedProcess([],1,b'',b'blocked'),CompletedProcess([],0,b'[]',b''),CompletedProcess([],0,b'not json',b'')]:
+ with patch.object(m.subprocess,'run',return_value=result):
+  response=m.handle_request({'op':'ping'})
+  assert response['binaryReady'] is False
+  assert '未通过' in response['stage']
+  assert '隐私与安全性' in response['healthError']
+`;
+ const result=spawnSync('/usr/bin/python3',['-c',code,path.join(root,'native/host.py')],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
+});
