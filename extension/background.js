@@ -189,7 +189,7 @@ async function submit(state,native){
 }
 async function run(manual=false){
   const state=await loadState();
-  const previouslySubmitted=new Set(state.records.filter(r=>r.status==='submitted').map(r=>r.id));
+  state.runSubmittedIds=new Set();
   if(!manual&&!state.settings.enabled)return {ok:false,error:'自动运行已暂停'};
   state.manualRun=manual;
   let native;
@@ -215,17 +215,17 @@ async function run(manual=false){
     const attention=state.records.filter(r=>['review','uncertain','attempting'].includes(r.status)).length;
     const failures=state.diagnostics.length,lastFailure=state.diagnostics.at(-1)?.error;
     const message=failures?`${failures} 项处理失败：${lastFailure}`:attention?`${attention} 条记录需要核对`:'本轮签到流程已完成';
-    const currentRecords=state.records.filter(r=>state.settings.courses.includes(r.course)&&!outsideAttendanceWindow(r)&&recordInSchedule(state.settings,r));
-    const summary={issues:state.scheduleIssues||[],submitted:currentRecords.filter(r=>r.status==='submitted'&&!previouslySubmitted.has(r.id)).length,detected:currentRecords.length,needsConfirmation:!currentRecords.length||Boolean(state.autoNeedsConfirmation),records:currentRecords.map(({course,date,time,type,group,status})=>({course,date,time,type,group,status}))};
+    const currentRecords=state.records.filter(r=>state.settings.courses.includes(r.course)&&(r.status==='expired'||(!outsideAttendanceWindow(r)&&recordInSchedule(state.settings,r))));
+    const summary={issues:state.scheduleIssues||[],submitted:currentRecords.filter(r=>r.status==='submitted'&&state.runSubmittedIds.has(r.id)).length,detected:currentRecords.length,needsConfirmation:!currentRecords.length||Boolean(state.autoNeedsConfirmation),records:currentRecords.map(({course,date,time,type,group,status})=>({course,date,time,type,group,status}))};
     summary.courses=state.settings.courses.map(course=>{
       const activities=(state.activities||[]).filter(a=>a.course===course&&!outsideAttendanceWindow(a)&&recordInSchedule(state.settings,a));
       const records=currentRecords.filter(r=>r.course===course);
-      const submitted=records.filter(r=>r.status==='submitted'&&!previouslySubmitted.has(r.id)).length;
-      const completed=activities.filter(a=>a.state==='completed').length;
+      const submitted=records.filter(r=>r.status==='submitted'&&state.runSubmittedIds.has(r.id)).length;
+      const completed=activities.filter(a=>a.state==='completed'&&!records.some(r=>state.runSubmittedIds.has(r.id)&&matchActivity(r,a))).length;
       const pending=activities.filter(a=>a.state==='available'&&!records.some(r=>r.status==='submitted'&&matchActivity(r,a))).length;
       const expired=Math.max(activities.filter(a=>a.state==='expired').length,records.filter(r=>r.status==='expired').length);
       const unresolved=records.filter(r=>['ready','review','uncertain','attempting'].includes(r.status)).length;
-      const reason=expired?`有 ${expired} 场已过期，无法签到${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:unresolved?`有 ${unresolved} 场尚未确认签到成功，请核对记录${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:submitted?`本次签到成功 ${submitted} 场${completed?`；网站显示已签到 ${completed} 场`:''}`:completed&&!pending&&!expired&&!unresolved?`网站显示 ${completed} 场已签到，本次无需重复签到或查找签到码`:pending?`仍有 ${pending} 场待签到，未取得可确认的签到结果，请核对签到码来源和场次`:activities.length?'近期场次已关闭，无法补签':state.activities?'未找到最近 7 天内与课表匹配的场次，请核对课表':'未能读取网站签到状态，请确认登录后重试';
+      const reason=expired?`已保存记录中有 ${expired} 场已过期，无法补签${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:unresolved?`有 ${unresolved} 场尚未确认签到成功，请核对记录${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:submitted?`本次签到成功 ${submitted} 场${completed?`；网站显示已签到 ${completed} 场`:''}`:completed&&!pending&&!expired&&!unresolved?`网站显示 ${completed} 场已签到，本次无需重复签到或查找签到码`:pending?`仍有 ${pending} 场待签到，未取得可确认的签到结果，请核对签到码来源和场次`:activities.length?'近期场次已关闭，无法补签':state.activities?'未找到最近 7 天内与课表匹配的场次，请核对课表':'未能读取网站签到状态，请确认登录后重试';
       return {course,submitted,completed,pending,expired,unresolved,reason};
     });
     summary.allCompleted=summary.courses.length>0&&summary.courses.every(c=>c.completed>0&&!c.pending&&!c.expired&&!c.unresolved&&!courseNeedsSource(state,c.course));

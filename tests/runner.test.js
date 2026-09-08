@@ -8,12 +8,12 @@ test('checkpoint is durable before any submit and only website tick marks succes
  const state={records:[{...record}]};
  const adapter={list:async()=>[{...activity,state:websiteComplete?'completed':'available'}],submit:async r=>{assert.equal(saved.at(-1),'attempting');websiteComplete=true;},save:async()=>saved.push(state.records[0].status)};
  await submitPending(state,adapter,Date.parse('2026-09-08T00:00:00+08:00'));
- assert.equal(state.records[0].status,'submitted'); assert.deepEqual(saved,['attempting','submitted']);
+ assert.equal(state.records[0].status,'submitted'); assert.deepEqual(saved,['attempting','submitted']);assert.equal(state.runSubmittedIds.has(state.records[0].id),true);
 });
 test('interrupted attempt checks existing success without resubmitting',async()=>{
  const state={records:[{...record,status:'attempting'}]}; let submits=0;
  await submitPending(state,{list:async()=>[{...activity,state:'completed'}],submit:async()=>submits++,save:async()=>{}},Date.now());
- assert.equal(submits,0); assert.equal(state.records[0].status,'submitted');
+ assert.equal(submits,0); assert.equal(state.records[0].status,'submitted');assert.equal(state.runSubmittedIds?.size||0,0);
 });
 test('unknown submit outcome is retained and does not automatically retry',async()=>{
  const state={records:[{...record}]};let submits=0;

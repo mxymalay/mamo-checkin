@@ -9,7 +9,7 @@ export async function submitPending(state,adapter,now=Date.now()) {
     if(matches.length!==1) continue;
     const activity=matches[0];
     if(activity.state==='completed') {
-      r.status='submitted';r.reason='网站已确认签到';r.confirmedAt=new Date().toISOString();await adapter.save();continue;
+      r.status='submitted';r.reason='网站原已签到，本次未重复提交';r.confirmedAt=new Date().toISOString();await adapter.save();continue;
     }
     if(activity.state==='expired') {r.status='expired';r.reason='网站已关闭该场次录入';await adapter.save();continue;}
     if(outsideAttendanceWindow(r,now)){if(r.status==='ready'){r.status='expired';r.reason='课程已超过 7 天，不再补签';await adapter.save();}continue;}
@@ -40,6 +40,7 @@ export async function submitPending(state,adapter,now=Date.now()) {
       const confirmed=activities.filter(a=>matchActivity(r,a));
       if(confirmed.length===1 && confirmed[0].state==='completed') {
         r.status='submitted';r.reason='网站已确认签到';r.confirmedAt=new Date().toISOString();
+        (state.runSubmittedIds??=new Set()).add(r.id);
       } else {r.status='uncertain';r.reason='尚未取得网站成功确认，已停止自动重试';}
     } catch(e) {r.status='uncertain';r.reason=`提交结果待核对：${e.message}`;}
     await adapter.save();

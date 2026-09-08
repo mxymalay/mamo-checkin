@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {expectedSessions} from '../extension/timetable.js';
 const event=()=>({addListener(){},removeListener(){}});
-async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false,reset=false,enabled=true){
+async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false,reset=false,enabled=true,savedExpired=false){
  const previous=globalThis.chrome,tabs=new Map(),opened=[],queries=[];
  const settings={enabled,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,intervalMinutes:15,courses:['ABC1234','DEF1234'],senders:{ABC1234:'a@example.edu',DEF1234:'d@example.edu'},subjectKeywords:{ABC1234:'ABC1234',DEF1234:'DEF1234'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1'],DEF1234:['https://learning.monash.edu/course/view.php?id=2']},schedules:{ABC1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}],DEF1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}]}};
- const values={settings,records:[],seenMessages:{},seenThreads:{}};let listener,alarmListener;
+ const values={settings,records:savedExpired?[{id:'old-expired',course:'ABC1234',date:'2020-01-01',time:'18:00',status:'expired'}]:[],seenMessages:{},seenThreads:{}};let listener,alarmListener;
  const activities=settings.courses.flatMap(course=>expectedSessions(settings,course).map(slot=>{
    const [year,month,day]=slot.date.split('-');
    return {rawText:`${course} Workshop 01 6:00PM`,dateToken:`${+day}_${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+month-1]}_${year.slice(2)}`,state:completed.includes(course)?'completed':'available'};
@@ -29,7 +29,7 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   }}
  };
  try{
-  await import(`../extension/background.js?scenario=${completed.join('-')}&alarm=${viaAlarm}&auto=${automatic}&discover=${discovery}&clear=${clear}&reset=${reset}&enabled=${enabled}`);
+  await import(`../extension/background.js?scenario=${completed.join('-')}&alarm=${viaAlarm}&auto=${automatic}&discover=${discovery}&clear=${clear}&reset=${reset}&enabled=${enabled}&expired=${savedExpired}`);
   if(reset){const result=await new Promise(resolve=>listener({type:'reset'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);assert.deepEqual(values,{});return result;}
   if(clear){values.records=[{id:'saved-record',code:'ABC12'}];const result=await new Promise(resolve=>listener({type:'clearCourses'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);return {settings:values.settings,records:values.records};}
   if(discovery){const result=await new Promise(resolve=>listener({type:'redetect'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(values.status,undefined);assert.equal(values.settings.courses.length,0);return result;}
@@ -38,7 +38,7 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   const deadline=Date.now()+2000;
   while(!values.status?.finishedAt&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,1));
   assert.ok(values.status?.finishedAt,'run must finish');
-  assert.equal(values.status.error,false,JSON.stringify(values.diagnostics));
+  assert.equal(values.status.error,savedExpired,JSON.stringify(values.diagnostics));
   await new Promise(resolve=>setTimeout(resolve,5));
   return {opened,queries,settings:values.settings,summary:values.status.summary};
  }finally{globalThis.chrome=previous;}
@@ -68,3 +68,5 @@ test('clearing courses also deletes collected records and pauses automation',asy
 test('fresh-start reset removes identity, courses, records and local state',async()=>{const result=await runScenario([],false,false,false,false,true);assert.equal(result.ok,true);});
 
 test('manual check runs with automatic scheduling disabled and keeps it disabled',async()=>{const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,false);assert.equal(result.settings.enabled,false);assert.ok(result.opened.length);});
+
+test('saved expired records remain visible in the final outcome outside the search window',async()=>{const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,true,true);assert.equal(result.summary.submitted,0);assert.equal(result.summary.allCompleted,false);assert.equal(result.summary.courses[0].expired,1);assert.match(result.summary.courses[0].reason,/已过期/);assert.equal(result.summary.records[0].status,'expired');});
