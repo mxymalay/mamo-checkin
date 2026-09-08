@@ -1,3 +1,4 @@
+import {checkinResult} from './checkin-result.js';
 import {schoolEmail,emailPrefix,configureEmailInput} from './school-email.js';
 import {createSetupGuide} from './setup-guide.js';
 import {DEFAULTS,normalizeSettings} from './settings.js';
@@ -49,8 +50,8 @@ function recordWeek(record){
 function showResult(state){
  const status=state.status||{},summary=status.summary||{},confirm=summary.needsConfirmation??(!(status.counts?.records)||state.settings?.courses?.some(c=>!state.settings.schedules?.[c]?.length));
  let box=$('result-dialog');if(!box){box=document.createElement('dialog');box.id='result-dialog';box.setAttribute('aria-labelledby','result-title');box.innerHTML='<div id="result-success-icon" aria-hidden="true" hidden><svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h2 id="result-title"></h2><p id="result-message"></p><ul id="result-records"></ul><div id="result-login-links" class="setup-links" hidden><a href="https://attendance.monash.edu.my/student/Units.aspx" target="_blank" rel="noreferrer">登录签到系统 ↗</a><a href="https://mail.google.com/" target="_blank" rel="noreferrer">登录 Gmail ↗</a><a href="https://learning.monash.edu/" target="_blank" rel="noreferrer">登录 Moodle ↗</a></div><div class="result-actions"><button id="result-edit" type="button">核对课程配置</button><button id="result-close" type="button">确认</button></div>';document.body.append(box);const close=()=>{if(box.close)box.close();else box.removeAttribute('open');};$('result-close').onclick=close;$('result-edit').onclick=()=>{close();document.querySelector('.courses-card').scrollIntoView?.({behavior:'smooth'});document.querySelector('[data-field="course"]')?.focus();};}
- $('result-success-icon').hidden=Boolean(status.error)||!(summary.submitted||summary.allCompleted);
- $('result-title').textContent=status.error?'签到未全部完成':summary.submitted?'签到成功':summary.allCompleted?'课程已全部签到':'签到流程已完成';
+ const outcome=checkinResult(summary,Boolean(status.error));$('result-success-icon').hidden=!outcome.success;
+ $('result-title').textContent=outcome.title;
  $('result-message').textContent=status.error?(status.message||'请查看运行明细并核对配置。'):`${summary.submitted?`本轮已确认 ${summary.submitted} 场签到成功。`:'本轮签到流程已完成。'}${confirm?'请确认课程、日期、星期、时间和组别；未填写课表或未检测到数据，不代表已经签到成功。':status.message||''}`;
  if(summary.issues?.length)$('result-message').textContent+=' '+summary.issues.join('；');
  $('result-records').replaceChildren();for(const course of summary.courses||[]){const li=document.createElement('li');li.className='course-result';const title=document.createElement('strong'),detail=document.createElement('span');title.textContent=course.course;detail.textContent=course.reason;li.append(title,detail);$('result-records').append(li);}for(const r of summary.records||[]){const li=document.createElement('li');li.textContent=`${r.course} · ${r.date} ${weekday(r.date)} ${r.time||''} · ${r.type||''} ${r.group||''} · ${labels[r.status]||r.status||''}`;$('result-records').append(li);}
@@ -102,7 +103,7 @@ function render(state,settings=false){
   const config=state.settings||{},status=state.status||{};
   if(status.running)observedRun=true;
   if(!status.running&&status.finishedAt&&status.finishedAt!==lastResult&&(observedRun||(scanPending&&status.finishedAt!==scanPreviousFinish)||scanNotice&&status.finishedAt!==scanPreviousFinish)){lastResult=status.finishedAt;observedRun=false;showResult(state);}
-  if(scanNotice){if(status.running)notice(status.message||'正在签到…','scan');else if(status.finishedAt&&status.finishedAt!==scanPreviousFinish)notice(status.error?'签到结束：'+(status.message||'处理失败，请查看明细'):'签到流程完成：'+(status.message||'本轮已结束'),status.error?'error':status.summary?.needsConfirmation?'warning':'success');}
+  if(scanNotice){if(status.running)notice(status.message||'正在签到…','scan');else if(status.finishedAt&&status.finishedAt!==scanPreviousFinish)notice(status.error?'签到结束：'+(status.message||'处理失败，请查看明细'):'签到流程完成：'+(status.message||'本轮已结束'),checkinResult(status.summary,Boolean(status.error)).tone);}
   $('mode').textContent=config.enabled?'自动运行已开启':'自动运行已暂停';$('mode').classList.toggle('on',Boolean(config.enabled));
   const configured=Boolean(config.email&&config.name&&(config.courses||[]).length);$('status').textContent=!configured&&!status.running?'请先填写邮箱、姓名和至少一门课程':status.message||'等待首次检查';
   renderProgress(status);if(status.service)renderHealth(status.service);if(status.running&&healthWarning){healthWarning=false;notice('');}

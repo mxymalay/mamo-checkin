@@ -1,3 +1,4 @@
+import {checkinResult} from './checkin-result.js';
 import {parseActivity,siteDate,matchActivity} from './core.js';
 import {gmailAdapter} from './gmail.js';
 import {attendanceAdapter} from './attendance.js';
@@ -221,13 +222,16 @@ async function run(manual=false){
       const records=currentRecords.filter(r=>r.course===course);
       const submitted=records.filter(r=>r.status==='submitted'&&!previouslySubmitted.has(r.id)).length;
       const completed=activities.filter(a=>a.state==='completed').length;
-      const pending=activities.filter(a=>a.state==='available').length;
-      const reason=submitted?`本次签到成功 ${submitted} 场${completed?`；网站显示已签到 ${completed} 场`:''}`:completed&&!pending?`网站显示 ${completed} 场已签到，本次无需重复签到或查找签到码`:pending?`仍有 ${pending} 场待签到，未取得可确认的签到结果，请核对签到码来源和场次`:activities.length?'近期场次已关闭，无法补签':state.activities?'未找到最近 7 天内与课表匹配的场次，请核对课表':'未能读取网站签到状态，请确认登录后重试';
-      return {course,submitted,completed,pending,reason};
+      const pending=activities.filter(a=>a.state==='available'&&!records.some(r=>r.status==='submitted'&&matchActivity(r,a))).length;
+      const expired=Math.max(activities.filter(a=>a.state==='expired').length,records.filter(r=>r.status==='expired').length);
+      const unresolved=records.filter(r=>['ready','review','uncertain','attempting'].includes(r.status)).length;
+      const reason=expired?`有 ${expired} 场已过期，无法签到${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:unresolved?`有 ${unresolved} 场尚未确认签到成功，请核对记录${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:submitted?`本次签到成功 ${submitted} 场${completed?`；网站显示已签到 ${completed} 场`:''}`:completed&&!pending&&!expired&&!unresolved?`网站显示 ${completed} 场已签到，本次无需重复签到或查找签到码`:pending?`仍有 ${pending} 场待签到，未取得可确认的签到结果，请核对签到码来源和场次`:activities.length?'近期场次已关闭，无法补签':state.activities?'未找到最近 7 天内与课表匹配的场次，请核对课表':'未能读取网站签到状态，请确认登录后重试';
+      return {course,submitted,completed,pending,expired,unresolved,reason};
     });
-    summary.allCompleted=summary.courses.length>0&&summary.courses.every(c=>c.completed>0&&!c.pending&&!courseNeedsSource(state,c.course));
+    summary.allCompleted=summary.courses.length>0&&summary.courses.every(c=>c.completed>0&&!c.pending&&!c.expired&&!c.unresolved&&!courseNeedsSource(state,c.course));
     if(summary.allCompleted&&!state.autoNeedsConfirmation)summary.needsConfirmation=false;
-    await progress.finish({message,error:Boolean(failures),diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,summary});
+    const outcome=checkinResult(summary,Boolean(failures));
+    await progress.finish({message:outcome.success?outcome.title:outcome.title+'：'+message,error:Boolean(failures)||outcome.tone==='error',diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,summary});
     await chrome.action.setBadgeText({text:attention||failures?'!':''});
     return {ok:true};
   }catch(e){const error=e.message||String(e);await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}

@@ -292,7 +292,7 @@ test('completion dialog requests confirmation for no data and does not repeat on
   const help=document.querySelector('[data-field="weekly-count"]').closest('label').querySelector('.tooltip');assert.match(help.textContent,/自动检测或手动填写/);
   state.status={running:false,finishedAt:'2026-09-08T01:00:00Z',summary:{submitted:0,detected:0,needsConfirmation:true,records:[]}};
   env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
-  assert.equal(document.getElementById('result-success-icon').hidden,true);assert.equal(document.getElementById('result-title').textContent,'签到流程已完成');assert.match(document.getElementById('result-message').textContent,/请确认/);
+  assert.equal(document.getElementById('result-success-icon').hidden,true);assert.equal(document.getElementById('result-title').textContent,'签到待确认');assert.match(document.getElementById('result-message').textContent,/请确认/);
   document.getElementById('result-close').click();
   env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
   assert.equal(document.getElementById('result-dialog').hasAttribute('open'),false);
