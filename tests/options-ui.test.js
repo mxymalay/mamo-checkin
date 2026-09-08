@@ -417,3 +417,12 @@ test('manual check needs no automatic switch and saves changed settings before s
   assert.ok(document.getElementById('save-general').closest('.columns'));
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
+test('a codeless waiting session shows a retry action for its own course',async()=>{
+ const originalSetInterval=globalThis.setInterval,calls=[];
+ const state={settings:{enabled:false,courses:['ABC1234']},records:[{id:'waiting',course:'ABC1234',date:'2026-09-07',time:'18:00',type:'Workshop',group:'01',status:'waiting_code',code:''}]};
+ const env=installDom(async p=>{if(p.type==='retry'){calls.push(p);return {ok:true};}return p.type==='health'?{ok:true,binaryReady:true}:state;});
+ try{await import(`../extension/options.js?waiting-retry=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+ assert.match(document.getElementById('records').textContent,/等待签到码/);assert.equal(document.querySelector('[aria-label="复制签到码"]'),null);
+ const retry=[...document.querySelectorAll('#records button')].find(b=>b.textContent==='重试');assert.ok(retry);retry.click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(calls,[{type:'retry',course:'ABC1234'}]);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});

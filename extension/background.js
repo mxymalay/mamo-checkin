@@ -1,3 +1,4 @@
+import {syncSessionRecords} from './session-records.js';
 import {checkinResult} from './checkin-result.js';
 import {parseActivity,siteDate,matchActivity} from './core.js';
 import {gmailAdapter} from './gmail.js';
@@ -187,9 +188,10 @@ async function submit(state,native){
     return {entered:true};
   }});
 }
-async function run(manual=false){
+async function run(manual=false,course=null){
   const state=await loadState();
   state.runSubmittedIds=new Set();
+  if(course)state.settings={...state.settings,courses:state.settings.courses.filter(c=>c===course)};
   if(!manual&&!state.settings.enabled)return {ok:false,error:'自动运行已暂停'};
   state.manualRun=manual;
   let native;
@@ -209,6 +211,7 @@ async function run(manual=false){
     for(const r of state.records)if(r.status==='ready'&&outsideAttendanceWindow(r)){r.status='expired';r.reason='课程已超过 7 天，不再补签';}
     await state.progress({message:'正在核对最近 7 天的签到记录'});
     await submit(state,native);
+    syncSessionRecords(state);
     await save(state,native);
     await state.progress({message:'正在写入 Mac 本地归档'});
     try{await native.call({op:'archive',records:state.records});}catch(error){await diagnose(state,{scope:'archive',error:'记录已存于扩展，下载归档待重试：'+error.message});}
@@ -225,7 +228,7 @@ async function run(manual=false){
       const pending=activities.filter(a=>a.state==='available'&&!records.some(r=>r.status==='submitted'&&matchActivity(r,a))).length;
       const expired=Math.max(activities.filter(a=>a.state==='expired').length,records.filter(r=>r.status==='expired').length);
       const unresolved=records.filter(r=>['ready','review','uncertain','attempting'].includes(r.status)).length;
-      const reason=expired?`已保存记录中有 ${expired} 场已过期，无法补签${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:unresolved?`有 ${unresolved} 场尚未确认签到成功，请核对记录${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:submitted?`本次签到成功 ${submitted} 场${completed?`；网站显示已签到 ${completed} 场`:''}`:completed&&!pending&&!expired&&!unresolved?`网站显示 ${completed} 场已签到，本次无需重复签到或查找签到码`:pending?`仍有 ${pending} 场待签到，未取得可确认的签到结果，请核对签到码来源和场次`:activities.length?'近期场次已关闭，无法补签':state.activities?'未找到最近 7 天内与课表匹配的场次，请核对课表':'未能读取网站签到状态，请确认登录后重试';
+      const reason=expired?`已保存记录中有 ${expired} 场已过期，无法补签${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:unresolved?`有 ${unresolved} 场尚未确认签到成功，请核对记录${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:submitted?`本次签到成功 ${submitted} 场${completed?`；网站显示已签到 ${completed} 场`:''}`:completed&&!pending&&!expired&&!unresolved?`网站显示 ${completed} 场已签到，本次无需重复签到或查找签到码`:pending?`有 ${pending} 场等待签到码，暂未找到；可能尚未发布或当前来源未检索到，可稍后重试`:activities.length?'近期场次已关闭，无法补签':state.activities?'未找到最近 7 天内与课表匹配的场次，请核对课表':'未能读取网站签到状态，请确认登录后重试';
       return {course,submitted,completed,pending,expired,unresolved,reason};
     });
     summary.allCompleted=summary.courses.length>0&&summary.courses.every(c=>c.completed>0&&!c.pending&&!c.expired&&!c.unresolved&&!courseNeedsSource(state,c.course));
@@ -237,7 +240,7 @@ async function run(manual=false){
   }catch(e){const error=e.message||String(e);await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}
   finally{try{await cleanOwnedTabs(state);}catch{}try{await native?.close();}catch{}}
 }
-function start(manual=false){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run(manual).finally(()=>{activeRun=null;});return activeRun;}
+function start(manual=false,course=null){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run(manual,course).finally(()=>{activeRun=null;});return activeRun;}
 async function redetect(){
  const state=await loadState();
  if(!state.settings.email||!state.settings.name)throw new Error('请先在第 2 步填写并保存学校邮箱和姓名，再登录签到系统检测课程');
@@ -276,6 +279,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       await chrome.action.setBadgeText({text:''});return {ok:true};
     }
     if(message.type==='scan'){if(activeDetection)throw new Error('正在重新检测课程，请稍后检查签到');void start(true);return {ok:true};}
+    if(message.type==='retry'){if(activeRun||activeDetection)throw new Error('正在签到，请等待本轮结束');const state=await loadState();if(!state.settings.courses.includes(message.course))throw new Error('课程已被移除，请重新配置');void start(true,message.course);return {ok:true};}
     if(message.type==='redetect'){if(activeRun||activeDetection)throw new Error('正在运行，请等待当前检查结束再重新检测课程');activeDetection=redetect().finally(()=>{activeDetection=null;});return activeDetection;}
     if(message.type==='clearCourses'){
       if(activeRun||activeDetection)throw new Error('正在运行，请等待检查结束再清空课程');

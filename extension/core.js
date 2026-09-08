@@ -90,6 +90,7 @@ export function mergeRecords(existing,incoming) {
   for(const r of incoming){
     const old=map.get(r.id);
     if(!old){map.set(r.id,{...r});continue;}
+    if(old.sessionOnly&&!old.code){map.set(r.id,{...r,...(['submitted','expired'].includes(old.status)?{status:old.status,reason:old.reason}:{})});continue;}
     const sources=[...new Map([...recordSources(old),...recordSources(r)].map(source=>[[source.sourceUrl,source.messageId,source.imagePath].join('|'),source])).values()];
     if(old.code!==r.code){map.set(r.id,{...old,sources,status:'review',reason:'同一场次出现不同签到码',conflicts:[...new Set([...(old.conflicts||[]),old.code,r.code].filter(Boolean))]});continue;}
     const untouchedReview=old.status==='review'&&!old.attemptedAt&&!old.submittedAt&&!(old.conflicts||[]).length;

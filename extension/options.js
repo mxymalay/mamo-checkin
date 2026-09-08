@@ -4,7 +4,7 @@ import {createSetupGuide} from './setup-guide.js';
 import {DEFAULTS,normalizeSettings} from './settings.js';
 import {parseConfiguration,exportConfiguration} from './configuration.js';
 const $=id=>document.getElementById(id);
-const labels={ready:'等待匹配',submitted:'已签到',expired:'已过期',review:'需要核对',attempting:'核对提交结果',uncertain:'结果待确认'};
+const labels={waiting_code:'等待签到码',ready:'等待匹配',submitted:'已签到',expired:'已过期',review:'需要核对',attempting:'核对提交结果',uncertain:'结果待确认'};
 let guide,savedFormSnapshot;
 function formSnapshot(){return JSON.stringify([...document.querySelectorAll('#settings input,#settings select,#settings textarea')].map(input=>[input.id||input.dataset.field,input.type==='checkbox'?input.checked:input.value.trim()]));}
 let latest={},editing=false,refreshing=false,refreshQueued=false,refreshSettings=false,healthPending=false,healthWarning=false,saving=false,scanPending=false;
@@ -124,8 +124,9 @@ function render(state,settings=false){
     const code=cell(''),strong=document.createElement('strong');strong.textContent=r.code||'—';code.append(strong);
     if(r.code){const copy=document.createElement('button');copy.type='button';copy.className='copy-code';copy.textContent='复制';copy.setAttribute('aria-label','复制签到码');copy.addEventListener('click',async()=>{copy.disabled=true;copy.textContent='复制中…';try{await window.navigator.clipboard.writeText(r.code);copy.textContent='已复制';notice('签到码已复制。','success');}catch{copy.textContent='重试复制';notice('复制失败，请选中签到码手动复制。','error');}finally{copy.disabled=false;}});code.append(copy);}
     const statusCell=cell(''),badge=document.createElement('span');badge.className='state '+r.status;badge.textContent=labels[r.status]||r.status;statusCell.append(badge);
+    if(r.status==='waiting_code'){const retry=document.createElement('button');retry.type='button';retry.className='copy-code';retry.textContent='重试';retry.disabled=Boolean(latest.status?.running)||scanPending;retry.onclick=async()=>{retry.disabled=true;retry.textContent='正在请求…';scanPreviousFinish=latest.status?.finishedAt||null;notice('正在重新查找 '+r.course+' 的签到码…','scan');try{await request({type:'retry',course:r.course});await refresh();}catch(error){notice(error.message,'error');retry.disabled=false;retry.textContent='重试';}};statusCell.append(retry);}
     const source=cell('',r.reason||'');
-    if(/^https:\/\/(mail\.google\.com|learning\.monash\.edu)\//.test(r.sourceUrl||'')){const link=document.createElement('a');link.href=r.sourceUrl;link.textContent=r.sourceUrl.includes('learning.monash.edu')?'查看 Moodle ↗':'查看邮件 ↗';link.target='_blank';link.rel='noreferrer';source.prepend(link);}
+    if(/^https:\/\/(mail\.google\.com|learning\.monash\.edu|attendance\.monash\.edu\.my)\//.test(r.sourceUrl||'')){const link=document.createElement('a');link.href=r.sourceUrl;link.textContent=r.sourceUrl.includes('attendance.monash.edu.my')?'查看签到系统 ↗':r.sourceUrl.includes('learning.monash.edu')?'查看 Moodle ↗':'查看邮件 ↗';link.target='_blank';link.rel='noreferrer';source.prepend(link);}
     if(r.imagePath){const detail=document.createElement('small');detail.textContent=r.imagePath;source.append(detail);}
     $('records').append(tr);
   }
