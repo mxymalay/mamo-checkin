@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {expectedSessions} from '../extension/timetable.js';
 const event=()=>({addListener(){},removeListener(){}});
-async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false,reset=false){
+async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false,reset=false,enabled=true){
  const previous=globalThis.chrome,tabs=new Map(),opened=[],queries=[];
- const settings={enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,intervalMinutes:15,courses:['ABC1234','DEF1234'],senders:{ABC1234:'a@example.edu',DEF1234:'d@example.edu'},subjectKeywords:{ABC1234:'ABC1234',DEF1234:'DEF1234'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1'],DEF1234:['https://learning.monash.edu/course/view.php?id=2']},schedules:{ABC1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}],DEF1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}]}};
+ const settings={enabled,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,intervalMinutes:15,courses:['ABC1234','DEF1234'],senders:{ABC1234:'a@example.edu',DEF1234:'d@example.edu'},subjectKeywords:{ABC1234:'ABC1234',DEF1234:'DEF1234'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1'],DEF1234:['https://learning.monash.edu/course/view.php?id=2']},schedules:{ABC1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}],DEF1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}]}};
  const values={settings,records:[],seenMessages:{},seenThreads:{}};let listener,alarmListener;
  const activities=settings.courses.flatMap(course=>expectedSessions(settings,course).map(slot=>{
    const [year,month,day]=slot.date.split('-');
@@ -29,7 +29,7 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   }}
  };
  try{
-  await import(`../extension/background.js?scenario=${completed.join('-')}&alarm=${viaAlarm}&auto=${automatic}&discover=${discovery}&clear=${clear}&reset=${reset}`);
+  await import(`../extension/background.js?scenario=${completed.join('-')}&alarm=${viaAlarm}&auto=${automatic}&discover=${discovery}&clear=${clear}&reset=${reset}&enabled=${enabled}`);
   if(reset){const result=await new Promise(resolve=>listener({type:'reset'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);assert.deepEqual(values,{});return result;}
   if(clear){values.records=[{id:'saved-record',code:'ABC12'}];const result=await new Promise(resolve=>listener({type:'clearCourses'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);return {settings:values.settings,records:values.records};}
   if(discovery){const result=await new Promise(resolve=>listener({type:'redetect'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(values.status,undefined);assert.equal(values.settings.courses.length,0);return result;}
@@ -66,3 +66,5 @@ test('first-time discovery returns all recent courses after identity setup witho
 test('clearing courses also deletes collected records and pauses automation',async()=>{const result=await runScenario([],false,false,false,true);assert.deepEqual(result.settings.courses,[]);assert.deepEqual(result.settings.schedules,{});assert.equal(result.settings.enabled,false);assert.equal(result.settings.autoDiscover,false);assert.deepEqual(result.records,[]);});
 
 test('fresh-start reset removes identity, courses, records and local state',async()=>{const result=await runScenario([],false,false,false,false,true);assert.equal(result.ok,true);});
+
+test('manual check runs with automatic scheduling disabled and keeps it disabled',async()=>{const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,false);assert.equal(result.settings.enabled,false);assert.ok(result.opened.length);});

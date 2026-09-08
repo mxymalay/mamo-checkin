@@ -160,7 +160,7 @@ async function inspectSchedule(state){
 async function submit(state,native){
   if(!state.records.some(r=>state.settings.courses.includes(r.course)&&recordInSchedule(state.settings,r)&&!['submitted','expired','review'].includes(r.status)))return;
   const tab=state.attendanceTab??await createOwnedTab(state,UNITS);
-  const settingsStillActive=async record=>{const current=await loadState();return current.settings.enabled&&current.settings.email===state.settings.email&&current.settings.name===state.settings.name&&current.settings.courses.includes(record.course)&&!outsideAttendanceWindow(record)&&recordInSchedule(current.settings,record); };
+  const settingsStillActive=async record=>{const current=await loadState();return (state.manualRun||current.settings.enabled)&&current.settings.email===state.settings.email&&current.settings.name===state.settings.name&&current.settings.courses.includes(record.course)&&!outsideAttendanceWindow(record)&&recordInSchedule(current.settings,record); };
   let firstList=true;
   const list=async()=>{
     await state.progress({message:'正在读取网站签到记录（最多等待 25 秒）',context:{sourceUrl:UNITS}});
@@ -186,10 +186,11 @@ async function submit(state,native){
     return {entered:true};
   }});
 }
-async function run(){
+async function run(manual=false){
   const state=await loadState();
   const previouslySubmitted=new Set(state.records.filter(r=>r.status==='submitted').map(r=>r.id));
-  if(!state.settings.enabled)return {ok:false,error:'请先开启自动签到'};
+  if(!manual&&!state.settings.enabled)return {ok:false,error:'自动运行已暂停'};
+  state.manualRun=manual;
   let native;
   const startedAt=new Date().toISOString();
   const progress=createRunProgress(status=>chrome.storage.local.set({status}));
@@ -221,7 +222,7 @@ async function run(){
   }catch(e){const error=e.message||String(e);await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}
   finally{try{await cleanOwnedTabs(state);}catch{}try{await native?.close();}catch{}}
 }
-function start(){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run().finally(()=>{activeRun=null;});return activeRun;}
+function start(manual=false){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run(manual).finally(()=>{activeRun=null;});return activeRun;}
 async function redetect(){
  const state=await loadState();
  if(!state.settings.email||!state.settings.name)throw new Error('请先在第 2 步填写并保存学校邮箱和姓名，再登录签到系统检测课程');
@@ -259,7 +260,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       if(globalThis.indexedDB?.databases)for(const db of await indexedDB.databases())if(db.name)await new Promise((resolve,reject)=>{const deletion=indexedDB.deleteDatabase(db.name);deletion.onsuccess=resolve;deletion.onerror=()=>reject(new Error('缓存清理失败，请关闭其他助手页面后重试'));deletion.onblocked=()=>reject(new Error('缓存正被其他助手页面使用，请关闭其他助手页面后重试'));});
       await chrome.action.setBadgeText({text:''});return {ok:true};
     }
-    if(message.type==='scan'){if(activeDetection)throw new Error('正在重新检测课程，请稍后检查签到');const state=await loadState();if(!state.settings.enabled)throw new Error('自动运行已暂停，请开启并保存设置后再检查');void start();return {ok:true};}
+    if(message.type==='scan'){if(activeDetection)throw new Error('正在重新检测课程，请稍后检查签到');void start(true);return {ok:true};}
     if(message.type==='redetect'){if(activeRun||activeDetection)throw new Error('正在运行，请等待当前检查结束再重新检测课程');activeDetection=redetect().finally(()=>{activeDetection=null;});return activeDetection;}
     if(message.type==='clearCourses'){
       if(activeRun||activeDetection)throw new Error('正在运行，请等待检查结束再清空课程');

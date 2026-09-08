@@ -404,3 +404,16 @@ test('unchanged form input does not block check but a real edit does',async()=>{
   document.getElementById('scan').click();await new Promise(r=>setTimeout(r,0));assert.equal(scans,1);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
+test('manual check needs no automatic switch and saves changed settings before scanning',async()=>{
+ const originalSetInterval=globalThis.setInterval,calls=[];
+ const state={settings:{enabled:false,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'}},records:[]};
+ const env=installDom(async p=>{if(p.type==='settings'){calls.push('save');state.settings=p.settings;return {ok:true};}if(p.type==='scan'){calls.push('scan');return {ok:true};}return p.type==='health'?{ok:true,binaryReady:true}:state;});
+ try{
+  await import(`../extension/options.js?manual-saved=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  document.getElementById('scan').click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(calls,['scan']);assert.equal(state.settings.enabled,false);
+  const input=document.getElementById('name');input.value='Updated Student';input.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
+  assert.equal(document.getElementById('scan').textContent,'保存并立即签到');document.getElementById('scan').click();await new Promise(r=>setTimeout(r,0));
+  assert.deepEqual(calls,['scan','save','scan']);assert.equal(state.settings.name,'Updated Student');assert.equal(state.settings.enabled,false);
+  assert.ok(document.getElementById('save-general').closest('.columns'));
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
