@@ -196,13 +196,13 @@ async function run(manual=false){
   const progress=createRunProgress(status=>chrome.storage.local.set({status}));
   state.progress=event=>progress.update(event);
   try{
-    await state.progress({message:'准备检查最近 7 天的签到'});
+    await state.progress({message:'正在签到：核对最近 7 天的课程'});
     native=await localService({onProgress:state.progress});
     state.diagnostics=[];
     await chrome.storage.local.set({diagnostics:[]});
     await cleanOwnedTabs(state);
     const health=await native.call({op:'ping'});
-    await state.progress({message:'开始检查；图片识别会在需要时启动',service:health});
+    await state.progress({message:'正在签到；图片识别会在需要时启动',service:health});
     try{await inspectSchedule(state);}catch(error){await diagnose(state,{scope:'timetable',error:'课表预检查失败，将继续寻找签到码：'+error.message});}
     for(const [scope,collect] of [['gmail',collectMail],['moodle',collectMoodle]])try{await collect(state,native);}catch(error){await diagnose(state,{scope,error:error.message});}
     for(const r of state.records)if(r.status==='ready'&&outsideAttendanceWindow(r)){r.status='expired';r.reason='课程已超过 7 天，不再补签';}
@@ -213,9 +213,20 @@ async function run(manual=false){
     try{await native.call({op:'archive',records:state.records});}catch(error){await diagnose(state,{scope:'archive',error:'记录已存于扩展，下载归档待重试：'+error.message});}
     const attention=state.records.filter(r=>['review','uncertain','attempting'].includes(r.status)).length;
     const failures=state.diagnostics.length,lastFailure=state.diagnostics.at(-1)?.error;
-    const message=failures?`${failures} 项处理失败：${lastFailure}`:attention?`${attention} 条记录需要核对`:'本次检查完成';
+    const message=failures?`${failures} 项处理失败：${lastFailure}`:attention?`${attention} 条记录需要核对`:'本轮签到流程已完成';
     const currentRecords=state.records.filter(r=>state.settings.courses.includes(r.course)&&!outsideAttendanceWindow(r)&&recordInSchedule(state.settings,r));
     const summary={issues:state.scheduleIssues||[],submitted:currentRecords.filter(r=>r.status==='submitted'&&!previouslySubmitted.has(r.id)).length,detected:currentRecords.length,needsConfirmation:!currentRecords.length||Boolean(state.autoNeedsConfirmation),records:currentRecords.map(({course,date,time,type,group,status})=>({course,date,time,type,group,status}))};
+    summary.courses=state.settings.courses.map(course=>{
+      const activities=(state.activities||[]).filter(a=>a.course===course&&!outsideAttendanceWindow(a)&&recordInSchedule(state.settings,a));
+      const records=currentRecords.filter(r=>r.course===course);
+      const submitted=records.filter(r=>r.status==='submitted'&&!previouslySubmitted.has(r.id)).length;
+      const completed=activities.filter(a=>a.state==='completed').length;
+      const pending=activities.filter(a=>a.state==='available').length;
+      const reason=submitted?`本次签到成功 ${submitted} 场${completed?`；网站显示已签到 ${completed} 场`:''}`:completed&&!pending?`网站显示 ${completed} 场已签到，本次无需重复签到或查找签到码`:pending?`仍有 ${pending} 场待签到，未取得可确认的签到结果，请核对签到码来源和场次`:activities.length?'近期场次已关闭，无法补签':state.activities?'未找到最近 7 天内与课表匹配的场次，请核对课表':'未能读取网站签到状态，请确认登录后重试';
+      return {course,submitted,completed,pending,reason};
+    });
+    summary.allCompleted=summary.courses.length>0&&summary.courses.every(c=>c.completed>0&&!c.pending&&!courseNeedsSource(state,c.course));
+    if(summary.allCompleted&&!state.autoNeedsConfirmation)summary.needsConfirmation=false;
     await progress.finish({message,error:Boolean(failures),diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,summary});
     await chrome.action.setBadgeText({text:attention||failures?'!':''});
     return {ok:true};

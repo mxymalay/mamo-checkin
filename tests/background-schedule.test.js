@@ -40,13 +40,13 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   assert.ok(values.status?.finishedAt,'run must finish');
   assert.equal(values.status.error,false,JSON.stringify(values.diagnostics));
   await new Promise(resolve=>setTimeout(resolve,5));
-  return {opened,queries,settings:values.settings};
+  return {opened,queries,settings:values.settings,summary:values.status.summary};
  }finally{globalThis.chrome=previous;}
 }
 test('completed timetable slots skip both Gmail and Moodle in an actual background run',async()=>{
  const result=await runScenario(['ABC1234','DEF1234']);
  assert.deepEqual(result.opened,['https://attendance.monash.edu.my/student/Units.aspx']);
- assert.deepEqual(result.queries,[]);
+ assert.deepEqual(result.queries,[]);assert.equal(result.summary.allCompleted,true);assert.equal(result.summary.courses.length,2);assert.ok(result.summary.courses.every(c=>c.reason.includes('已签到')));
 });
 test('only the missing course searches Gmail and then its own Moodle source',async()=>{
  const result=await runScenario(['ABC1234']);
