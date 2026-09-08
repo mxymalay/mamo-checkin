@@ -1,4 +1,6 @@
 const entries=`
+Attendance系统|Attendance system
+
 安装命令授权|Allow the installer
 attendance-ocr 授权|Allow attendance-ocr
 如被阻止：系统设置 → 隐私与安全性 → 仍要打开。|If blocked: System Settings → Privacy & Security → Open Anyway.
@@ -168,8 +170,8 @@ attendance-ocr 授权|Allow attendance-ocr
 
 马莫签到助手|Mamo Check-in
 收好签到码，自动完成对应场次。|Collect attendance codes and check in to matching sessions.
-导入个人配置|Import configuration
-导出个人配置|Export configuration
+导入个人配置|Import settings
+导出个人配置|Export settings
 运行状态|Run status
 准备就绪|Ready
 尚未开始处理|Not started
@@ -378,7 +380,7 @@ export function translate(text,lang=language){
  return result.replace(/每周\s*(\d+)\s*场/g,'$1 sessions per week').replace(/(\d+)\s*场/g,'$1 sessions').replace(/(\d+)\s*秒前更新/g,'Updated $1 seconds ago').replace(/最多\s*(\d+)\s*秒/g,'up to $1 seconds');
 }
 export function installLanguageUI(doc=document){
- const picker=doc.createElement('select');picker.id='language';picker.setAttribute('aria-label','Language / 语言');picker.innerHTML='<option value="auto">Auto / 自动</option><option value="en">English</option><option value="zh">中文</option>';doc.querySelector('header').append(picker);
+ const picker=doc.createElement('select');picker.id='language';picker.setAttribute('aria-label','Language / 语言');picker.innerHTML='<option value="auto">Auto / 自动</option><option value="en">English</option><option value="zh">中文</option>';const header=doc.querySelector('header'),tools=doc.createElement('div');tools.className='header-tools';const actions=header.querySelector('.header-actions');if(actions)tools.append(actions);tools.append(picker);header.append(tools);
  let choice='auto';try{choice=doc.defaultView.localStorage.getItem('mamo-language')||'auto';}catch{}
  picker.value=['en','zh'].includes(choice)?choice:'auto';
  const texts=new WeakMap(),attrs=new WeakMap();
