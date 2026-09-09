@@ -1,4 +1,32 @@
-# 马莫签到助手 · Mamo Check-in
+# Mamo Check-in · 马莫签到助手
+
+## English
+
+Collect attendance codes from Gmail and Monash Moodle, recognize text and images locally, and check in to matching school sessions. Supports Chrome on macOS 12+ and Windows 10/11 x64.
+
+**[Download](https://github.com/mxymalay/mamo-checkin/releases/latest)** · **[Mac installation](INSTALL.md)** · **[Windows installation](INSTALL-WINDOWS.md)**
+
+### Get started
+
+1. Install the recognition service and follow the setup guide. Mac uses Apple Vision; Windows uses Tesseract.
+2. Enter your school email and Attendance name, then configure your courses and code sources.
+3. Use **Settings**, **Course sources and timetable**, and **Attendance records**. Click **Check in now** to run a check and open the records tab.
+
+In Settings, **Sign in and verify** saves only the verified email or name. Save other settings separately. With multiple Gmail accounts, the assistant attempts to select your configured school email; passwords and school verification must still be completed by you.
+
+For Moodle, enter the `course_id` after `course/view.php?id=` or paste the full course URL. Courses are numbered; expand **More courses?** to add another. Timetables can be edited or detected again.
+
+Supports English and Chinese, configuration import/export, copying codes, retrying pending courses, and CSV export. Records are grouped by course and source week, or by date range when no week is available. Saving settings and background completion do not switch tabs.
+
+Only matching, open sessions from the last seven days are eligible. Uncertain results require review. Scheduled checks are optional; Chrome must remain running and the computer awake. Images and archives stay on your computer and are not sent to third-party AI services.
+
+### Development and verification
+
+Run `npm ci`, `npm test`, and `npm run build` on macOS with Xcode command-line tools. Windows packages are built with `scripts/build-windows.ps1`; GitHub Actions tests OCR, the packaged host, and Chrome registration.
+
+Public tests use synthetic data. Real course text extraction has been verified, but multi-account login and full live submission have not been validated in every environment. Always verify the final status on the school's attendance website.
+
+## 中文
 
 从 Gmail 和 Monash Moodle 识别签到码，自动匹配课程并签到。支持文字和图片，在本机识别（Mac：Apple Vision；Windows：Tesseract）。
 

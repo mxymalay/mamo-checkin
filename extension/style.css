@@ -28,7 +28,9 @@ body[data-setup]:not([data-setup=complete]) .page-tabs{display:none}body[data-se
 .moodle-course-guide{display:block;line-height:1.7;margin-top:8px;overflow-wrap:anywhere}.moodle-course-guide a{text-decoration:underline}
 
 .state.waiting_code{background:#fff3dc;color:#8b601a}
-.settings-columns .identity-check,.settings-columns #save-general,.settings-columns #save-automation,.settings-columns #check-health{display:block;width:132px;max-width:100%;min-height:44px;margin:5px 0 0;padding:10px 16px;border:1px solid #006dae;border-radius:8px;background:#006dae;color:#fff;font-size:14px;font-weight:600;line-height:22px;white-space:normal}
+.settings-columns .identity-check,.settings-columns #save-general,.settings-columns #save-automation,.settings-columns #check-health{display:block;width:132px;max-width:100%;height:40px;margin:5px 0 0;padding:8px 12px;border:1px solid #006dae;border-radius:8px;background:#006dae;color:#fff;font-size:14px;font-weight:600;line-height:22px;white-space:nowrap}
+html[lang=en] .settings-columns .identity-check,html[lang=en] .settings-columns #save-general,html[lang=en] .settings-columns #save-automation,html[lang=en] .settings-columns #check-health{width:168px}
+.settings-columns .identity-check-status:empty{display:none}.settings-columns .muted{overflow-wrap:anywhere}
 .more-courses{margin:16px 0}.more-courses summary{cursor:pointer;color:#006dae;font-weight:600;padding:8px 0}.more-courses button{margin-top:8px}.course-number{display:block;color:#657384;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:10px}
 #scan{min-width:150px;min-height:44px;transition:box-shadow .2s ease}#scan:not(:disabled){animation:scan-breathe 3s ease-in-out infinite}#scan:hover:not(:disabled){animation:none;box-shadow:0 0 0 3px #ffffff38}#scan:focus-visible{outline:2px solid white;outline-offset:4px}
 @keyframes scan-breathe{0%,100%{box-shadow:0 0 0 0 #ffffff12}50%{box-shadow:0 0 0 4px #ffffff26}}

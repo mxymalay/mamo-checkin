@@ -68,7 +68,7 @@ attendance-ocr 授权|Allow attendance-ocr
 允许后回到这里重新检测。|After allowing it, return here and check again.
 如果|If
 
-正在检查识别服务…|Checking recognition service…
+正在检查识别服务…|Checking OCR…
 请确认课程配置|Review course configuration
 正在检测课程…|Detecting courses…
 已检测到|Detected
@@ -250,7 +250,7 @@ attendance-ocr 授权|Allow attendance-ocr
 邮件检索关键词|Email search keywords
 识别与保存|Recognition and storage
 原图与记录保存在|Images and records are saved to
-检查识别服务|Check recognition service
+检查识别服务|Check OCR service
 Mac 原生图片识别|Mac text recognition
 使用 macOS 原生文字识别（Apple Vision）。|Uses on-device text recognition (Apple Vision).
 识别和归档由本机服务完成。|Recognition and archiving run locally.
@@ -435,6 +435,34 @@ export function detectLanguage(value){return /^zh(?:-|$)/i.test(value||'')?'zh':
 export function translate(text,lang=language){
  if(lang==='zh')return text;
  let result=String(text);
+ const patterns=[
+  [/已自动选择 (.*?)，正在等待 Gmail；如需密码或验证，请完成后等待自动检测。/g,'Selected $1; waiting for Gmail. Complete any password or verification prompt to continue.'],
+  [/请在 Gmail 登录 (.*?)，完成验证后会自动检测。/g,'Sign in to Gmail as $1. Verification will continue automatically.'],
+  [/当前 Gmail 是 (.*?)，正在自动切换到 (.*?)；尚未读取邮件。/g,'Gmail is signed in as $1; switching to $2. No messages have been read.'],
+  [/当前 Gmail 是 (.*?)，目标邮箱为 (.*?)；请完成登录，助手将继续检测，尚未读取邮件。/g,'Gmail is signed in as $1; the target is $2. Complete sign-in to continue. No messages have been read.'],
+  [/尚未确认 Gmail 账号，请登录 (.*?) 后等待检测。/g,'Gmail account not confirmed. Sign in as $1 and wait for verification.'],
+  [/正在切换 Gmail 到 (.*?)，完成登录后将自动继续/g,'Switching Gmail to $1; processing resumes after sign-in'],
+  [/Gmail 列表读取完成（([\d.]+) 秒），(\d+) 个待检查会话/g,'Gmail list loaded ($1 seconds), $2 threads to check'],
+  [/网站签到状态读取完成（(\d+) 场）/g,'Website attendance loaded ($1 sessions)'],
+  [/核对 (?=[A-Z]{2,10}\d)/g,'Checking '],
+  [/正在核对 Gmail 目标账号：/g,'Verifying Gmail account: '],
+  [/Gmail 账号已确认，正在搜索最近 7 天的邮件/g,'Gmail account verified; searching the last 7 days'],
+  [/检查邮件会话 (\d+)\/(\d+)（最多等待 (\d+) 秒）/g,'Checking email thread $1/$2 (up to $3 seconds)'],
+  [/已读取 Moodle (.*?)（([\d.]+) 秒）/g,'Read Moodle $1 ($2 seconds)'],
+  [/自动读取到 (\d+) 场近期待签到课程/g,'Detected $1 recent pending sessions'],
+  [/已保存 (\d+) 条文字记录/g,'Saved $1 text records'],
+  [/正在下载第 (\d+)\/(\d+) 张图片（最多 (\d+) 秒）/g,'Downloading image $1/$2 (up to $3 seconds)'],
+  [/第 (\d+)\/(\d+) 张图片已识别并保存/g,'Image $1/$2 recognized and saved'],
+  [/第 (\d+)\/(\d+) 张图片失败：/g,'Image $1/$2 failed: '],
+  [/正在核对并填写 /g,'Checking and entering '],
+  [/准备检查最近 7 天的签到/g,'Preparing attendance checks for the last 7 days'],
+  [/正在读取签到文字和图片/g,'Reading attendance text and images'],
+  [/跳过超过 7 天的旧内容/g,'Skipping content older than 7 days'],
+  [/该课程所需场次已找到，跳过剩余图片/g,'Required sessions found; skipping remaining images'],
+  [/页面已被关闭，无法执行签到/g,'page was closed; unable to check in'],
+  [/网站登录未完成，签到码来源尚未检查完整。请先登录，再重试。/g,'Sign-in is incomplete; code sources have not all been checked. Sign in and retry.']
+ ];
+ for(const [pattern,replacement] of patterns)result=result.replace(pattern,replacement);
  for(const [zh,en] of sortedEntries)result=result.split(zh).join(en);
  return result.replace(/每周\s*(\d+)\s*场/g,'$1 sessions per week').replace(/(\d+)\s*场/g,'$1 sessions').replace(/(\d+)\s*秒前更新/g,'Updated $1 seconds ago').replace(/最多\s*(\d+)\s*秒/g,'up to $1 seconds');
 }
