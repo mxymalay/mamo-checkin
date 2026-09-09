@@ -38,15 +38,15 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   const deadline=Date.now()+2000;
   while(!values.status?.finishedAt&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,1));
   assert.ok(values.status?.finishedAt,'run must finish');
-  assert.equal(values.status.error,savedExpired,JSON.stringify(values.diagnostics));
+  assert.equal(values.status.error,false,JSON.stringify(values.diagnostics));
   await new Promise(resolve=>setTimeout(resolve,5));
-  return {opened,queries,settings:values.settings,summary:values.status.summary};
+  return {opened,queries,settings:values.settings,summary:values.status.summary,records:values.records};
  }finally{globalThis.chrome=previous;}
 }
 test('completed timetable slots skip both Gmail and Moodle in an actual background run',async()=>{
  const result=await runScenario(['ABC1234','DEF1234']);
  assert.deepEqual(result.opened,['https://attendance.monash.edu.my/student/Units.aspx']);
- assert.deepEqual(result.queries,[]);assert.equal(result.summary.allCompleted,true);assert.equal(result.summary.courses.length,2);assert.ok(result.summary.courses.every(c=>c.reason.includes('已签到')));
+ assert.deepEqual(result.queries,[]);assert.equal(result.summary.allCompleted,true);assert.equal(result.summary.courses.length,0);assert.deepEqual(result.summary.records,[]);assert.equal(result.summary.quiet,true);
 });
 test('only the missing course searches Gmail and then its own Moodle source',async()=>{
  const result=await runScenario(['ABC1234']);
@@ -69,4 +69,4 @@ test('fresh-start reset removes identity, courses, records and local state',asyn
 
 test('manual check runs with automatic scheduling disabled and keeps it disabled',async()=>{const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,false);assert.equal(result.settings.enabled,false);assert.ok(result.opened.length);});
 
-test('saved expired records remain visible in the final outcome outside the search window',async()=>{const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,true,true);assert.equal(result.summary.submitted,0);assert.equal(result.summary.allCompleted,false);assert.equal(result.summary.courses[0].expired,1);assert.match(result.summary.courses[0].reason,/已过期/);assert.equal(result.summary.records[0].status,'expired');});
+test('unchanged expired history stays in collection records without reopening a completion warning',async()=>{const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,true,true);assert.equal(result.summary.submitted,0);assert.equal(result.summary.quiet,true);assert.deepEqual(result.summary.courses,[]);assert.deepEqual(result.summary.records,[]);assert.ok(result.records.some(r=>r.id==='old-expired'&&r.status==='expired'));});
