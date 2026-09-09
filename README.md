@@ -2,16 +2,16 @@
 
 ## English
 
-Two installation channels are supported: GitHub full packages include the extension and OCR helper; Chrome Web Store users install the extension from the store and download only the OCR companion from its setup page. Both extension IDs are supported by the native installer. See [OCR companion instructions](store/OCR-INSTALL.md).
+GitHub packages are available as a full package or as an OCR-only companion package. See [OCR companion instructions](OCR-INSTALL.md).
 
-Both versions offer direct OCR companion downloads in the setup guide. You can also download here:
+The setup guide also offers the OCR companion download. You can download either package here:
 
-| System | Full GitHub package (extension + OCR) | OCR companion only |
+| System | Full package (extension + OCR) | OCR companion only |
 | --- | --- | --- |
 | macOS | [Mac full package](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-checkin-mac.zip) | [Mac OCR helper](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-mac.zip) |
 | Windows | [Windows full package](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-checkin-windows.zip) | [Windows OCR helper](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-windows.zip) |
 
-Already installed and passing the service check? No download is needed. Store users should not load a second extension from the full GitHub package.
+Already installed and passing the service check? No download is needed. If the extension is already installed, use the OCR-only package instead of loading another copy of the extension.
 
 Collect attendance codes from Gmail and Monash Moodle, recognize text and images locally, and check in to matching school sessions. Supports Chrome on macOS 12+ and Windows 10/11 x64.
 
@@ -41,16 +41,16 @@ Public tests use synthetic data. Real course text extraction has been verified, 
 
 ## 中文
 
-两种版本都能从扩展安装引导直接下载 OCR，也可以从这里下载：
+GitHub 提供完整包和仅 OCR 配套包。扩展安装引导也提供 OCR 配套包下载，两个包都可以从这里获取：
 
-| 系统 | GitHub 完整包（扩展 + OCR） | 仅 OCR 配套包 |
+| 系统 | 完整包（扩展 + OCR） | 仅 OCR 配套包 |
 | --- | --- | --- |
 | macOS | [Mac 完整包](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-checkin-mac.zip) | [Mac OCR 配套包](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-mac.zip) |
 | Windows | [Windows 完整包](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-checkin-windows.zip) | [Windows OCR 配套包](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-windows.zip) |
 
-已安装且检测正常，无需重复下载。商店用户不要从完整包再次加载一份扩展。
+已安装且检测正常，无需重复下载。若扩展已经安装，请使用仅 OCR 配套包，不要再次加载一份扩展。
 
-保留两种安装渠道：GitHub 完整包包含扩展和识别服务；Chrome 商店用户在商店安装扩展后，从引导页下载仅含 OCR 的配套包。安装器同时支持两种扩展 ID，不要求已有 GitHub 用户迁移。参见 [OCR 配套安装说明](store/OCR-INSTALL.md)。
+完整包包含扩展和本机识别服务；仅 OCR 配套包只安装本机识别服务。参见 [OCR 配套安装说明](OCR-INSTALL.md)。
 
 从 Gmail 和 Monash Moodle 识别签到码，自动匹配课程并签到。支持文字和图片，在本机识别（Mac：Apple Vision；Windows：Tesseract）。
 

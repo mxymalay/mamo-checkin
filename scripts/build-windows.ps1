@@ -9,6 +9,7 @@ if (Test-Path $bundle) { Remove-Item $bundle -Recurse -Force }
 New-Item $bundle -ItemType Directory | Out-Null
 Copy-Item extension "$bundle/extension" -Recurse
 'local-service.js','offscreen.html','offscreen.js','ocr-controller.js','ocr-engine.js' | ForEach-Object { Remove-Item "$bundle/extension/$_" -ErrorAction SilentlyContinue }
+Get-ChildItem $bundle -Filter '.DS_Store' -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Copy-Item build/win-runtime/mamo-host "$bundle/host" -Recurse
 New-Item "$bundle/host/tessdata" -ItemType Directory | Out-Null
 python -c "import gzip,pathlib; pathlib.Path('build/windows/host/tessdata/eng.traineddata').write_bytes(gzip.decompress(pathlib.Path('node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz').read_bytes()))"
@@ -17,11 +18,13 @@ Copy-Item native/licenses/tessdata-LICENSE.txt "$bundle/host/tessdata/LICENSE.tx
 Set-Content "$bundle/host/tessdata/SOURCE.txt" '@tesseract.js-data/eng 1.0.0 / 4.0.0_best_int, unmodified. Source: https://github.com/naptha/tessdata'
 Copy-Item 'build/win-installer/Install Windows OCR.exe' $bundle
 Copy-Item INSTALL-WINDOWS.md "$bundle/INSTALL.md"
+Get-ChildItem $bundle -Filter '.DS_Store' -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path "$bundle/*" -DestinationPath build/mamo-checkin-windows.zip -Force
 $companion = 'build/windows-ocr'
 if (Test-Path $companion) { Remove-Item $companion -Recurse -Force }
 New-Item $companion -ItemType Directory | Out-Null
 Copy-Item "$bundle/host" "$companion/host" -Recurse
 Copy-Item "$bundle/Install Windows OCR.exe" $companion
-Copy-Item store/OCR-INSTALL.md "$companion/INSTALL.md"
+Copy-Item OCR-INSTALL.md "$companion/INSTALL.md"
+Get-ChildItem $companion -Filter '.DS_Store' -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path "$companion/*" -DestinationPath build/mamo-ocr-windows.zip -Force

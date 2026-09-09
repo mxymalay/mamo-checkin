@@ -22,6 +22,7 @@ await cp(path.join(root,'INSTALL.md'),path.join(bundle,'安装说明.md'));
 const files={};
 async function add(folder,prefix=''){
   for(const entry of await readdir(folder,{withFileTypes:true})){
+    if(entry.name==='.DS_Store')continue;
     const location=path.join(folder,entry.name),name=prefix+entry.name;
     if(entry.isDirectory())await add(location,name+'/');
     else {const mode=(await stat(location)).mode;files[name]=[new Uint8Array(await readFile(location)),{os:3,attrs:mode<<16}];}
@@ -33,6 +34,6 @@ await writeFile(output,zipSync(files,{level:6}));
 console.log('Mac 安装包：'+output);
 const companion={};
 for(const [name,value] of Object.entries(files))if(!name.startsWith('extension/')&&name!=='安装说明.md')companion[name]=value;
-companion['INSTALL.md']=new Uint8Array(await readFile(path.join(root,'store/OCR-INSTALL.md')));
+companion['INSTALL.md']=new Uint8Array(await readFile(path.join(root,'OCR-INSTALL.md')));
 await writeFile(path.join(root,'build/mamo-ocr-mac.zip'),zipSync(companion,{level:6}));
 console.log('Mac OCR 配套包：'+path.join(root,'build/mamo-ocr-mac.zip'));

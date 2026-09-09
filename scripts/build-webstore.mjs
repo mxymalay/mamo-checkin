@@ -9,6 +9,7 @@ const excluded=new Set(['local-service.js','offscreen.html','offscreen.js','ocr-
 const files={};
 async function collect(dir,prefix=''){
  for(const entry of await readdir(dir,{withFileTypes:true})){
+  if(entry.name==='.DS_Store')continue;
   const name=prefix+entry.name;
   if(entry.isDirectory())await collect(path.join(dir,entry.name),name+'/');
   else if(!excluded.has(name))files[name]=new Uint8Array(await readFile(path.join(dir,entry.name)));
