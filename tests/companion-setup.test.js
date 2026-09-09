@@ -4,10 +4,11 @@ import {JSDOM} from 'jsdom';
 import {installCompanionDownload,STORE_ID} from '../extension/companion-setup.js';
 import {translate} from '../extension/i18n.js';
 const markup='<section><div data-setup="install"><h2>Install</h2><a href="https://github.com/mxymalay/mamo-checkin/releases/latest">Download package</a></div></section>';
-test('GitHub development installation remains unchanged',()=>{
- const doc=new JSDOM(markup).window.document,box=doc.querySelector('section'),before=box.innerHTML;
+test('GitHub gets the same helper shortcut and keeps its full-package fallback',()=>{
+ const doc=new JSDOM(markup).window.document,box=doc.querySelector('section');
  installCompanionDownload(box,{doc,extensionId:'nccgbccaamgcdcikjhljinefjbfcinfp'});
- assert.equal(box.innerHTML,before);
+ assert.ok(box.querySelector('#download-companion').href.endsWith('mamo-ocr-mac.zip'));
+ assert.ok(box.querySelector('a[href="https://github.com/mxymalay/mamo-checkin/releases/latest"]'));
 });
 for(const isWindows of [true,false])test(`store installation links to helper only (${isWindows?'Windows':'Mac'})`,()=>{
  const dom=new JSDOM(markup),doc=dom.window.document,box=doc.querySelector('section');
