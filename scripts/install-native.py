@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Install only this app's native host; never read Chrome profiles or sessions."""
 import argparse
-import hashlib
-import base64
 import json
 import os
 from pathlib import Path
@@ -12,9 +10,8 @@ import subprocess
 import sys
 
 def install(bundle, home):
-    manifest = json.loads((bundle / 'extension' / 'manifest.json').read_text())
-    digest = hashlib.sha256(base64.b64decode(manifest['key'])).hexdigest()[:32]
-    extension_id = ''.join(chr(ord('a') + int(char, 16)) for char in digest)
+    extension_id = 'nccgbccaamgcdcikjhljinefjbfcinfp'
+    store_id = 'mneachaobiledakoicnkinfdpcjkbnmm'
     destination = home / 'Library' / 'Application Support' / '签到助手' / 'native-runtime'
     (destination / 'native').mkdir(parents=True, exist_ok=True)
     (destination / 'build').mkdir(exist_ok=True)
@@ -27,7 +24,7 @@ def install(bundle, home):
     registry = home / 'Library' / 'Application Support' / 'Google' / 'Chrome' / 'NativeMessagingHosts'
     registry.mkdir(parents=True, exist_ok=True)
     target = registry / 'com.attendanceassistant.vision.json'
-    target.write_text(json.dumps({'name':'com.attendanceassistant.vision','description':'马莫签到助手 Mac 本地图片识别','path':str(launcher),'type':'stdio','allowed_origins':['chrome-extension://' + extension_id + '/']}, ensure_ascii=False, indent=2)+'\n')
+    target.write_text(json.dumps({'name':'com.attendanceassistant.vision','description':'马莫签到助手 Mac 本地图片识别','path':str(launcher),'type':'stdio','allowed_origins':['chrome-extension://' + value + '/' for value in [extension_id, store_id]]}, ensure_ascii=False, indent=2)+'\n')
     os.chmod(target, 0o600)
     return launcher, target, extension_id
 

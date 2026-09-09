@@ -356,6 +356,7 @@ def handle_request(request):
             "archiveDir": str(archive_directory()),
             "engine": OCR_ENGINE,
             "ocrRevision": OCR_CACHE_VERSION,
+            "companionRevision": 1,
             "busy": False,
             "stage": ("Local OCR ready" if ready else "Local OCR self-test failed") if IS_WINDOWS else ("Mac 原生识别已就绪" if ready else "Mac 原生识别未通过启动自检"),
             "protocolVersion": PROTOCOL_VERSION,

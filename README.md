@@ -2,6 +2,8 @@
 
 ## English
 
+Two installation channels are supported: GitHub full packages include the extension and OCR helper; Chrome Web Store users install the extension from the store and download only the OCR companion from its setup page. Both extension IDs are supported by the native installer. See [OCR companion instructions](store/OCR-INSTALL.md).
+
 Collect attendance codes from Gmail and Monash Moodle, recognize text and images locally, and check in to matching school sessions. Supports Chrome on macOS 12+ and Windows 10/11 x64.
 
 **[Download](https://github.com/mxymalay/mamo-checkin/releases/latest)** · **[Mac installation](INSTALL.md)** · **[Windows installation](INSTALL-WINDOWS.md)**
@@ -29,6 +31,8 @@ Run `npm ci`, `npm test`, and `npm run build` on macOS with Xcode command-line t
 Public tests use synthetic data. Real course text extraction has been verified, but multi-account login and full live submission have not been validated in every environment. Always verify the final status on the school's attendance website.
 
 ## 中文
+
+保留两种安装渠道：GitHub 完整包包含扩展和识别服务；Chrome 商店用户在商店安装扩展后，从引导页下载仅含 OCR 的配套包。安装器同时支持两种扩展 ID，不要求已有 GitHub 用户迁移。参见 [OCR 配套安装说明](store/OCR-INSTALL.md)。
 
 从 Gmail 和 Monash Moodle 识别签到码，自动匹配课程并签到。支持文字和图片，在本机识别（Mac：Apple Vision；Windows：Tesseract）。
 

@@ -9,6 +9,7 @@ import winreg
 
 HOST = 'com.attendanceassistant.vision'
 EXTENSION = 'nccgbccaamgcdcikjhljinefjbfcinfp'
+STORE_EXTENSION = 'mneachaobiledakoicnkinfdpcjkbnmm'
 
 
 def main():
@@ -19,7 +20,7 @@ def main():
     executable = runtime / 'mamo-host.exe'
     manifest = runtime / (HOST + '.json')
     manifest.write_text(json.dumps(dict(name=HOST, description='Mamo Check-in local OCR',
-        path=str(executable), type='stdio', allowed_origins=[f'chrome-extension://{EXTENSION}/']), indent=2), encoding='utf-8')
+        path=str(executable), type='stdio', allowed_origins=[f'chrome-extension://{value}/' for value in [EXTENSION, STORE_EXTENSION]]), indent=2), encoding='utf-8')
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, rf'SOFTWARE\Google\Chrome\NativeMessagingHosts\{HOST}') as key:
         winreg.SetValueEx(key, '', 0, winreg.REG_SZ, str(manifest))
     import struct

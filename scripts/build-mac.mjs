@@ -31,3 +31,8 @@ await add(bundle);
 const output=path.join(root,'build','mamo-checkin-mac.zip');
 await writeFile(output,zipSync(files,{level:6}));
 console.log('Mac 安装包：'+output);
+const companion={};
+for(const [name,value] of Object.entries(files))if(!name.startsWith('extension/')&&name!=='安装说明.md')companion[name]=value;
+companion['INSTALL.md']=new Uint8Array(await readFile(path.join(root,'store/OCR-INSTALL.md')));
+await writeFile(path.join(root,'build/mamo-ocr-mac.zip'),zipSync(companion,{level:6}));
+console.log('Mac OCR 配套包：'+path.join(root,'build/mamo-ocr-mac.zip'));

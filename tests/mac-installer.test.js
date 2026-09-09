@@ -15,7 +15,7 @@ test('installer registers only the intended extension and launcher works with sp
     const run=spawnSync('/usr/bin/python3',['-c',code,path.join(root,'scripts/install-native.py'),root,directory],{encoding:'utf8'});
     assert.equal(run.status,0,run.stderr);
     const manifest=JSON.parse(await readFile(run.stdout.trim(),'utf8'));
-    assert.deepEqual(manifest.allowed_origins,['chrome-extension://nccgbccaamgcdcikjhljinefjbfcinfp/']);
+    assert.deepEqual(manifest.allowed_origins,['chrome-extension://nccgbccaamgcdcikjhljinefjbfcinfp/','chrome-extension://mneachaobiledakoicnkinfdpcjkbnmm/']);
     assert.ok(manifest.path.startsWith(directory));
     const ping=Buffer.from('{"op":"ping"}'),header=Buffer.alloc(4);header.writeUInt32LE(ping.length);
     const response=spawnSync(manifest.path,[],{input:Buffer.concat([header,ping])});

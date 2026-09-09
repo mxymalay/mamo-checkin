@@ -1,4 +1,5 @@
 import {installerName,ocrEngine} from './platform.js';
+import {STORE_ID} from './companion-setup.js';
 const HOST='com.attendanceassistant.vision';
 const connectionError=detail=>new Error('本地识别服务无法连接。请运行安装包中的“'+installerName+'”，然后重新加载马莫签到助手。'+(detail?'（'+detail+'）':''));
 
@@ -35,6 +36,7 @@ export async function localService({onProgress=async()=>{},timeoutMs=35000}={}){
       let result;
       try{result=await request(payload);}catch(error){if(payload.op==='ocr')await report({message:'图片识别失败：'+error.message,service:{busy:false,binaryReady:false,stage:'识别失败'}});throw error;}
       if(payload.op==='ping'&&result.engine==='Tesseract'&&!(result.ocrRevision>=2)){result={...result,binaryReady:false,healthError:'Please run the latest Install Windows OCR.exe to install the corrected English model.'};}
+      if(payload.op==='ping'&&chrome.runtime.id===STORE_ID&&!(result.companionRevision>=1)){result={...result,binaryReady:false,healthError:'本机识别服务版本不兼容。请使用本页下载按钮安装 OCR 配套程序，再重新检测。'};}
       if(payload.op==='ocr')await report({message:(result.cached?'复用本地识别结果':'本地识别完成')+`（${((Date.now()-started)/1000).toFixed(2)} 秒）`,service:{busy:false,binaryReady:true,stage:ocrEngine},...(result.cached&&{increment:{cached:1}})});
       return result;
     });

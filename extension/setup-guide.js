@@ -1,6 +1,7 @@
 import {bindIdentityReader} from './identity-input.js';
 import {installIdentityChecks} from './email-input.js';
 import {isWindows} from './platform.js';
+import {installCompanionDownload} from './companion-setup.js';
 import {schoolEmail,emailPrefix,configureEmailInput} from './school-email.js';
 export function createSetupGuide({doc=document,request,refresh,detect,checkHealth,reload,reset}){
  const box=doc.createElement('section');box.id='setup-guide';box.className='card';box.innerHTML=`
@@ -14,6 +15,7 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
   section.querySelector('.setup-instructions').innerHTML=`<li>打开下载并解压的安装包。</li><li class="authorization-step"><span class="authorization-number">1</span><div><strong>安装 Tesseract OCR</strong><p><a href="https://github.com/tesseract-ocr/tesseract/releases/download/5.5.0/tesseract-ocr-w64-setup-5.5.0.20241111.exe" target="_blank" rel="noreferrer">下载 Tesseract Windows 安装程序 ↗</a></p><p>使用默认安装位置，保留 English 语言数据。</p></div></li><li class="authorization-step"><span class="authorization-number">2</span><div><strong>连接浏览器</strong><p>双击 Install Windows OCR.exe，等待安装成功。</p><p>无需安装 Python，也无需开启定时签到。</p></div></li><li>回到此页面，等待检测通过，再点击“刷新并继续”。</li>`;
   section.querySelector('details').innerHTML='<summary>Windows 阻止了安装程序？</summary><p>确认文件来自本项目 Release 后，在 SmartScreen 中选择“更多信息 → 仍要运行”。学校管理的电脑若不允许，请联系管理员。</p>';
  }
+ installCompanionDownload(box,{doc,isWindows});
  const resetButton=doc.createElement('button');resetButton.id='setup-reset';resetButton.type='button';resetButton.className='subtle danger-action';resetButton.textContent='清空所有配置与缓存';resetButton.onclick=()=>reset?.();const toolbar=doc.createElement('div');toolbar.className='setup-toolbar';toolbar.append(resetButton);box.prepend(toolbar);
  doc.querySelector('header').after(box);let enabled=true,healthy=false,blocked=false,failed=false,reloadRequired=false,state={},identityEdit=false;
  const $=id=>doc.getElementById(id);configureEmailInput($('setup-email'));

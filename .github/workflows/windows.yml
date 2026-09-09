@@ -56,7 +56,8 @@ jobs:
         shell: python
         run: |
           import json, os, pathlib, subprocess, tempfile, winreg
-          installer = str(pathlib.Path('build/windows/Install Windows OCR.exe').resolve())
+          installer = str(pathlib.Path('build/windows-ocr/Install Windows OCR.exe').resolve())
+          assert not pathlib.Path('build/windows-ocr/extension').exists()
           keyname = r'SOFTWARE\Google\Chrome\NativeMessagingHosts\com.attendanceassistant.vision'
           with tempfile.TemporaryDirectory(prefix='Mamo install 中文 ') as folder:
               try:
@@ -64,7 +65,7 @@ jobs:
                   assert run.returncode == 0, (run.stdout,run.stderr)
                   with winreg.OpenKey(winreg.HKEY_CURRENT_USER,keyname) as key:
                       manifest = json.loads(pathlib.Path(winreg.QueryValueEx(key,'')[0]).read_text(encoding='utf-8'))
-                  assert manifest['allowed_origins']==['chrome-extension://nccgbccaamgcdcikjhljinefjbfcinfp/']
+                  assert manifest['allowed_origins']==['chrome-extension://nccgbccaamgcdcikjhljinefjbfcinfp/','chrome-extension://mneachaobiledakoicnkinfdpcjkbnmm/']
                   assert pathlib.Path(manifest['path']).exists() and manifest['path'].startswith(folder)
               finally:
                   try: winreg.DeleteKey(winreg.HKEY_CURRENT_USER,keyname)
@@ -72,4 +73,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: mamo-checkin-windows
-          path: build/mamo-checkin-windows.zip
+          path: |
+            build/mamo-checkin-windows.zip
+            build/mamo-ocr-windows.zip

@@ -1,4 +1,9 @@
 const entries=`
+本机识别服务版本不兼容。请使用本页下载按钮安装 OCR 配套程序，再重新检测。|The local OCR helper is incompatible. Install the companion using this page's download button, then check again.
+下载 Windows OCR 配套程序|Download Windows OCR helper
+下载 Mac OCR 配套程序|Download Mac OCR helper
+此下载仅包含本机识别服务。无需开启开发者模式或再次安装扩展。|This download contains only the local OCR helper. No Developer mode or second extension installation is needed.
+请在浏览器下载列表确认下载完成，解压并运行安装程序。若下载失败，请重试；随后返回此页检测安装。|Check your browser downloads, extract the ZIP and run the installer. Retry if the download fails, then return here to check installation.
 助手连接已失效。请关闭助手页面，从 Chrome 扩展图标重新打开后重试。|The assistant connection expired. Close this page and reopen it from the Chrome extension icon, then retry.
 读取权限不足。请在 Chrome 扩展管理中允许助手访问对应网站，然后重试。|cannot be read without site permission. Allow access in Chrome extension settings, then retry.
 页面在读取期间发生跳转。请等待页面加载完成后重试。|navigated while being read. Wait for the page to finish loading, then retry.

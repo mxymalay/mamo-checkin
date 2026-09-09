@@ -18,3 +18,10 @@ Set-Content "$bundle/host/tessdata/SOURCE.txt" '@tesseract.js-data/eng 1.0.0 / 4
 Copy-Item 'build/win-installer/Install Windows OCR.exe' $bundle
 Copy-Item INSTALL-WINDOWS.md "$bundle/INSTALL.md"
 Compress-Archive -Path "$bundle/*" -DestinationPath build/mamo-checkin-windows.zip -Force
+$companion = 'build/windows-ocr'
+if (Test-Path $companion) { Remove-Item $companion -Recurse -Force }
+New-Item $companion -ItemType Directory | Out-Null
+Copy-Item "$bundle/host" "$companion/host" -Recurse
+Copy-Item "$bundle/Install Windows OCR.exe" $companion
+Copy-Item store/OCR-INSTALL.md "$companion/INSTALL.md"
+Compress-Archive -Path "$companion/*" -DestinationPath build/mamo-ocr-windows.zip -Force

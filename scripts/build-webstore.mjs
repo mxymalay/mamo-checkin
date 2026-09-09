@@ -15,6 +15,10 @@ async function collect(dir,prefix=''){
  }
 }
 await collect(path.join(root,'extension'));
+// The Web Store assigns its own ID; retain the development key only in source.
+const manifest=JSON.parse(new TextDecoder().decode(files['manifest.json']));
+delete manifest.key;
+files['manifest.json']=new TextEncoder().encode(JSON.stringify(manifest,null,2)+'\n');
 // Store metadata must describe both supported platforms, independently of GitHub packages.
 const descriptions={en:'Collect Gmail and Moodle attendance codes locally and check in to matching Monash Malaysia sessions on Mac or Windows.',zh_CN:'在 Mac 或 Windows 本机识别 Gmail 和 Moodle 签到码，并提交到匹配的 Monash Malaysia 签到场次。',zh_TW:'在 Mac 或 Windows 本機識別 Gmail 和 Moodle 簽到碼，並提交至匹配的 Monash Malaysia 簽到場次。'};
 for(const [locale,description] of Object.entries(descriptions)){
@@ -24,6 +28,7 @@ for(const [locale,description] of Object.entries(descriptions)){
 }
 const zip=zipSync(files,{level:6}),contents=unzipSync(zip);
 assert.ok(contents['manifest.json']);assert.ok(contents['user-error.js']);
+assert.equal(Object.hasOwn(JSON.parse(new TextDecoder().decode(contents['manifest.json'])),'key'),false);
 assert.ok(!Object.keys(contents).some(name=>name.startsWith('extension/')||/\.(exe|py|command)$/.test(name)));
 await mkdir(path.join(root,'build'),{recursive:true});
 const output=path.join(root,'build/mamo-checkin-webstore.zip');await writeFile(output,zip);

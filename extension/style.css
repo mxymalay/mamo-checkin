@@ -28,6 +28,7 @@ body[data-setup]:not([data-setup=complete]) .page-tabs{display:none}body[data-se
 .moodle-course-guide{display:block;line-height:1.7;margin-top:8px;overflow-wrap:anywhere}.moodle-course-guide a{text-decoration:underline}
 
 .state.waiting_code{background:#fff3dc;color:#8b601a}
+#setup-guide .companion-download{display:inline-block;max-width:100%;width:auto;white-space:normal;text-decoration:none;margin:8px 0}
 .settings-columns .identity-check,.settings-columns #save-general,.settings-columns #save-automation,.settings-columns #check-health{display:block;width:132px;max-width:100%;height:40px;margin:5px 0 0;padding:8px 12px;border:1px solid #006dae;border-radius:8px;background:#006dae;color:#fff;font-size:14px;font-weight:600;line-height:22px;white-space:nowrap}
 html[lang=en] .settings-columns .identity-check,html[lang=en] .settings-columns #save-general,html[lang=en] .settings-columns #save-automation,html[lang=en] .settings-columns #check-health{width:168px}
 .settings-columns .identity-check-status:empty{display:none}.settings-columns .muted{overflow-wrap:anywhere}
