@@ -1,3 +1,4 @@
+import {runSummaryRecords,summaryFingerprint} from './run-summary.js';
 import {syncSessionRecords} from './session-records.js';
 import {checkinResult} from './checkin-result.js';
 import {parseActivity,siteDate,matchActivity} from './core.js';
@@ -190,6 +191,7 @@ async function submit(state,native){
 }
 async function run(manual=false,course=null){
   const state=await loadState();
+  const beforeSummary=new Map(state.records.map(r=>[r.id,summaryFingerprint(r)]));
   state.runSubmittedIds=new Set();
   if(course)state.settings={...state.settings,courses:state.settings.courses.filter(c=>c===course)};
   if(!manual&&!state.settings.enabled)return {ok:false,error:'自动运行已暂停'};
@@ -227,19 +229,22 @@ async function run(manual=false,course=null){
     const failures=state.diagnostics.length,lastFailure=state.diagnostics.at(-1)?.error;
     const message=failures?`${failures} 项处理失败：${lastFailure}`:attention?`${attention} 条记录需要核对`:'本轮签到流程已完成';
     const currentRecords=state.records.filter(r=>state.settings.courses.includes(r.course)&&(r.status==='expired'||(!outsideAttendanceWindow(r)&&recordInSchedule(state.settings,r))));
-    const summary={issues:state.scheduleIssues||[],submitted:currentRecords.filter(r=>r.status==='submitted'&&state.runSubmittedIds.has(r.id)).length,detected:currentRecords.length,needsConfirmation:!currentRecords.length||Boolean(state.autoNeedsConfirmation),records:currentRecords.map(({course,date,time,type,group,status})=>({course,date,time,type,group,status}))};
+    const notificationRecords=runSummaryRecords(currentRecords,beforeSummary,state.runSubmittedIds);
+    const summary={issues:state.scheduleIssues||[],submitted:currentRecords.filter(r=>r.status==='submitted'&&state.runSubmittedIds.has(r.id)).length,detected:currentRecords.length,needsConfirmation:!currentRecords.length||Boolean(state.autoNeedsConfirmation),records:notificationRecords.map(({course,date,time,type,group,status})=>({course,date,time,type,group,status}))};
     summary.courses=state.settings.courses.map(course=>{
       const activities=(state.activities||[]).filter(a=>a.course===course&&!outsideAttendanceWindow(a)&&recordInSchedule(state.settings,a));
-      const records=currentRecords.filter(r=>r.course===course);
+      const records=notificationRecords.filter(r=>r.course===course);
       const submitted=records.filter(r=>r.status==='submitted'&&state.runSubmittedIds.has(r.id)).length;
-      const completed=activities.filter(a=>a.state==='completed'&&!records.some(r=>state.runSubmittedIds.has(r.id)&&matchActivity(r,a))).length;
-      const pending=activities.filter(a=>a.state==='available'&&!records.some(r=>r.status==='submitted'&&matchActivity(r,a))).length;
-      const expired=Math.max(activities.filter(a=>a.state==='expired').length,records.filter(r=>r.status==='expired').length);
+      const completed=0;
+      const pending=activities.filter(a=>a.state==='available'&&!currentRecords.some(r=>r.status==='submitted'&&matchActivity(r,a))).length;
+      const expired=records.filter(r=>r.status==='expired').length;
       const unresolved=records.filter(r=>['ready','review','uncertain','attempting'].includes(r.status)).length;
       const reason=expired?`已保存记录中有 ${expired} 场已过期，无法补签${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:unresolved?`有 ${unresolved} 场尚未确认签到成功，请核对记录${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:submitted?`本次签到成功 ${submitted} 场${completed?`；网站显示已签到 ${completed} 场`:''}`:completed&&!pending&&!expired&&!unresolved?`网站显示 ${completed} 场已签到，本次无需重复签到或查找签到码`:pending?`有 ${pending} 场等待签到码，暂未找到；可能尚未发布或当前来源未检索到，可稍后重试`:activities.length?'近期场次已关闭，无法补签':state.activities?'未找到最近 7 天内与课表匹配的场次，请核对课表':'未能读取网站签到状态，请确认登录后重试';
       return {course,submitted,completed,pending,expired,unresolved,reason};
     });
-    summary.allCompleted=summary.courses.length>0&&summary.courses.every(c=>c.completed>0&&!c.pending&&!c.expired&&!c.unresolved&&!courseNeedsSource(state,c.course));
+    summary.courses=summary.courses.filter(c=>c.submitted||c.pending||c.expired||c.unresolved);
+    summary.quiet=!failures&&!summary.issues.length&&!summary.needsConfirmation&&!summary.records.length&&!summary.courses.length;
+    summary.allCompleted=summary.quiet;
     if(summary.allCompleted&&!state.autoNeedsConfirmation)summary.needsConfirmation=false;
     const outcome=checkinResult(summary,Boolean(failures));
     await progress.finish({message:outcome.success?outcome.title:outcome.title+'：'+message,error:Boolean(failures)||outcome.tone==='error',diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,summary});

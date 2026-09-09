@@ -9,3 +9,5 @@ test('unconfirmed results and missing data do not show green success',()=>{
  assert.equal(checkinResult({submitted:1,needsConfirmation:false}).success,true);
  assert.equal(checkinResult({allCompleted:true}).success,true);
 });
+
+test('quiet runs report completion without claiming a new successful check-in',()=>{const result=checkinResult({quiet:true});assert.equal(result.success,false);assert.equal(result.title,'本轮签到流程已完成。');assert.notEqual(checkinResult({quiet:true},true).tone,'success');});

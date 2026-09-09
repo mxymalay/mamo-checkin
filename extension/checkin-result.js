@@ -1,4 +1,5 @@
 export function checkinResult(summary={},error=false){
+ if(summary.quiet&&!error)return {success:false,title:'本轮签到流程已完成。',tone:'success'};
  const courses=summary.courses||[],records=summary.records||[];
  const expired=courses.some(c=>c.expired>0)||records.some(r=>r.status==='expired');
  const unresolved=courses.some(c=>c.pending>0||c.unresolved>0)||records.some(r=>['waiting_code','ready','review','uncertain','attempting'].includes(r.status));
