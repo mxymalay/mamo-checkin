@@ -18,6 +18,8 @@ For Moodle, enter the `course_id` after `course/view.php?id=` or paste the full 
 
 Supports English and Chinese, configuration import/export, copying codes, retrying pending courses, and CSV export. Records are grouped by course and source week, or by date range when no week is available. Saving settings and background completion do not switch tabs.
 
+Login verification does not start a check-in. Closed pages, missing permissions, connection failures, timeouts, and storage errors show actionable messages. Unconfirmed submissions remain pending review instead of being automatically submitted again.
+
 Only matching, open sessions from the last seven days are eligible. Uncertain results require review. Scheduled checks are optional; Chrome must remain running and the computer awake. Images and archives stay on your computer and are not sent to third-party AI services.
 
 ### Development and verification
@@ -49,6 +51,8 @@ Public tests use synthetic data. Real course text extraction has been verified, 
 只处理最近 7 天内、网站仍开放且信息匹配的场次；不确定时提示核对。开启自动运行后可关闭助手页面，但 Chrome 需运行、电脑不能睡眠。
 
 原图与记录保存在本机，不上传至第三方 AI。
+
+登录验证不会启动签到。页面关闭、权限不足、连接失效、超时和存储失败会显示原因及处理建议。未确认的提交保留为待核对，不会自动重复提交。
 
 ## 开发
 

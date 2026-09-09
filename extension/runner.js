@@ -1,4 +1,5 @@
 import {eligible,matchActivity} from './core.js';
+import {userError} from './user-error.js';
 import {outsideAttendanceWindow} from './recent-window.js';
 export async function submitPending(state,adapter,now=Date.now()) {
   let activities=await adapter.list();
@@ -42,7 +43,7 @@ export async function submitPending(state,adapter,now=Date.now()) {
         r.status='submitted';r.reason='网站已确认签到';r.confirmedAt=new Date().toISOString();
         (state.runSubmittedIds??=new Set()).add(r.id);
       } else {r.status='uncertain';r.reason='尚未取得网站成功确认，已停止自动重试';}
-    } catch(e) {r.status='uncertain';r.reason=`提交结果待核对：${e.message}`;}
+    } catch(e) {r.status='uncertain';r.reason=`提交结果待核对：${userError(e,'Attendance 签到系统')}`;}
     await adapter.save();
   }
 }

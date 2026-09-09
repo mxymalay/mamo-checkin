@@ -1,4 +1,5 @@
 import {runSummaryRecords,summaryFingerprint} from './run-summary.js';
+import {userError} from './user-error.js';
 import {syncSessionRecords} from './session-records.js';
 import {checkinResult} from './checkin-result.js';
 import {parseActivity,siteDate,matchActivity} from './core.js';
@@ -40,6 +41,7 @@ async function save(state,native){
 }
 const collectionAdapter=(state,native,readImage=getImage)=>({getImage:readImage,ocr:(payload,meta)=>native.call({op:'ocr',...payload,meta}),save:()=>save(state,native),saveDiagnostics:()=>chrome.storage.local.set({diagnostics:state.diagnostics}),recentOnly:true,progress:event=>state.progress(event),shouldContinue:msg=>courseNeedsSource(state,msg.course)});
 async function diagnose(state,details){
+ details={...details,error:userError(details.error,['gmail','thread'].includes(details.scope)?'Gmail':details.scope==='moodle'?'Moodle':details.scope==='archive'?'归档':'Attendance 签到系统')};
  const source=['gmail','thread'].includes(details.scope)?'Gmail':details.scope==='moodle'?'Moodle':'Attendance 签到系统';
  if(isClosedPageError(details.error))details={...details,error:pageError(new Error(details.error),source).message};
  else if(/登录|账号|tab|页面没有及时加载/i.test(details.error||'')&&!details.error.includes(LOGIN_REQUIRED)){
@@ -56,7 +58,7 @@ async function collectMail(state,native){
   const {tabId:tab,searchUrl}=await openVerifiedGmail({email:cfg.email,search,tabs:chrome.tabs,create:url=>createOwnedTab(state,url),navigate,recoverAccount:async(tabId,email)=>{
     const end=Date.now()+180000;let switchAttempted=false,accountSelected=false;
     while(Date.now()<end){
-      const result=await checkEmailLogin({email,tabId,open:false,switchAttempted,accountSelected},emailCheckAdapters);
+      const result=await checkEmailLogin({email,tabId,open:false,recoverClosedTab:false,switchAttempted,accountSelected},emailCheckAdapters);
       if(result.matched)return runFunction(tabId,gmailAdapter,'identity');
       switchAttempted||=Boolean(result.switchAttempted);accountSelected||=Boolean(result.accountSelected);
       await state.progress({message:result.message||`正在切换 Gmail 到 ${email}，完成登录后将自动继续`});
@@ -271,7 +273,7 @@ async function run(manual=false,course=null){
     await progress.finish({message:outcome.success?outcome.title:outcome.title+'：'+message,error:Boolean(failures)||outcome.tone==='error',diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,summary});
     await chrome.action.setBadgeText({text:attention||failures?'!':''});
     return {ok:true};
-  }catch(e){const error=(e.message||String(e)).replaceAll(LOGIN_REQUIRED+' ','');await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}
+  }catch(e){const error=userError(e,'签到').replaceAll(LOGIN_REQUIRED+' ','');await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}
   finally{try{await cleanOwnedTabs(state);}catch{}try{await native?.close();}catch{}}
 }
 function start(manual=false,course=null){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run(manual,course).finally(()=>{activeRun=null;});return activeRun;}
@@ -302,14 +304,14 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     if(message.type==='readIdentity'){
       const url='https://attendance.monash.edu.my/student/Default.aspx';
       let tab;
-      if(Number.isInteger(message.tabId)){try{tab=await chrome.tabs.get(message.tabId);}catch{}}
+      if(Number.isInteger(message.tabId)){try{tab=await chrome.tabs.get(message.tabId);}catch(error){throw pageError(error,'Attendance 签到系统');}}
       else tab=(await chrome.tabs.query({url:'https://attendance.monash.edu.my/student/Default.aspx*'}))[0];
       if(!tab&&message.open){tab=await chrome.tabs.create({url,active:true});return {ok:true,needsLogin:true,tabId:tab.id};}
       if(!tab)return {ok:true,needsLogin:true};
       const page=new URL(tab.url||url);
       if(page.origin!=='https://attendance.monash.edu.my'||page.pathname!=='/student/Default.aspx'||tab.status!=='complete')return {ok:true,needsLogin:true,tabId:tab.id};
       try{const result=await runFunction(tab.id,attendanceAdapter,'identity');return {ok:true,name:result.name,tabId:tab.id};}
-      catch(error){return {ok:false,error:error.message};}
+      catch(error){return {ok:false,error:userError(error,'Attendance 签到系统')};}
     }
     if(message.type==='identityField'){
       if(activeRun||activeDetection)throw new Error('请等待当前检查结束再修改身份');
@@ -347,6 +349,6 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     if(message.type==='health'){const native=await localService();try{return await native.call({op:'ping'});}finally{await native.close();}}
     throw new Error('未知请求');
   };
-  handle().then(respond,e=>respond({ok:false,error:e.message}));return true;
+  handle().then(respond,e=>respond({ok:false,error:userError(e,message.type==='checkEmail'?'Gmail':message.type==='readIdentity'?'Attendance 签到系统':'助手')}));return true;
 });
 void schedule();

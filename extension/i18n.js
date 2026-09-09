@@ -1,4 +1,16 @@
 const entries=`
+助手连接已失效。请关闭助手页面，从 Chrome 扩展图标重新打开后重试。|The assistant connection expired. Close this page and reopen it from the Chrome extension icon, then retry.
+读取权限不足。请在 Chrome 扩展管理中允许助手访问对应网站，然后重试。|cannot be read without site permission. Allow access in Chrome extension settings, then retry.
+页面在读取期间发生跳转。请等待页面加载完成后重试。|navigated while being read. Wait for the page to finish loading, then retry.
+网络连接失败。请检查网络及学校网站是否可以打开，然后重试。|could not connect. Check your network and whether the school website opens, then retry.
+本机存储空间不足，未能保存数据。请释放空间后重试，不要卸载扩展或清空签到记录。|Local storage is full; data could not be saved. Free some space and retry. Do not uninstall the extension or clear attendance records.
+响应超时，结果尚未确认。请检查网站或识别服务后重试；若已经提交签到，请先核对学校网站记录。|timed out and the result is unconfirmed. Check the website or OCR service before retrying. If attendance was submitted, verify the school records first.
+操作失败，未返回错误详情。请重新打开助手后重试；若已提交签到，请先核对学校网站记录。|The operation failed without error details. Reopen the assistant and retry. If attendance was submitted, verify the school records first.
+未能完成。请重试；若已提交签到，请先核对学校网站记录。诊断信息：|could not finish. Retry; if attendance was submitted, verify the school records first. Diagnostic details:
+提交结果待核对：|Submission needs verification:
+助手|Assistant
+归档|Archive
+正在验证 Gmail 邮箱，仅检测登录状态，不执行签到…|Verifying your Gmail account only; this does not start a check-in…
 Gmail 邮箱检测通过，已保存。|Gmail account verified and saved.
 Attendance 姓名检测通过，已保存。|Attendance name verified and saved.
 设置|Settings

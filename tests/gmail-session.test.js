@@ -4,6 +4,11 @@ import {JSDOM} from 'jsdom';
 import {gmailAdapter} from '../extension/gmail.js';
 import {openVerifiedGmail,gmailMailbox} from '../extension/gmail-session.js';
 const email='abcd1234@student.monash.edu';
+test('failed page access stops scanning instead of starting an account recovery loop',async()=>{
+ let recovery=0;
+ await assert.rejects(openVerifiedGmail({email,search:'attendance',tabs:{query:async()=>[]},create:async()=>1,readIdentity:async()=>{throw Error('Cannot access contents of url');},recoverAccount:async()=>{recovery++;},navigate:async()=>{throw Error('Must not navigate');}}),/Cannot access/);
+ assert.equal(recovery,0);
+});
 test('Chinese and English account labels identify the current mailbox',()=>{
  for(const label of ['Google Account: Student (','Google 账号：学生（','Google 帳戶：學生（']){
   const doc=new JSDOM(`<button aria-label="${label}${email})"></button>`,{url:'https://mail.google.com/mail/u/2/'}).window.document;

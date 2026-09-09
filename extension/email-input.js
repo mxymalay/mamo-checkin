@@ -6,7 +6,7 @@ export function bindEmailReader({input,button,status,request,onVerified,doc=docu
   stop();let email;
   try{email=schoolEmail(input.value);}catch(error){status.textContent=error.message;return;}
   const ticket=generation,deadline=Date.now()+180000;let tabId,switchAttempted=false,accountSelected=false;
-  button.disabled=true;status.textContent='正在检测 Gmail 登录账号…';
+  button.disabled=true;status.textContent='正在验证 Gmail 邮箱，仅检测登录状态，不执行签到…';
   const read=async(open)=>{
    try{
     const result=await request({type:'checkEmail',email,open,switchAttempted,accountSelected,...(tabId!=null?{tabId}:{})});

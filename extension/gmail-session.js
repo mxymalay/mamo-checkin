@@ -11,7 +11,7 @@ export async function openVerifiedGmail({email,search,tabs,readIdentity,create,n
  }
  const tabId=await create(base||`https://mail.google.com/mail/?authuser=${encodeURIComponent(expected)}`);
  let identity;
- try{identity=await readIdentity(tabId);}catch(error){if(!recoverAccount)throw error;}
+ try{identity=await readIdentity(tabId);}catch(error){if(!recoverAccount||!/LOGIN_REQUIRED|登录|账号|加载/.test(error?.message||''))throw error;}
  if(identity?.email!==expected&&recoverAccount)identity=await recoverAccount(tabId,expected);
  identity||={};
  if(identity.email!==expected)throw new Error(`[LOGIN_REQUIRED] Gmail 当前账号是 ${identity.email||'未知'}，目标账号是 ${expected}。请切换或登录目标邮箱后重试；尚未搜索邮件。`);
