@@ -1,4 +1,15 @@
 const entries=`
+登录并确认学校身份|Sign in and confirm your identity
+登录并读取姓名|Sign in and read name
+自动读取登录后的姓名，也可手动修改|Read your signed-in name automatically, or edit it manually
+正在读取 Attendance 姓名…|Reading your Attendance name…
+已读取 Attendance 姓名，请确认后保存。|Attendance name retrieved. Confirm it before saving.
+请在新标签页登录 Attendance；登录后会自动读取姓名，返回此页确认即可。|Sign in to Attendance in the new tab. Your name will be filled automatically; return here to confirm it.
+尚未读取到姓名，请登录后点击重试，也可手动填写。|Name not found yet. Sign in and retry, or enter it manually.
+已切换为手动填写，请确认姓名与 Attendance 一致。|Manual entry selected. Check that your name matches Attendance.
+请先登录 Attendance 系统，再读取姓名|Sign in to Attendance before reading your name
+未能读取姓名，请确认登录成功；也可手动填写|Could not read your name. Check that you are signed in, or enter it manually
+
 识别服务未就绪，请完成安装引导。|Recognition service is not ready. Complete the installation guide.
 本地识别服务无法连接。请运行安装包中的|Cannot connect to local recognition. Run the installer in the download:
 ，然后重新加载马莫签到助手。|, then reload Mamo Check-in.

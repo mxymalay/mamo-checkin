@@ -3,6 +3,13 @@ export function attendanceAdapter(command,args={},doc=document) {
   const text=el=>(el?.innerText||el?.textContent||'').replace(/\s+/g,' ').trim();
   const origin='https://attendance.monash.edu.my';
   if(doc.location.origin!==origin) throw new Error('签到系统需要重新登录');
+  if(command==='identity'){
+    if(doc.location.pathname!=='/student/Default.aspx')throw new Error('请先登录 Attendance 系统，再读取姓名');
+    const names=doc.querySelectorAll('#ctl00_ContentPlaceHolder1_userName');
+    const name=names.length===1?text(names[0]):'';
+    if(!name||name.length>150)throw new Error('未能读取姓名，请确认登录成功；也可手动填写');
+    return {name};
+  }
   if(command==='activities'||command==='discover') {
     const panels=Array.from(doc.querySelectorAll('[id^="dayPanel_"]'));
     if(!panels.length) throw new Error('签到页面结构改变或尚未登录，未提交任何签到');

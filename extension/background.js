@@ -277,6 +277,18 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('')))return false;
   const handle=async()=>{
     if(message.type==='status'){const state=await loadState();if(!activeRun&&state.status?.running){state.status={...state.status,running:false,error:true,finishedAt:new Date().toISOString(),message:'上次检查已中断，已保存进度，可以重新开始检查'};await chrome.storage.local.set({status:state.status});}return {...state,discoveryAvailable:true,setupGuide:true};}
+    if(message.type==='readIdentity'){
+      const url='https://attendance.monash.edu.my/student/Default.aspx';
+      let tab;
+      if(Number.isInteger(message.tabId)){try{tab=await chrome.tabs.get(message.tabId);}catch{}}
+      else tab=(await chrome.tabs.query({url:'https://attendance.monash.edu.my/student/Default.aspx*'}))[0];
+      if(!tab&&message.open){tab=await chrome.tabs.create({url,active:true});return {ok:true,needsLogin:true,tabId:tab.id};}
+      if(!tab)return {ok:true,needsLogin:true};
+      const page=new URL(tab.url||url);
+      if(page.origin!=='https://attendance.monash.edu.my'||page.pathname!=='/student/Default.aspx'||tab.status!=='complete')return {ok:true,needsLogin:true,tabId:tab.id};
+      try{const result=await runFunction(tab.id,attendanceAdapter,'identity');return {ok:true,name:result.name,tabId:tab.id};}
+      catch(error){return {ok:true,needsLogin:true,tabId:tab.id,message:error.message};}
+    }
     if(message.type==='identity'){
       if(activeRun||activeDetection)throw new Error('请等待当前检查结束再修改身份');
       const state=await loadState(),identity=normalizeIdentity(state.settings,message,state.records.length>0);

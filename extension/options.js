@@ -1,3 +1,4 @@
+import {bindIdentityReader} from './identity-input.js';
 import {installLanguageUI,translate} from './i18n.js';
 import {checkinResult} from './checkin-result.js';
 import {schoolEmail,emailPrefix,configureEmailInput} from './school-email.js';
@@ -175,4 +176,5 @@ guide=createSetupGuide({request,refresh,detect:()=>discoverCourses(true),checkHe
 setInterval(()=>{if(guide.needsHealth()&&!healthPending)void health();},5000);
 render({settings:DEFAULTS,setupGuide:true},true);globalThis.chrome?.storage?.onChanged?.addListener((changes,area)=>{if(area==='local'&&(changes.status||changes.settings))void refresh(Boolean(changes.settings));});setInterval(()=>renderProgress(latest.status||{}),1000);setInterval(()=>refresh(),2000);void refresh(true);if(globalThis.chrome?.runtime?.id)void health();
 
+bindIdentityReader({input:$('name'),button:$('read-name'),status:$('read-name-status'),request,onChange:()=>{editing=true;}});
 installLanguageUI();
