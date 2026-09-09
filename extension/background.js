@@ -21,7 +21,7 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 async function loadState(){const s=await chrome.storage.local.get(['settings','records','seenMessages','seenThreads','moodleProgress','nextCourse','diagnostics','status','ownedTabIds']);return {...s,settings:{...DEFAULTS,...s.settings},records:s.records||[],seenMessages:s.seenMessages||{},seenThreads:s.seenThreads||{},moodleProgress:s.moodleProgress||{},diagnostics:s.diagnostics||[],ownedTabIds:s.ownedTabIds||[]};}
 async function schedule(){const s=await loadState();await reconcileScanAlarm(s.settings,chrome.alarms);}
-async function runFunction(tabId,func,command,args){const results=await chrome.scripting.executeScript({target:{tabId},func,args:[command,args]});return results[0]?.result;}
+async function runFunction(tabId,func,command,args={}){const results=await chrome.scripting.executeScript({target:{tabId},func,args:[command,args]});return results[0]?.result;}
 async function poll(read,predicate,timeout=25000){const end=Date.now()+timeout;let last;while(Date.now()<end){try{last=await read();if(predicate(last))return last;}catch(e){last=e;}await delay(600);}throw last instanceof Error?last:new Error('页面没有及时加载，请确认 Chrome 中的登录状态');}
 async function navigate(tabId,url){await chrome.tabs.update(tabId,{url});await poll(()=>chrome.tabs.get(tabId),t=>t.status==='complete');}
 async function createOwnedTab(state,url){const tab=await chrome.tabs.create({url,active:false});state.ownedTabIds.push(tab.id);await chrome.storage.local.set({ownedTabIds:state.ownedTabIds});return tab.id;}
@@ -287,7 +287,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       const page=new URL(tab.url||url);
       if(page.origin!=='https://attendance.monash.edu.my'||page.pathname!=='/student/Default.aspx'||tab.status!=='complete')return {ok:true,needsLogin:true,tabId:tab.id};
       try{const result=await runFunction(tab.id,attendanceAdapter,'identity');return {ok:true,name:result.name,tabId:tab.id};}
-      catch(error){return {ok:true,needsLogin:true,tabId:tab.id,message:error.message};}
+      catch(error){return {ok:false,error:error.message};}
     }
     if(message.type==='identity'){
       if(activeRun||activeDetection)throw new Error('请等待当前检查结束再修改身份');
