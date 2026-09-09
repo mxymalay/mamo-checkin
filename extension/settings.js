@@ -1,5 +1,13 @@
 import {schoolEmail} from './school-email.js';
+import {moodleCourseUrl} from './moodle-course-id.js';
 export const DEFAULTS={enabled:false,email:'',name:'',intervalMinutes:1440,academicYear:new Date().getFullYear(),mailQuery:'attendance',courses:[],senders:{},subjectKeywords:{},moodleUrls:{},schedules:{}};
+export function normalizeIdentityField(existing,field,value,hasRecords=false){
+ if(!['email','name'].includes(field))throw new Error('无效的身份字段');
+ const normalized=field==='email'?schoolEmail(value):String(value||'').trim();
+ if(!normalized)throw new Error('学校系统姓名不能为空');
+ if(hasRecords&&normalized!==existing[field])throw new Error('已有签到记录，请使用独立的 Chrome 配置文件切换账号');
+ return {[field]:normalized};
+}
 export function normalizeIdentity(existing,update,hasRecords=false){
  const email=schoolEmail(update.email),name=String(update.name||'').trim();
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!name)throw new Error('请填写有效的学校邮箱和学校系统显示的姓名');
@@ -20,11 +28,12 @@ export function normalizeSettings(existing,update,hasRecords=false){
     const sender=String((update.senders||existing.senders)?.[c]||'').trim().toLowerCase();
     if(sender&&!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(sender))throw new Error(`${c} 发件人邮箱无效`);
     cfg.senders[c]=sender;cfg.subjectKeywords[c]=String((update.subjectKeywords||existing.subjectKeywords)?.[c]||c).trim();
-    cfg.moodleUrls[c]=[...new Set((update.moodleUrls||existing.moodleUrls)?.[c]||[])].map(value=>{
+    cfg.moodleUrls[c]=[...new Set(((update.moodleUrls||existing.moodleUrls)?.[c]||[]).map(value=>{
+      if(/^\d+$/.test(String(value).trim()))return moodleCourseUrl(value);
       let u;try{u=new URL(value);}catch{throw new Error(`${c} Moodle 网址无效`);}
       if(u.origin!=='https://learning.monash.edu'||!['/course/view.php','/mod/forum/view.php','/mod/forum/discuss.php','/mod/page/view.php'].includes(u.pathname)||[...u.searchParams.keys()].some(k=>!['id','d','section'].includes(k)))throw new Error(`${c} 请填写 Monash Moodle 课程、公告或页面网址`);
       return u.href;
-    });
+    }))];
     if(cfg.moodleUrls[c].length>3)throw new Error(`${c} 最多配置 3 个 Moodle 入口`);
     if(!sender&&!cfg.moodleUrls[c].length)throw new Error(`${c} 至少需要一个 Gmail 或 Moodle 来源`);
     const schedule=(update.schedules||existing.schedules)?.[c]||[];

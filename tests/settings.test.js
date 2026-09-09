@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DEFAULTS,normalizeSettings,gmailQuery} from '../extension/settings.js';
+import {DEFAULTS,normalizeSettings,normalizeIdentityField,gmailQuery} from '../extension/settings.js';
+test('verified identity saves one field without requiring or replacing the other',()=>{
+ assert.deepEqual(normalizeIdentityField(DEFAULTS,'email','abcd1234@student.monash.edu'),{email:'abcd1234@student.monash.edu'});
+ assert.deepEqual(normalizeIdentityField(DEFAULTS,'name',' Example Student '),{name:'Example Student'});
+ assert.throws(()=>normalizeIdentityField(DEFAULTS,'enabled',true));
+ assert.throws(()=>normalizeIdentityField(DEFAULTS,'name',''));
+ assert.throws(()=>normalizeIdentityField({name:'Existing Student'},'name','Other Student',true),/已有签到记录/);
+});
 const configured={...DEFAULTS,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['FIT5120'],senders:{FIT5120:'teacher@example.edu'},moodleUrls:{FIT5120:[]}};
 test('fresh installation contains no personal or course source information',()=>{
  assert.equal(DEFAULTS.email,'');assert.equal(DEFAULTS.name,'');assert.equal(DEFAULTS.enabled,false);

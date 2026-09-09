@@ -1,10 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
-import {loginRedirect,readAuthenticatedPage} from '../extension/login-state.js';
+import {loginRedirect,readAuthenticatedPage,pageError} from '../extension/login-state.js';
 import {attendanceAdapter} from '../extension/attendance.js';
 import {moodleAdapter} from '../extension/moodle.js';
 import {gmailAdapter} from '../extension/gmail.js';
+
+test('closed tabs show the source name before and during page injection',async()=>{
+ for(const site of ['Gmail','Moodle','Attendance']){
+  const expected=`${site==='Attendance'?'Attendance 签到系统':site} 页面已被关闭，无法执行签到`;
+  const closed=()=>{throw Error('No tab with id: 12345.');};
+  await assert.rejects(readAuthenticatedPage({get:closed},12345,site,async()=>{}),{message:expected});
+  await assert.rejects(readAuthenticatedPage({get:async()=>({url:'https://learning.monash.edu/'})},12345,site,closed),{message:expected});
+  let reads=0;
+  await assert.rejects(readAuthenticatedPage({get:async()=>{if(reads++)closed();return {url:'https://learning.monash.edu/'};}},12345,site,async()=>{throw Error('Frame removed');}),{message:expected});
+ }
+ const unrelated=Error('Network unavailable');assert.equal(pageError(unrelated,'Gmail'),unrelated);
+});
 
 test('recognizes exact SSO hosts and Moodle login paths without matching unrelated sites',()=>{
  for(const url of ['https://monashuni.okta.com/app/template_wsfed/example/sso/wsfed/passive','https://accounts.google.com/v3/signin/identifier','https://learning.monash.edu/login/index.php'])assert.equal(loginRedirect(url),true);

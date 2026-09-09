@@ -1,4 +1,25 @@
 const entries=`
+Gmail 邮箱检测通过，已保存。|Gmail account verified and saved.
+Attendance 姓名检测通过，已保存。|Attendance name verified and saved.
+设置|Settings
+助手页面|Assistant pages
+还有更多课程？|More courses?
+添加更多课程|Add more courses
+Moodle course_id|Moodle course_id
+例如 35417，也可粘贴完整课程网址|e.g. 35417, or paste a full course URL
+打开 Moodle 课程|Open Moodle course
+打开 Moodle 查看课程网址|Open Moodle to find the course URL
+打开 Moodle 后进入对应课程，网址中 course/view.php?id= 后面的数字就是 course_id；粘贴完整课程网址也会自动提取。|Open your course in Moodle. The number after course/view.php?id= is the course_id. You can also paste the full course URL to extract it automatically.
+学校身份|School identity
+自动检查|Automatic checks
+登录并检测|Sign in and verify
+登录并检测 Gmail 邮箱|Sign in and verify Gmail account
+登录并检测 Attendance 姓名|Sign in and verify Attendance name
+正在检测 Gmail 登录账号…|Checking your Gmail account…
+Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm it before saving.
+请在新标签页登录填写的 Gmail 邮箱，登录后会自动检测。|Sign in to the entered Gmail account in the new tab. Verification will continue automatically.
+尚未确认目标邮箱，请登录后重新检测。|Target account not confirmed. Sign in and verify again.
+邮箱已修改，请重新检测。|Email changed. Verify again.
 登录并确认学校身份|Sign in and confirm your identity
 登录并读取姓名|Sign in and read name
 自动读取登录后的姓名，也可手动修改|Read your signed-in name automatically, or edit it manually

@@ -1,4 +1,5 @@
 import {bindIdentityReader} from './identity-input.js';
+import {installIdentityChecks} from './email-input.js';
 import {isWindows} from './platform.js';
 import {schoolEmail,emailPrefix,configureEmailInput} from './school-email.js';
 export function createSetupGuide({doc=document,request,refresh,detect,checkHealth,reload,reset}){
@@ -17,6 +18,7 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
  doc.querySelector('header').after(box);let enabled=true,healthy=false,blocked=false,failed=false,reloadRequired=false,state={},identityEdit=false;
  const $=id=>doc.getElementById(id);configureEmailInput($('setup-email'));
  bindIdentityReader({input:$('setup-name'),button:$('setup-read-name'),status:$('setup-read-name-status'),request,doc,onChange:()=>{identityEdit=true;}});
+ installIdentityChecks({email:$('setup-email'),name:$('setup-name'),nameButton:$('setup-read-name'),nameStatus:$('setup-read-name-status'),request,doc});
  function render(){
   const cfg=state.settings||{},identity=Boolean(cfg.email&&cfg.name),complete=identity&&cfg.courses?.length&&cfg.courses.every(c=>cfg.senders?.[c]||cfg.moodleUrls?.[c]?.length);
   const step=!healthy||reloadRequired?'install':!identity||identityEdit?'identity':!complete?'courses':'complete';
@@ -28,7 +30,7 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
  }
  $('setup-check').onclick=()=>checkHealth();$('setup-reload').onclick=()=>reload();
  $('setup-detect').onclick=()=>detect();$('setup-back').onclick=()=>{$('setup-email').value=emailPrefix(state.settings?.email);$('setup-name').value=state.settings?.name||'';identityEdit=true;render();};
- $('setup-identity').onsubmit=async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;$('setup-identity-error').textContent='正在保存…';try{await request({type:'identity',email:schoolEmail($('setup-email').value),name:$('setup-name').value});identityEdit=false;$('setup-identity-error').textContent='';await refresh(true);}catch(error){$('setup-identity-error').textContent=error.message;}finally{button.disabled=false;}};
+ $('setup-identity').onsubmit=async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;$('setup-identity-error').textContent='正在保存…';try{await request({type:'identity',email:schoolEmail($('setup-email').value),name:$('setup-name').value});identityEdit=false;$('setup-identity-error').textContent='';await refresh(true);}catch(error){$('setup-identity-error').textContent=error.message;}finally{button.disabled=false;}};
  render();return {
   update(value){state=value;enabled=value.setupGuide===true;render();},
   health(result,error){blocked=Boolean(result?.nativeBlocked);error=result?.healthError||error;$('setup-check').textContent=blocked?'已在系统设置允许，重新检测':'我已安装，立即检测';healthy=Boolean(result?.binaryReady);if(!healthy)failed=true;else if(failed)reloadRequired=true;$('setup-health').textContent=healthy?(reloadRequired?'已检测到识别服务安装成功。请点击下方按钮刷新，继续填写身份。':'识别服务已就绪。'):(blocked?'attendance-ocr 未通过启动自检。请按提示更新或允许程序，再手动点击重新检测。':'尚未连接识别服务。请完成安装；本页每 5 秒自动重试，无需反复刷新。')+(error?' '+error:'');render();},

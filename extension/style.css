@@ -21,9 +21,18 @@ body[data-setup]:not([data-setup=complete]) .status-card,body[data-setup]:not([d
 
 #settings button[type=submit],#save-general{width:100%;max-width:none}#result-success-icon{width:64px;height:64px;border-radius:50%;background:#e7f5ee;color:#168457;display:flex;align-items:center;justify-content:center;margin:0 0 20px}#result-success-icon[hidden]{display:none}#result-dialog{max-width:600px}#result-records{padding:0;list-style:none}#result-records li{padding:12px 0;border-bottom:1px solid #e3eaf1;line-height:1.6}.course-result strong{display:block;color:#174b70;margin-bottom:4px}.course-result span{color:#526477}
 
-.name-hint{display:block;margin-top:8px;font-size:14px;line-height:1.6;color:#526477;font-weight:400}.name-hint a{margin:0 3px;text-decoration:underline}
+.identity-check{background:#006dae;color:#fff;border:1px solid #006dae;border-radius:8px;padding:10px 16px;font:inherit;font-weight:600;min-height:40px;max-width:100%;white-space:normal;cursor:pointer}.identity-check:disabled{opacity:.6;cursor:wait}.identity-check-status{min-height:24px;overflow-wrap:anywhere;margin-top:8px}
+.settings-columns{align-items:start;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.settings-side{display:grid;gap:22px;min-width:0}.settings-columns .card{min-width:0;border-radius:8px}.recognition-settings code{max-width:100%;overflow-wrap:anywhere}@media(max-width:720px){.settings-columns{grid-template-columns:minmax(0,1fr)}}
+.page-tabs{display:flex;gap:4px;border-bottom:1px solid #ccd8e3;margin:0 0 22px}.page-tabs button{flex:1;min-width:0;background:transparent;border:0;border-bottom:3px solid transparent;border-radius:0;color:#526477;padding:14px 8px;font-weight:600;white-space:normal;line-height:1.5}.page-tabs button[aria-selected=true]{border-bottom-color:#006dae;color:#006dae}.page-tabs button:focus-visible{outline:2px solid #006dae;outline-offset:-2px}[role=tabpanel][hidden]{display:none!important}body[data-setup=install] .page-tabs,body[data-setup=identity] .page-tabs{display:none}.courses-card[role=tabpanel],.records[role=tabpanel]{margin-top:0}
+body[data-setup]:not([data-setup=complete]) .page-tabs{display:none}body[data-setup=courses] .courses-card[hidden]{display:block!important}
+.moodle-course-guide{display:block;line-height:1.7;margin-top:8px;overflow-wrap:anywhere}.moodle-course-guide a{text-decoration:underline}
 
 .state.waiting_code{background:#fff3dc;color:#8b601a}
+.settings-columns .identity-check,.settings-columns #save-general,.settings-columns #save-automation,.settings-columns #check-health{display:block;width:132px;max-width:100%;min-height:44px;margin:5px 0 0;padding:10px 16px;border:1px solid #006dae;border-radius:8px;background:#006dae;color:#fff;font-size:14px;font-weight:600;line-height:22px;white-space:normal}
+.more-courses{margin:16px 0}.more-courses summary{cursor:pointer;color:#006dae;font-weight:600;padding:8px 0}.more-courses button{margin-top:8px}.course-number{display:block;color:#657384;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:10px}
+#scan{min-width:150px;min-height:44px;transition:box-shadow .2s ease}#scan:not(:disabled){animation:scan-breathe 3s ease-in-out infinite}#scan:hover:not(:disabled){animation:none;box-shadow:0 0 0 3px #ffffff38}#scan:focus-visible{outline:2px solid white;outline-offset:4px}
+@keyframes scan-breathe{0%,100%{box-shadow:0 0 0 0 #ffffff12}50%{box-shadow:0 0 0 4px #ffffff26}}
+@media(prefers-reduced-motion:reduce){#scan:not(:disabled){animation:none}#scan{transition:none}}
 
 header{flex-wrap:wrap}#language{width:auto;min-width:125px;margin:0;font-size:14px;padding:8px 10px;align-self:flex-start}.header-actions{flex-wrap:wrap}
 

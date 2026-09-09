@@ -1,5 +1,6 @@
 import {mergeRecords,parseImageRows,parseMailDate} from './core.js';
 import {messageOutsideWindow,outsideAttendanceWindow} from './recent-window.js';
+import {parseMoodleTableRow} from './moodle-table.js';
 
 export async function reconcileScanAlarm(settings,alarms) {
   const current=await alarms.get('scan');
@@ -50,6 +51,7 @@ function parseTextRecords(msg,meta) {
   let records=[];
   for(const [index,row] of rows.entries()) {
     const parsed=parseImageRows([{text:row,x:0,y:.5,width:1,height:.1,confidence:1}],textMeta);
+    if(!parsed.length&&msg.sourceType==='moodle'&&hasContext){const record=parseMoodleTableRow(row,textMeta,index);if(record)parsed.push(record);}
     records.push(...parsed);
     if(!parsed.length&&hasContext) {
       const fallback=incompleteReview(textMeta,{imageId:'text',rawText:row,reason:'正文含签到码但缺少完整日期、活动类型、组别或时间',requireCandidate:true,rowIndex:index});

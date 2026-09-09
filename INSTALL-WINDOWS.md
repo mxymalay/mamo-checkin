@@ -1,6 +1,6 @@
 # Windows installation / Windows 安装
 
-Windows 10/11 x64 · Google Chrome. This is the first Windows preview; real school-account submission still needs validation.
+Windows 10/11 x64 · Google Chrome. Review results against the school's attendance system; full live-account submission has not been validated in every environment.
 
 1. **Extract `mamo-checkin-windows.zip`** into a permanent folder.
 2. **[Install Tesseract OCR](https://github.com/tesseract-ocr/tesseract/releases/download/5.5.0/tesseract-ocr-w64-setup-5.5.0.20241111.exe)**. Keep the default installation folder and English language data.
@@ -14,7 +14,7 @@ OCR runs locally. Low-confidence results require review. Scheduled check-in is o
 
 ---
 
-Windows 10/11 x64 · Google Chrome。首个 Windows 预览版，真实学校账号的自动提交仍待验证。
+Windows 10/11 x64 · Google Chrome。请以学校签到系统的最终状态为准；完整自动提交尚未覆盖所有实际账号环境。
 
 1. **解压安装包**，放到固定文件夹。
 2. **安装上方链接的 Tesseract OCR**，保留默认路径和 English 语言数据。
@@ -23,3 +23,5 @@ Windows 10/11 x64 · Google Chrome。首个 Windows 预览版，真实学校账�
 5. **按页面引导完成配置**：识别就绪后点击“刷新并继续”，保存学校身份，登录 Attendance、检测课程并选择邮件 / Moodle 来源。
 
 如被 SmartScreen 阻止，确认来自本仓库后选择 **更多信息 → 仍要运行**。学校管理的电脑若不允许，请联系管理员，不要关闭系统安全保护。
+
+配置完成后使用“设置”“课程来源与课表”“签到记录”三个分页。设置页的“登录并检测”验证通过后独立保存邮箱或姓名，其他设置另行保存。Moodle 可填写 course_id 或粘贴完整课程网址。只有点击“立即签到”才自动进入签到记录页。

@@ -81,7 +81,8 @@ test('configuration import lives in the header and source help is keyboard acces
   assert.equal(header.contains(document.getElementById('import-settings')),true);
   assert.equal(header.contains(document.getElementById('settings-file')),true);
   assert.equal(document.getElementById('source-help'),null);
-  assert.match(document.body.textContent,/可关闭本页面/);
+  assert.equal(document.getElementById('enabled').closest('section').classList.contains('automation-settings'),true);
+  assert.equal(document.getElementById('interval').closest('section').classList.contains('automation-settings'),true);
   dom.window.close();
 });
 
@@ -311,6 +312,7 @@ test('completion dialog requests confirmation for no data and does not repeat on
   const help=document.querySelector('[data-field="weekly-count"]').closest('label').querySelector('.tooltip');assert.match(help.textContent,/自动检测或手动填写/);
   state.status={running:false,finishedAt:'2026-09-08T01:00:00Z',summary:{submitted:0,detected:0,needsConfirmation:true,records:[]}};
   env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.body.dataset.page,'settings');
   assert.equal(document.getElementById('result-success-icon').hidden,true);assert.equal(document.getElementById('result-title').textContent,'签到待确认');assert.match(document.getElementById('result-message').textContent,/请确认/);
   document.getElementById('result-close').click();
   env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
@@ -395,8 +397,40 @@ test('save is hidden without courses and follows adding or removing the last cou
  try{
   await import('../extension/options.js?empty-save='+Date.now());await new Promise(r=>setTimeout(r,0));
   const save=document.querySelector('#settings button[type=submit]');assert.equal(save.hidden,true);
+  const more=document.querySelector('.more-courses');assert.equal(more.open,false);assert.equal(more.querySelector('summary').textContent,'还有更多课程？');assert.ok(more.contains(document.getElementById('add-course')));
   document.getElementById('add-course').click();assert.equal(save.hidden,false);
+  document.getElementById('add-course').click();assert.deepEqual([...document.querySelectorAll('.course-number')].map(n=>n.textContent),['01','02']);
+  document.querySelector('.rule-head>button').click();assert.equal(document.querySelector('.course-number').textContent,'01');
   document.querySelector('.rule-head>button').click();assert.equal(save.hidden,true);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('automation save persists changes through the settings form and mirrors save state',async()=>{
+ const originalSetInterval=globalThis.setInterval,calls=[];
+ const state={settings:{...((await import('../extension/settings.js')).DEFAULTS),email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'}},records:[]};
+ const env=installDom(async p=>{if(p.type==='settings'){calls.push(p.settings);state.settings=p.settings;return {ok:true};}return p.type==='health'?{ok:true,binaryReady:true}:state;});
+ try{
+  await import(`../extension/options.js?automation-save=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const button=document.getElementById('save-automation');assert.ok(button.closest('.automation-settings'));
+  document.getElementById('enabled').checked=true;document.getElementById('interval').value='4320';button.click();
+  await new Promise(r=>setTimeout(r,0));assert.equal(calls.length,1);assert.equal(calls[0].enabled,true);assert.equal(calls[0].intervalMinutes,4320);assert.equal(button.disabled,false);assert.equal(button.textContent,'保存设置');
+  assert.equal(document.body.dataset.page,'settings');assert.equal(document.querySelector('.recognition-settings a'),null);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('verified email and name save independently without persisting unrelated drafts or navigating',async()=>{
+ const originalSetInterval=globalThis.setInterval,calls=[];
+ const state={settings:{email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,intervalMinutes:1440,mailQuery:'attendance',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'}},records:[]};
+ const env=installDom(async p=>{calls.push(p);if(p.type==='identityField'){state.settings[p.field]=p.value;return {ok:true};}if(p.type==='checkEmail')return {matched:true,email:p.email};if(p.type==='readIdentity')return {name:'Verified Student'};return p.type==='health'?{ok:true,binaryReady:true}:state;});
+ try{
+  await import(`../extension/options.js?verified-save=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  document.getElementById('mail-query').value='draft keyword';
+  document.getElementById('mail-query').dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
+  document.getElementById('email-check').click();await new Promise(r=>setTimeout(r,0));
+  document.getElementById('read-name').click();await new Promise(r=>setTimeout(r,0));
+  assert.deepEqual(calls.filter(p=>p.type==='identityField'),[{type:'identityField',field:'email',value:'abcd1234@student.monash.edu'},{type:'identityField',field:'name',value:'Verified Student'}]);
+  assert.equal(calls.some(p=>p.type==='settings'),false);assert.equal(state.settings.mailQuery,'attendance');assert.equal(document.getElementById('mail-query').value,'draft keyword');
+  assert.equal(document.body.dataset.page,'settings');assert.match(document.getElementById('email-check-status').textContent,/已保存/);assert.match(document.getElementById('read-name-status').textContent,/已保存/);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
