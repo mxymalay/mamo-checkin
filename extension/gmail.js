@@ -1,5 +1,6 @@
 // Self-contained: Chrome serializes this function into its isolated page world.
 export function gmailAdapter(command,args={},doc=document) {
+  if(doc.location.hostname==='accounts.google.com'||doc.querySelector('form input[name="identifier"],form input[type="password"],#okta-sign-in'))throw new Error('[LOGIN_REQUIRED] Gmail 需要登录，请完成学校账号登录及验证后重试');
   const text=el=>(el?.innerText||el?.textContent||'').replace(/\s+/g,' ').trim();
   const account=Array.from(doc.querySelectorAll('[aria-label]')).map(el=>el.getAttribute('aria-label')).find(s=>/Google Account:/.test(s));
   const email=account?.match(/\(([^()\s]+@[^()\s]+)\)/)?.[1]?.toLowerCase();

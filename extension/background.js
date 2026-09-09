@@ -14,6 +14,7 @@ import {createRunProgress} from './progress.js';
 import {scanSinceDate,messageOutsideWindow,outsideAttendanceWindow} from './recent-window.js';
 import {courseNeedsSource,recordInSchedule,expectedSessions,detectSessions,detectWeeklySchedule} from './timetable.js';
 import {getImage} from './image-download.js';
+import {LOGIN_REQUIRED,readAuthenticatedPage} from './login-state.js';
 
 const UNITS='https://attendance.monash.edu.my/student/Units.aspx';
 let activeRun=null,activeDetection=null;
@@ -21,8 +22,8 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 async function loadState(){const s=await chrome.storage.local.get(['settings','records','seenMessages','seenThreads','moodleProgress','nextCourse','diagnostics','status','ownedTabIds']);return {...s,settings:{...DEFAULTS,...s.settings},records:s.records||[],seenMessages:s.seenMessages||{},seenThreads:s.seenThreads||{},moodleProgress:s.moodleProgress||{},diagnostics:s.diagnostics||[],ownedTabIds:s.ownedTabIds||[]};}
 async function schedule(){const s=await loadState();await reconcileScanAlarm(s.settings,chrome.alarms);}
-async function runFunction(tabId,func,command,args={}){const results=await chrome.scripting.executeScript({target:{tabId},func,args:[command,args]});return results[0]?.result;}
-async function poll(read,predicate,timeout=25000){const end=Date.now()+timeout;let last;while(Date.now()<end){try{last=await read();if(predicate(last))return last;}catch(e){last=e;}await delay(600);}throw last instanceof Error?last:new Error('页面没有及时加载，请确认 Chrome 中的登录状态');}
+async function runFunction(tabId,func,command,args={}){const read=async()=>{const results=await chrome.scripting.executeScript({target:{tabId},func,args:[command,args]});return results[0]?.result;};return readAuthenticatedPage(chrome.tabs,tabId,func===gmailAdapter?'Gmail':func===moodleAdapter?'Moodle':'Attendance',read);}
+async function poll(read,predicate,timeout=25000){const end=Date.now()+timeout;let last;while(Date.now()<end){try{last=await read();if(predicate(last))return last;}catch(e){if(e.message?.includes(LOGIN_REQUIRED))throw e;last=e;}await delay(600);}throw last instanceof Error?last:new Error('页面没有及时加载，请确认 Chrome 中的登录状态');}
 async function navigate(tabId,url){await chrome.tabs.update(tabId,{url});await poll(()=>chrome.tabs.get(tabId),t=>t.status==='complete');}
 async function createOwnedTab(state,url){const tab=await chrome.tabs.create({url,active:false});state.ownedTabIds.push(tab.id);await chrome.storage.local.set({ownedTabIds:state.ownedTabIds});return tab.id;}
 async function cleanOwnedTabs(state){await cleanupOwnedTabs(state,chrome.tabs,ownedTabIds=>chrome.storage.local.set({ownedTabIds}));}
@@ -35,8 +36,8 @@ async function save(state,native){
 }
 const collectionAdapter=(state,native,readImage=getImage)=>({getImage:readImage,ocr:(payload,meta)=>native.call({op:'ocr',...payload,meta}),save:()=>save(state,native),saveDiagnostics:()=>chrome.storage.local.set({diagnostics:state.diagnostics}),recentOnly:true,progress:event=>state.progress(event),shouldContinue:msg=>courseNeedsSource(state,msg.course)});
 async function diagnose(state,details){
- if(/登录|账号|tab|页面没有及时加载/i.test(details.error||'')){
-  const site=details.scope==='gmail'?'Gmail':details.scope==='moodle'?'Moodle':'签到系统';
+ if(/登录|账号|tab|页面没有及时加载/i.test(details.error||'')&&!details.error.includes(LOGIN_REQUIRED)){
+  const site=['gmail','thread'].includes(details.scope)?'Gmail':details.scope==='moodle'?'Moodle':'签到系统';
   details={...details,error:`${details.error}。请在同一个 Chrome 配置文件打开 ${site} 并完成登录，确认学校邮箱和姓名与设置一致，再返回助手重试。`};
  }
  await state.progress?.({message:details.error,level:'error',context:{course:details.course,subject:details.subject,sourceUrl:details.sourceUrl}});await recordDiagnostic(state,details,()=>chrome.storage.local.set({diagnostics:state.diagnostics}));
@@ -199,7 +200,7 @@ async function run(manual=false,course=null){
   let native;
   const startedAt=new Date().toISOString();
   const progress=createRunProgress(status=>chrome.storage.local.set({status}));
-  state.progress=event=>progress.update(event);
+  state.progress=event=>progress.update({...event,...(event.message?{message:event.message.replaceAll(LOGIN_REQUIRED+' ','')}:{})});
   try{
     await state.progress({message:'正在签到：核对最近 7 天的课程'});
     native=await localService({onProgress:state.progress});
@@ -227,7 +228,7 @@ async function run(manual=false,course=null){
     try{await native.call({op:'archive',records:state.records});}catch(error){await diagnose(state,{scope:'archive',error:'记录已存于扩展，下载归档待重试：'+error.message});}
     const attention=state.records.filter(r=>['review','uncertain','attempting'].includes(r.status)).length;
     const failures=state.diagnostics.length,lastFailure=state.diagnostics.at(-1)?.error;
-    const message=failures?`${failures} 项处理失败：${lastFailure}`:attention?`${attention} 条记录需要核对`:'本轮签到流程已完成';
+    const message=failures?`${failures} 项处理失败：${lastFailure?.replaceAll(LOGIN_REQUIRED+' ','')}`:attention?`${attention} 条记录需要核对`:'本轮签到流程已完成';
     const currentRecords=state.records.filter(r=>state.settings.courses.includes(r.course)&&(r.status==='expired'||(!outsideAttendanceWindow(r)&&recordInSchedule(state.settings,r))));
     const notificationRecords=runSummaryRecords(currentRecords,beforeSummary,state.runSubmittedIds);
     const summary={issues:state.scheduleIssues||[],submitted:currentRecords.filter(r=>r.status==='submitted'&&state.runSubmittedIds.has(r.id)).length,detected:currentRecords.length,needsConfirmation:!currentRecords.length||Boolean(state.autoNeedsConfirmation),records:notificationRecords.map(({course,date,time,type,group,status})=>({course,date,time,type,group,status}))};
@@ -242,7 +243,9 @@ async function run(manual=false,course=null){
       const reason=expired?`已保存记录中有 ${expired} 场已过期，无法补签${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:unresolved?`有 ${unresolved} 场尚未确认签到成功，请核对记录${submitted?`；本次另有 ${submitted} 场签到成功`:''}`:submitted?`本次签到成功 ${submitted} 场${completed?`；网站显示已签到 ${completed} 场`:''}`:completed&&!pending&&!expired&&!unresolved?`网站显示 ${completed} 场已签到，本次无需重复签到或查找签到码`:pending?`有 ${pending} 场等待签到码，暂未找到；可能尚未发布或当前来源未检索到，可稍后重试`:activities.length?'近期场次已关闭，无法补签':state.activities?'未找到最近 7 天内与课表匹配的场次，请核对课表':'未能读取网站签到状态，请确认登录后重试';
       return {course,submitted,completed,pending,expired,unresolved,reason};
     });
+    summary.loginRequired=[...new Set(state.diagnostics.filter(d=>d.error?.includes(LOGIN_REQUIRED)).map(d=>d.error.replace(LOGIN_REQUIRED+' ','')))];
     summary.courses=summary.courses.filter(c=>c.submitted||c.pending||c.expired||c.unresolved);
+    if(summary.loginRequired.length)for(const c of summary.courses)if(c.pending)c.reason='网站登录未完成，签到码来源尚未检查完整。请先登录，再重试。';
     summary.quiet=!failures&&!summary.issues.length&&!summary.needsConfirmation&&!summary.records.length&&!summary.courses.length;
     summary.allCompleted=summary.quiet;
     if(summary.allCompleted&&!state.autoNeedsConfirmation)summary.needsConfirmation=false;
@@ -250,7 +253,7 @@ async function run(manual=false,course=null){
     await progress.finish({message:outcome.success?outcome.title:outcome.title+'：'+message,error:Boolean(failures)||outcome.tone==='error',diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,summary});
     await chrome.action.setBadgeText({text:attention||failures?'!':''});
     return {ok:true};
-  }catch(e){const error=e.message||String(e);await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}
+  }catch(e){const error=(e.message||String(e)).replaceAll(LOGIN_REQUIRED+' ','');await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}
   finally{try{await cleanOwnedTabs(state);}catch{}try{await native?.close();}catch{}}
 }
 function start(manual=false,course=null){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run(manual,course).finally(()=>{activeRun=null;});return activeRun;}

@@ -2,6 +2,7 @@
 export function attendanceAdapter(command,args={},doc=document) {
   const text=el=>(el?.innerText||el?.textContent||'').replace(/\s+/g,' ').trim();
   const origin='https://attendance.monash.edu.my';
+  if(doc.querySelector('form input[type="password"],form input[name="identifier"],#okta-sign-in'))throw new Error('[LOGIN_REQUIRED] Attendance 需要登录，请完成学校账号登录及验证后重试');
   if(doc.location.origin!==origin) throw new Error('签到系统需要重新登录');
   if(command==='identity'){
     if(doc.location.pathname!=='/student/Default.aspx')throw new Error('请先登录 Attendance 系统，再读取姓名');

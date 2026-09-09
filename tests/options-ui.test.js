@@ -30,6 +30,24 @@ function cleanDom(originalSetInterval){
 
 const baseState={settings:{enabled:true,courses:[]},records:[]};
 
+test('completion keeps course prose without duplicate session rows and surfaces login requirements',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{enabled:true,courses:['ABC1234']},records:[],status:{running:true}};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?dedup=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  state.status={running:false,error:true,finishedAt:'2026-09-09T15:00:00Z',summary:{loginRequired:['Moodle 需要登录，请完成登录后重试'],courses:[{course:'ABC1234',pending:1,reason:'网站登录未完成，请先登录，再重试。'}],records:[{course:'ABC1234',date:'2026-09-08',time:'18:00',type:'Studio',group:'01-P1',status:'waiting_code'}]}};
+  env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.querySelectorAll('#result-records li').length,1);
+  assert.equal(document.querySelector('#result-records .course-result strong').textContent,'ABC1234');
+  assert.match(document.getElementById('result-records').textContent,/网站登录未完成/);
+  assert.doesNotMatch(document.getElementById('result-records').textContent,/2026-09-08|01-P1/);
+  assert.doesNotMatch(document.getElementById('result-records').textContent,/可能尚未发布/);
+  assert.match(document.getElementById('result-message').textContent,/Moodle.*登录/);
+  assert.equal(document.getElementById('result-login-links').hidden,false);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
 test('importing a personal file saves settings and refreshes the visible fields',async()=>{
   const originalSetInterval=globalThis.setInterval,saved=[];
   const state={settings:{enabled:false,email:'',name:'',courses:[]},records:[]};

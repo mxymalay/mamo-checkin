@@ -16,6 +16,7 @@ test('real background identity route passes JSON-serializable injection argument
  const event={addListener(){}};
  globalThis.chrome={runtime:{id:'test',getURL:p=>'chrome-extension://test/'+p,onInstalled:event,onStartup:event,onMessage:{addListener(fn){listener=fn;}}},storage:{local:{get:async()=>({})}},alarms:{onAlarm:event,get:async()=>null,clear:async()=>{}},action:{onClicked:event},tabs:{query:async()=>[{id:1,url:'https://attendance.monash.edu.my/student/Default.aspx',status:'complete'}]},scripting:{executeScript:async value=>{injection=value;if(value.args.some(v=>v===undefined))throw new Error('Value is unserializable');return [{result:{name:'Example Student'}}];}}};
  try{
+  globalThis.chrome.tabs.get=async()=>({url:'https://attendance.monash.edu.my/student/Default.aspx'});
   await import('../extension/background.js?identity-regression');
   const result=await new Promise(resolve=>listener({type:'readIdentity'},{id:'test',url:'chrome-extension://test/options.html'},resolve));
   assert.equal(result.name,'Example Student');assert.deepEqual(injection.args,['identity',{}]);
