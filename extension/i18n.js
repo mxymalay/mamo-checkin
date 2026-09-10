@@ -487,6 +487,9 @@ export function translate(text,lang=language){
  if(exactTranslations.has(text))return exactTranslations.get(text);
  let result=String(text);
  const patterns=[
+  [/^(.*?) 课表检查失败：(.+?) 需要登录。请打开 \2，完成学校账号登录及验证；请勿关闭浏览器页面，再返回助手重试。本轮尚未完成该网站的检查。$/g,(_,prefix,site)=>`${prefix} timetable check failed: ${site} requires sign-in. Open ${site}, complete school sign-in and verification; keep the browser page open, then return to Assistant and retry. This site's check is not complete.`],
+  [/^(.+?) 需要登录。请打开 \1，完成学校账号登录及验证；请勿关闭浏览器页面，再返回助手重试。本轮尚未完成该网站的检查。$/g,(_,site)=>`${site} requires sign-in. Open ${site}, complete school sign-in and verification; keep the browser page open, then return to Assistant and retry. This site's check is not complete.`],
+  [/^有 (\d+) 场等待签到码，暂未找到；可能尚未发布或当前来源未检索到，可稍后重试$/g,(_,count)=>`${count} session${Number(count)===1?'':'s'} ${Number(count)===1?'is':'are'} waiting for codes. They may not be published yet or were not found in the selected sources. Retry later.`],
   [/已自动选择 (.*?)，正在等待 Gmail；如需密码或验证，请完成后等待自动检测。/g,'Selected $1; waiting for Gmail. Complete any password or verification prompt to continue.'],
   [/请在 Gmail 登录 (.*?)，完成验证后会自动检测。/g,'Sign in to Gmail as $1. Verification will continue automatically.'],
   [/检测中 · 剩余 (\d+) 秒 · 请勿关闭浏览器页面/g,'Checking · $1 seconds remaining · Do not close the browser page'],

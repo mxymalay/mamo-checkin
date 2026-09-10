@@ -8,6 +8,18 @@ test('dynamic progress translates before shorter dictionary fragments',()=>{
  assert.equal(translate(samples[0],'en'),'Gmail list loaded (0.7 seconds), 0 threads to check');
  assert.equal(translate(samples[1],'en'),'Website attendance loaded (10 sessions)');
 });
+test('composed login failures translate as a complete message',()=>{
+ const message='Attendance 课表检查失败：Attendance 需要登录。请打开 Attendance，完成学校账号登录及验证；请勿关闭浏览器页面，再返回助手重试。本轮尚未完成该网站的检查。';
+ const translated=translate(message,'en');
+ assert.doesNotMatch(translated,/[\u3400-\u9fff]/);
+ assert.equal(translated,"Attendance timetable check failed: Attendance requires sign-in. Open Attendance, complete school sign-in and verification; keep the browser page open, then return to Assistant and retry. This site's check is not complete.");
+});
+test('pending course messages translate without leftover Chinese fragments',()=>{
+ const message='有 1 场等待签到码，暂未找到；可能尚未发布或当前来源未检索到，可稍后重试';
+ const translated=translate(message,'en');
+ assert.doesNotMatch(translated,/[\u3400-\u9fff]/);
+ assert.equal(translated,'1 session is waiting for codes. They may not be published yet or were not found in the selected sources. Retry later.');
+});
 test('English is fallback; Chinese locales select Chinese',()=>{assert.equal(detectLanguage('zh-TW'),'zh');assert.equal(detectLanguage('en-MY'),'en');assert.equal(detectLanguage('fr'),'en');assert.equal(translate('等待签到码','en'),'Waiting for code');});
 test('all verification states and repeat buttons translate as whole phrases',()=>{
  const messages=['重新登录并检测','登录检测通过。','请在打开的网站完成登录，检测会自动继续。','正在保存检测结果…','检测中 · 剩余 180 秒 · 请勿关闭浏览器页面','请在新打开的 Attendance 签到系统 标签页完成学校账号登录，检测会自动继续；请勿关闭页面。','Moodle 姓名与配置不一致，请登录配置的学校账号后继续检测。'];
