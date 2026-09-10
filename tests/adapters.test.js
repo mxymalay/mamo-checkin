@@ -33,6 +33,11 @@ test('each message keeps its own timestamp and excludes quoted pictures',()=>{
  assert.equal(gmailAdapter('messages',{...config,expectedSubject:'[FIT5122_S2_2026_TUT01] Attendance Code',expectedLastMessageId:'later'},doc).loading,true);
  assert.equal(gmailAdapter('messages',{...config,expectedSubject:'[FIT5122_S2_2026_TUT01] Attendance Code',expectedLastMessageId:'new'},doc).messages.length,1);
 });
+test('Gmail timestamp fallback reads localized aria labels and datetime controls',()=>{
+ const doc=dom(`<button aria-label="Google Account: Person (abcd1234@student.monash.edu)"></button><main role="main"><h2>FIT5122 Attendance Code</h2><div data-legacy-message-id="fallback"><span email="teacher@example.edu"></span><time datetime="2026-09-04 22:08"></time><div class="a3s">Attendance code</div></div></main>`);
+ const [message]=gmailAdapter('messages',config,doc).messages;
+ assert.equal(message.sentAtText,'2026-09-04 22:08');
+});
 test('Gmail extracts table and leaf text rows, permits text-only messages, and keeps small code images',()=>{
  const doc=dom(`<button aria-label="Google Account: Person (abcd1234@student.monash.edu)"></button><main role="main"><h2>FIT5122 Attendance Code</h2><div data-legacy-message-id="text"><span email="teacher@example.edu"></span><span class="g3" title="2 Sept 2026, 19:31"></span><div class="a3s"><p>Attendance code</p><table><tr><td>Applied</td><td>Wednesday,2 Sep</td><td>01</td><td>6:00PM</td><td>PNK7L</td></tr></table><ul><li>Parent item<ul><li>Code QK28J</li></ul></li></ul><div class="gmail_quote"><p>Attendance code OLD12</p></div><div class="gmail_signature"><p>Code SIG12</p></div><img src="https://mail.google.com/small.png"><img class="avatar" alt="profile avatar" src="https://mail.google.com/avatar.png"></div></div></main>`);
  for(const image of doc.images){Object.defineProperty(image,'naturalWidth',{value:80});Object.defineProperty(image,'naturalHeight',{value:image.classList.contains('avatar')?80:25});}

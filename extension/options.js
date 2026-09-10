@@ -9,6 +9,9 @@ import {schoolEmail,emailPrefix,configureEmailInput} from './school-email.js';
 import {createSetupGuide} from './setup-guide.js';
 import {DEFAULTS,normalizeSettings} from './settings.js';
 import {parseConfiguration,exportConfiguration} from './configuration.js';
+import {bindVerification,configuredLoginSites,loginRequest} from './verification.js';
+import {createLoginPreflight} from './login-preflight.js';
+import {appendRecordHelp} from './record-help.js';
 const $=id=>document.getElementById(id);
 const pageTabs=createPageTabs();
 const automationSave=document.createElement('button');automationSave.id='save-automation';automationSave.type='button';automationSave.className='primary';automationSave.textContent='保存设置';document.querySelector('.automation-settings').append(automationSave);
@@ -17,6 +20,7 @@ document.addEventListener('click',event=>{if(event.target.closest('#result-edit'
 const askConfirm=message=>window.confirm(translate(message));
 const labels={waiting_code:'等待签到码',ready:'等待匹配',submitted:'已签到',expired:'已过期',review:'需要核对',attempting:'核对提交结果',uncertain:'结果待确认'};
 let guide,savedFormSnapshot;
+let identityBindings,loginPreflight,identitySnapshot='';
 function formSnapshot(){return JSON.stringify([...document.querySelectorAll('#settings input,#settings select,#settings textarea')].map(input=>[input.id||input.dataset.field,input.type==='checkbox'?input.checked:input.value.trim()]));}
 let latest={},editing=false,refreshing=false,refreshQueued=false,refreshSettings=false,healthPending=false,healthWarning=false,saving=false,scanPending=false;
 const request=async payload=>{
@@ -26,7 +30,7 @@ const request=async payload=>{
     const result=await Promise.race([chrome.runtime.sendMessage(payload),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('后台响应超时，操作结果尚未确认。请重新打开马莫签到助手查看状态；若刚升级扩展，请关闭旧页面后重新打开。')),payload.type==='redetect'?30000:10000);})]);
     if(!result)throw new Error('后台未返回结果，请关闭此页面，从扩展图标重新打开');
     if(result.ok===false)throw new Error(result.error);return result;
-  }catch(error){throw new Error(userError(error,payload.type==='checkEmail'?'Gmail':payload.type==='readIdentity'?'Attendance 签到系统':'助手'));}finally{clearTimeout(timer);}
+  }catch(error){throw new Error(userError(error,payload.type==='checkEmail'?'Gmail':payload.type==='checkMoodle'?'Moodle':payload.type==='readIdentity'?'Attendance 签到系统':'助手'));}finally{clearTimeout(timer);}
 };
 let scanNotice=false,scanPreviousFinish=null;
 let discoveryStarted=false,discovering=false;
@@ -37,7 +41,7 @@ function configAlert(message){
 async function discoverCourses(automatic=false){
  pageTabs.show('courses');
  if(discovering)return;if(editing&&!automatic){configAlert('请先保存正在编辑的配置，再重新检测课程。');return;}
- discovering=true;guide?.detecting(true);guide?.message('正在读取签到系统。若需要登录，请先打开上方签到系统链接完成登录，再回来重试。');$('redetect').disabled=true;$('redetect').textContent='正在检测课程…';notice('正在读取签到页面最近 7 天的课程，请保持学校账号已登录…');
+ discovering=true;guide?.detecting(true);guide?.message('正在读取签到系统。若需要登录，请先打开上方签到系统链接完成登录，再回来重试。检测期间请勿关闭浏览器页面。');$('redetect').disabled=true;$('redetect').textContent='正在检测课程…';notice('正在读取签到页面最近 7 天的课程，请保持学校账号已登录；检测期间请勿关闭浏览器页面。');
  try{
   const result=await request({type:'redetect'});if(!result.courses?.length)throw new Error('最近 7 天未发现课程，请确认签到页面已登录，或手动添加课程。');
   if(editing)throw new Error('检测完成，但你正在编辑配置。请先保存，再重新检测以免覆盖改动。');
@@ -48,7 +52,7 @@ async function discoverCourses(automatic=false){
  }catch(error){const detail=/登录|账号|页面|tab|fetch|权限/i.test(error.message)?'无法确认签到系统登录状态或读取课程。请点击“打开签到系统并登录”，使用刚填写的学校账号完成登录；确认姓名一致，再回到这里重试。原始信息：'+error.message:error.message;guide?.message(detail,true);notice(detail,'error');configAlert(detail);}finally{guide?.detecting(false);discovering=false;$('redetect').disabled=false;$('redetect').textContent='重新检测课程';}
 }
 let observedRun=false,lastResult=null;
-let selectedRecordCourse='';
+let selectedRecordCourse='',recordViewSnapshot='';
 function recordWeek(record){
  const sourceWeek=String(record.subject||'').match(/\bweek\s*(\d{1,2})\b/i);
  if(sourceWeek)return `${(record.date||'').slice(0,4)} · Week ${Number(sourceWeek[1])}（来源标注）`;
@@ -68,10 +72,11 @@ function showResult(state){
  $('result-message').textContent=status.error?(status.message||'请查看运行明细并核对配置。'):`${summary.submitted?`本轮已确认 ${summary.submitted} 场签到成功。`:'本轮签到流程已完成。'}${confirm?'请确认课程、日期、星期、时间和组别；未填写课表或未检测到数据，不代表已经签到成功。':status.message||''}`;
  if(summary.issues?.length)$('result-message').textContent+=' '+summary.issues.join('；');
  if(summary.loginRequired?.length)$('result-message').textContent=summary.loginRequired.join('；');
- $('result-records').replaceChildren();for(const course of summary.courses||[]){const li=document.createElement('li');li.className='course-result';const title=document.createElement('strong'),detail=document.createElement('span');title.textContent=course.course;detail.textContent=course.reason;li.append(title,detail);$('result-records').append(li);}for(const r of summary.records||[]){if(summary.courses?.some(c=>c.course===r.course))continue;const li=document.createElement('li');li.textContent=`${r.course} · ${r.date} ${weekday(r.date)} ${r.time||''} · ${r.type||''} ${r.group||''} · ${labels[r.status]||r.status||''}`;$('result-records').append(li);}
+ $('result-records').replaceChildren();for(const course of summary.courses||[]){const li=document.createElement('li');li.className='course-result';const title=document.createElement('strong'),detail=document.createElement('span');title.textContent=course.course;detail.textContent=course.reason;li.append(title,detail);if(course.diagnostics?.length)appendDiagnostics(li,course.diagnostics);$('result-records').append(li);}for(const r of summary.records||[]){if(summary.courses?.some(c=>c.course===r.course))continue;const li=document.createElement('li');li.textContent=`${r.course} · ${r.date} ${weekday(r.date)} ${r.time||''} · ${r.type||''} ${r.group||''} · ${labels[r.status]||r.status||''}`;$('result-records').append(li);}
  if(!summary.records?.length&&!summary.courses?.length&&!status.error){const li=document.createElement('li');li.textContent='暂无可确认的近期场次，请核对课表及签到码来源。';$('result-records').append(li);}
  $('result-login-links').hidden=!status.error;$('result-edit').hidden=!confirm&&!status.error;$('result-close').textContent=confirm?'已核对，关闭':'知道了';if(!box.open){if(box.showModal)box.showModal();else box.setAttribute('open','');}
 }
+function appendDiagnostics(parent,diagnostics){const details=document.createElement('details');details.className='source-log';const summary=document.createElement('summary');summary.textContent='查看来源与运行日志';const list=document.createElement('ul');for(const item of diagnostics){const row=document.createElement('li');row.textContent=[item.scope,item.course,item.error].filter(Boolean).join(' · ');if(item.sourceUrl){const link=document.createElement('a');link.href=item.sourceUrl;link.target='_blank';link.rel='noreferrer';link.textContent='打开来源';row.append(' ',link);}list.append(row);}details.append(summary,list);parent.append(details);}
 let noticeTimer;
 function notice(message,kind='general'){
  clearTimeout(noticeTimer);scanNotice=kind==='scan';const target=$('notice');target.hidden=!message;target.textContent=message;target.dataset.tone=['success','error','warning'].includes(kind)?kind:'info';target.setAttribute('role',kind==='error'?'alert':'status');
@@ -100,7 +105,15 @@ function scheduleRow(value={}){
  const row=document.createElement('div');row.className='schedule-row';row.innerHTML='<label>星期<select data-field="weekday" required><option value="">请选择</option><option value="1">星期一</option><option value="2">星期二</option><option value="3">星期三</option><option value="4">星期四</option><option value="5">星期五</option><option value="6">星期六</option><option value="7">星期日</option></select></label><label>时间（UTC+8）<input data-field="time" type="time" required></label><label>活动类型（可选）<input data-field="type" placeholder="例如 Workshop"></label><label>组别（可选）<input data-field="group" placeholder="例如 01"></label>';
  row.querySelector('[data-field="weekday"]').value=value.weekday?String(value.weekday):'';row.querySelector('[data-field="time"]').value=value.time||'';row.querySelector('[data-field="type"]').value=value.type||'';row.querySelector('[data-field="group"]').value=value.group||'';fieldHelp(row);return row;
 }
-function syncSaveButton(){document.querySelector('#settings button[type=submit]').hidden=!$('courses').children.length;[...$('courses').children].forEach((rule,index)=>{rule.querySelector('.course-number').textContent=String(index+1).padStart(2,'0');});}
+function syncSaveButton(){document.querySelector('#settings button[type=submit]').hidden=!$('courses').children.length;[...$('courses').children].forEach((rule,index)=>{rule.querySelector('.course-number').textContent=String(index+1).padStart(2,'0');});syncIdentitySources();}
+function syncIdentitySources(){
+ if(!identityBindings)return;
+ const modes=[...$('courses').querySelectorAll('[data-field="source-mode"]')].map(input=>input.value),gmail=modes.some(mode=>['email','both'].includes(mode)),moodle=modes.some(mode=>['moodle','both'].includes(mode));
+ $('email').closest('label').hidden=!gmail;$('email-check').hidden=!gmail;$('email-check-status').hidden=!gmail;$('moodle-login').hidden=!moodle;const divider=document.querySelector('.identity-source-divider');if(divider)divider.hidden=!(gmail||moodle);
+ $('email').disabled=!gmail;$('email').required=gmail;
+ if(!gmail)identityBindings.gmail.reset();if(!moodle)identityBindings.moodle.reset();
+ $('mail-query').closest('label').hidden=!gmail;
+}
 function courseRule(code='',cfg={}){
  const rule=document.createElement('div');rule.className='course-rule';
  rule.innerHTML='<div class="rule-head"><label>课程代码<input data-field="course" required placeholder="例如 ABC1234"></label><label>签到码来源<select data-field="source-mode" required><option value="">请选择签到码来源</option><option value="email">邮件</option><option value="moodle">Moodle</option><option value="both">邮件和 Moodle</option></select></label><button type="button" class="subtle">移除</button></div><div class="form-pair mail-fields"><label>邮件发件人邮箱<input data-field="sender" type="email" placeholder="例如 teacher@example.edu"></label><label>邮件主题中包含<input data-field="keyword" placeholder="默认使用课程代码"></label></div><label class="moodle-fields">Moodle 课程、Week 栏目或公告网址<textarea data-field="urls" rows="2" placeholder="每行一个网址，最多 3 个"></textarea></label><details class="schedule-details"><summary>课程场次</summary><label class="weekly-count">每周场次<select data-field="weekly-count"></select></label><div class="schedule-rows"></div><small>课表按马来西亚时间（UTC+8）运行。默认自动读取签到页面的待签到场次，无需填写每周课表。</small></details>';
@@ -112,7 +125,7 @@ function courseRule(code='',cfg={}){
  const sourceMode=rule.querySelector('[data-field="source-mode"]'),sender=rule.querySelector('[data-field="sender"]'),urls=rule.querySelector('[data-field="urls"]');
  sourceMode.value=sender.value?(urls.value?'both':'email'):(urls.value?'moodle':'');
  const showSource=()=>{const mail=['email','both'].includes(sourceMode.value),moodle=['moodle','both'].includes(sourceMode.value);rule.querySelector('.mail-fields').hidden=!mail;rule.querySelector('.moodle-fields').hidden=!moodle;for(const field of rule.querySelectorAll('.mail-fields input'))field.disabled=!mail;sender.required=mail;urls.disabled=!moodle;urls.required=moodle;};
- sourceMode.addEventListener('change',()=>{showSource();editing=true;});showSource();
+ sourceMode.addEventListener('change',()=>{showSource();editing=true;syncIdentitySources();});showSource();
  const count=rule.querySelector('[data-field="weekly-count"]');for(let i=0;i<=14;i++){const option=document.createElement('option');option.value=String(i);option.textContent=i?`${i} 场`:'自动检测（无需填写）';count.append(option);}const rows=rule.querySelector('.schedule-rows'),schedule=cfg.schedules?.[code]||[];count.value=String(schedule.length);const details=rule.querySelector('.schedule-details'),updateSummary=()=>{details.querySelector('summary').textContent=Number(count.value)?`课程场次 · 每周 ${count.value} 场`:'课程场次 · 自动检测';};updateSummary();schedule.forEach(item=>rows.append(scheduleRow(item)));count.addEventListener('change',()=>{const wanted=Number(count.value);while(rows.children.length>wanted)rows.lastElementChild.remove();while(rows.children.length<wanted)rows.append(scheduleRow());updateSummary();details.open=true;editing=true;});
  const number=document.createElement('span');number.className='course-number';rule.prepend(number);
  rule.querySelector('button').addEventListener('click',()=>{rule.remove();editing=true;syncSaveButton();});fieldHelp(rule);$('courses').append(rule);syncSaveButton();
@@ -129,9 +142,13 @@ function render(state,settings=false){
   $('last-run').textContent=status.running?'正在处理，请稍候':status.finishedAt?'最近检查：'+new Date(status.finishedAt).toLocaleString('zh-CN'):'开启后，工具将按设定间隔自动检查。';
   $('scan').disabled=Boolean(status.running)||scanPending;$('scan').textContent=status.running?'正在签到…':scanPending?'正在请求…':editing?'保存并立即签到':'立即签到';
   if(settings&&!editing){$('enabled').checked=Boolean(config.enabled);$('email').value=emailPrefix(config.email);$('name').value=config.name||'';$('interval').value=String([1440,4320,7200,10080].includes(config.intervalMinutes)?config.intervalMinutes:1440);$('year').value=String(config.academicYear||new Date().getFullYear());$('mail-query').value=config.mailQuery??'attendance';$('courses').replaceChildren();for(const c of config.courses||[])courseRule(c,config);savedFormSnapshot=formSnapshot();}
+  const snapshot=JSON.stringify([config.email,config.name]);if(identitySnapshot&&snapshot!==identitySnapshot&&!editing)for(const binding of Object.values(identityBindings||{}))binding.reset();identitySnapshot=snapshot;
   syncSaveButton();if(status.archiveDir)$('archive').textContent=status.archiveDir;
   const records=[...(state.records||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const courses=[...new Set(records.map(r=>r.course||'课程待核对'))];if(!courses.includes(selectedRecordCourse))selectedRecordCourse=courses[0]||'';
+  const recordView=JSON.stringify([records,selectedRecordCourse,Boolean(status.running),scanPending]);
+  if(recordView===recordViewSnapshot)return;
+  recordViewSnapshot=recordView;
   $('record-course-tabs').replaceChildren();for(const course of courses){const button=document.createElement('button');button.type='button';button.setAttribute('role','tab');button.setAttribute('aria-selected',String(course===selectedRecordCourse));button.textContent=`${course} (${records.filter(r=>(r.course||'课程待核对')===course).length})`;button.onclick=()=>{selectedRecordCourse=course;render(latest);};$('record-course-tabs').append(button);}
   $('count').textContent=records.length;$('records').replaceChildren();$('empty').hidden=records.length>0;
   const groups=new Map();for(const r of records.filter(r=>(r.course||'课程待核对')===selectedRecordCourse)){const key=recordWeek(r);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r);}
@@ -141,10 +158,12 @@ function render(state,settings=false){
     const cell=(value,detail)=>{const td=document.createElement('td');td.textContent=value;if(detail){const small=document.createElement('small');small.textContent=detail;td.append(small);}tr.append(td);return td;};
     cell(r.date?`${r.date} ${weekday(r.date)}`:'日期待核对',r.time||'');cell(r.course||'',`${r.type||''} ${r.group||''}`);
     const code=cell(''),strong=document.createElement('strong');strong.textContent=r.code||'—';code.append(strong);
+    if(r.status==='submitted'&&!r.code)appendRecordHelp(code);
     if(r.code){const copy=document.createElement('button');copy.type='button';copy.className='copy-code';copy.textContent='复制';copy.setAttribute('aria-label','复制签到码');copy.addEventListener('click',async()=>{copy.disabled=true;copy.textContent='复制中…';try{await window.navigator.clipboard.writeText(r.code);copy.textContent='已复制';notice('签到码已复制。','success');}catch{copy.textContent='重试复制';notice('复制失败，请选中签到码手动复制。','error');}finally{copy.disabled=false;}});code.append(copy);}
     const statusCell=cell(''),badge=document.createElement('span');badge.className='state '+r.status;badge.textContent=labels[r.status]||r.status;statusCell.append(badge);
     if(r.status==='waiting_code'){const retry=document.createElement('button');retry.type='button';retry.className='copy-code';retry.textContent='重试';retry.disabled=Boolean(latest.status?.running)||scanPending;retry.onclick=async()=>{retry.disabled=true;retry.textContent='正在请求…';scanPreviousFinish=latest.status?.finishedAt||null;notice('正在重新查找 '+r.course+' 的签到码…','scan');try{await request({type:'retry',course:r.course});await refresh();}catch(error){notice(error.message,'error');retry.disabled=false;retry.textContent='重试';}};code.append(retry);}
     const source=cell('',r.reason||'');
+    if(r.sources?.length)appendDiagnostics(source,r.sources.map(item=>({...item,error:item.sourceUrl||'已读取此来源'})));
     if(/^https:\/\/(mail\.google\.com|learning\.monash\.edu|attendance\.monash\.edu\.my)\//.test(r.sourceUrl||'')){const link=document.createElement('a');link.href=r.sourceUrl;link.textContent=r.sourceUrl.includes('attendance.monash.edu.my')?'查看签到系统 ↗':r.sourceUrl.includes('learning.monash.edu')?'查看 Moodle ↗':'查看邮件 ↗';link.target='_blank';link.rel='noreferrer';source.prepend(link);}
     if(r.imagePath){const detail=document.createElement('small');detail.textContent=r.imagePath;source.append(detail);}
     $('records').append(tr);
@@ -183,10 +202,28 @@ $('settings-file').addEventListener('change',async()=>{
     editing=false;await refresh(true);notice('个人配置已导入并保存。','success');
   }catch(error){notice(error.message,'error');}finally{$('settings-file').value='';}
 });
-$('scan').addEventListener('click',async()=>{if(scanPending||saving)return;editing=hasUnsavedChanges();scanPending=true;$('scan').disabled=true;$('scan').textContent='正在请求…';scanPreviousFinish=latest.status?.finishedAt||null;notice('正在请求后台开始签到…','scan');try{if(editing){notice('正在保存设置，完成后立即签到…','scan');await request({type:'settings',settings:readFormSettings()});editing=false;await refresh(true);}await request({type:'scan'});if(scanNotice)notice('后台已收到签到请求，正在等待运行状态…','scan');await refresh();}catch(e){notice(e.message,'error');}finally{scanPending=false;$('scan').disabled=Boolean(latest.status?.running);$('scan').textContent=latest.status?.running?'正在签到…':editing?'保存并立即签到':'立即签到';}});
+$('scan').addEventListener('click',async()=>{
+ if(scanPending||saving||latest.status?.running)return;
+ editing=hasUnsavedChanges();scanPending=true;$('scan').disabled=true;scanPreviousFinish=latest.status?.finishedAt||null;
+ try{
+  for(const binding of Object.values(identityBindings))binding.stop();
+  if(editing){await request({type:'settings',settings:readFormSettings()});editing=false;await refresh(true);}
+  const settings=normalizeSettings(latest.settings||DEFAULTS,readFormSettings(),Boolean(latest.records?.length));
+  notice('');
+  const preflight=await loginPreflight.run(settings);if(!preflight)return;if(preflight.error)throw new Error(preflight.error);
+  notice('正在请求后台开始签到…','scan');await request({type:'scan',expectedIdentity:{email:settings.email,name:settings.name},verifiedLogin:preflight.verifiedLogin});
+  pageTabs.show('records');
+  if(scanNotice)notice('后台已收到签到请求，正在等待运行状态…','scan');await refresh();
+ }catch(error){notice(error.message,'error');}finally{scanPending=false;$('scan').disabled=Boolean(latest.status?.running);$('scan').textContent=latest.status?.running?'正在签到…':editing?'保存并立即签到':'立即签到';}
+});
 $('check-health').addEventListener('click',()=>health(true));
-$('scan').addEventListener('click',()=>pageTabs.show('records'));
-$('settings').addEventListener('invalid',event=>{const input=event.target,label=input.closest('label'),text=label?.firstChild?.textContent?.trim()||'配置字段';const message='无法保存：请检查'+text+'，'+input.validationMessage;input.closest('details')?.setAttribute('open','');notice(message,'warning');configAlert(message);},true);
+$('settings').addEventListener('invalid',event=>{
+ // The dialog owns focus; prevent Chrome from focusing a now-inert form field.
+ event.preventDefault();
+ const input=event.target,label=input.closest('label'),text=label?.firstChild?.textContent?.trim()||'配置字段';
+ input.closest('details')?.setAttribute('open','');
+ if(!$('config-alert')?.open)configAlert(translate('无法保存：请检查')+' '+text+'。'+input.validationMessage);
+},true);
 fieldHelp($('settings'));
 $('export').addEventListener('click',()=>{const fields=['date','time','course','type','group','code','status','reason','sourceUrl','imagePath'];const escape=value=>'"'+String(value??'').replace(/"/g,'""').replace(/^[=+@-]/,"'$&")+'"';const csv='\uFEFF'+[fields,...(latest.records||[]).map(r=>fields.map(f=>r[f]))].map(row=>row.map(escape).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='签到记录.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 configureEmailInput($('email'));
@@ -200,6 +237,10 @@ async function saveVerifiedIdentity(field,value){
  latest.settings={...latest.settings,[field]:value};
  editing=hasUnsavedChanges();
 }
-bindIdentityReader({input:$('name'),button:$('read-name'),status:$('read-name-status'),request,onChange:()=>{editing=true;},onVerified:value=>saveVerifiedIdentity('name',value)});
-installIdentityChecks({email:$('email'),name:$('name'),nameButton:$('read-name'),nameStatus:$('read-name-status'),request,onVerified:value=>saveVerifiedIdentity('email',value)});
+identityBindings={};
+identityBindings.attendance=bindIdentityReader({input:$('name'),button:$('read-name'),status:$('read-name-status'),buttonText:'登录并检测',verifiedButtonText:'重新登录并检测',request,onChange:()=>{editing=true;identityBindings.moodle?.reset();},onVerified:value=>saveVerifiedIdentity('name',value)});
+identityBindings.gmail=installIdentityChecks({email:$('email'),name:$('name'),nameButton:$('read-name'),nameStatus:$('read-name-status'),request,onVerified:value=>saveVerifiedIdentity('email',value)});
+identityBindings.moodle=bindVerification({button:$('check-moodle'),status:$('check-moodle-status'),prepare:()=>{const name=$('name').value.trim();if(!name)throw new Error('请先填写学校系统中的姓名。');return loginRequest('moodle',{name});},check:(read,open)=>read(request,open)});
+$('name').addEventListener('input',()=>identityBindings.moodle.reset());
+loginPreflight=createLoginPreflight({request,onVerified:site=>identityBindings[site].markVerified()});syncIdentitySources();
 installLanguageUI();

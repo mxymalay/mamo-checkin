@@ -3,6 +3,6 @@
     "message": "马莫签到助手"
   },
   "appDescription": {
-    "message": "在 Mac 本机识别 Gmail 和 Moodle 签到码，保存并提交最近 7 天的匹配场次。"
+    "message": "在 Mac 或 Windows 本机识别 Gmail 和 Moodle 签到码，保存并提交最近 7 天的匹配场次。"
   }
 }

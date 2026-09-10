@@ -102,7 +102,9 @@ export function gmailAdapter(command,args={},doc=document) {
       const images=candidates.filter(img=>img.naturalWidth>=60 && img.naturalHeight>=20 && img.naturalHeight<=2000&&(attendanceContext||(img.naturalWidth/img.naturalHeight>=3&&img.naturalHeight<=350))).map(img=>img.currentSrc||img.src);
       if(!attendanceContext&&!images.length&&!textRows.some(row=>/\b[A-Z0-9]{5}\b/.test(row)&&/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(row)))continue;
       if(!images.length&&!textRows.length) continue;
-      messages.push({messageId:msg.getAttribute('data-legacy-message-id'),subject,course,sender,sentAtText:msg.querySelector('.g3[title]')?.getAttribute('title'),sourceUrl:doc.location.href,sourceType:'gmail',textRows,images});
+      const timestamp=msg.querySelector('.g3[title],.g3[aria-label],time[datetime],[data-tooltip*="202"],[data-tooltip*="20"]');
+      const sentAtText=timestamp?.getAttribute('title')||timestamp?.getAttribute('aria-label')||timestamp?.getAttribute('datetime')||timestamp?.getAttribute('data-tooltip')||text(timestamp);
+      messages.push({messageId:msg.getAttribute('data-legacy-message-id'),subject,course,sender,sentAtText,sourceUrl:doc.location.href,sourceType:'gmail',textRows,images});
     }
     return {email,messages,bodiesReady:Boolean(args.requireBodiesReady&&allBodiesReadable)};
   }

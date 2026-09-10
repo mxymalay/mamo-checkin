@@ -28,11 +28,35 @@ Moodle course_id|Moodle course_id
 打开 Moodle 查看课程网址|Open Moodle to find the course URL
 打开 Moodle 后进入对应课程，网址中 course/view.php?id= 后面的数字就是 course_id；粘贴完整课程网址也会自动提取。|Open your course in Moodle. The number after course/view.php?id= is the course_id. You can also paste the full course URL to extract it automatically.
 学校身份|School identity
+登录可自动填写|Sign in to auto-fill
+为什么没有签到码？|Why is there no attendance code?
+已检测到该场次已签到，因此没有重复查询签到码。|This session was already marked as attended, so the attendance code was not searched again.
+签到前登录检测 · 请勿关闭浏览器页面|Pre-check sign-in · Do not close the browser page
+初始化检测通过，开始执行签到…|Initial checks passed. Starting check-in…
 自动检查|Automatic checks
 登录并检测|Sign in and verify
+重新登录并检测|Sign in and verify again
 登录并检测 Gmail 邮箱|Sign in and verify Gmail account
 登录并检测 Attendance 姓名|Sign in and verify Attendance name
 正在检测 Gmail 登录账号…|Checking your Gmail account…
+正在检测登录状态…|Checking sign-in status…
+正在保存检测结果…|Saving verification result…
+Attendance 签到系统|Attendance system
+Moodle 姓名与配置不一致，请登录配置的学校账号后继续检测。|The Moodle name does not match your settings. Sign in with the configured school account to continue.
+Attendance 姓名与配置不一致，请登录配置的学校账号后继续检测。|The Attendance name does not match your settings. Sign in with the configured school account to continue.
+签到前身份已改变，请重新登录并检测后再试|Your identity changed before check-in. Sign in and verify again.
+Gmail 登录已确认，正在读取目标邮箱|Gmail sign-in confirmed. Reading the configured mailbox.
+请先填写学校系统中的姓名。|Enter your name as shown in the school system first.
+无法保存：请检查|Cannot save: please check
+您有旧的配置？|Have a saved configuration?
+可以导入以前导出的个人配置，跳过重复填写。|Import your saved configuration to skip re-entering it.
+显示导入配置|Import configuration
+查看来源与运行日志|View sources and run logs
+等待检测|Waiting to verify
+登录检测通过。|Sign-in verification passed.
+请在打开的网站完成登录，检测会自动继续。|Complete sign-in in the opened website. Verification will continue automatically.
+登录检测超时，请完成登录后重新检测。|Sign-in verification timed out. Complete sign-in and try again.
+页面已被关闭，检测已停止。请重新登录并检测。|The page was closed. Verification stopped. Sign in again and verify.
 Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm it before saving.
 请在新标签页登录填写的 Gmail 邮箱，登录后会自动检测。|Sign in to the entered Gmail account in the new tab. Verification will continue automatically.
 尚未确认目标邮箱，请登录后重新检测。|Target account not confirmed. Sign in and verify again.
@@ -76,6 +100,8 @@ Mac 使用 Apple Vision；Windows 使用 Tesseract，均在本机识别。|Mac u
 本地原生识别|Local recognition
 
 Attendance系统|Attendance system
+Moodle 签到码来源|Moodle attendance code source
+签到码从 Moodle 界面读取。|Attendance codes are read from the Moodle interface.
 
 安装命令授权|Allow the installer
 attendance-ocr 授权|Allow attendance-ocr
@@ -117,6 +143,7 @@ attendance-ocr 授权|Allow attendance-ocr
 第|Step
 
 自动检测或手动填写。默认无需填写：先从签到页面读取最近 7 天的场次并保存成固定周课表，再查找待签到场次的签到码。信息不全或组别不唯一时请确认；也可手动填写课表。已设课表时，已完成或已取得有效签到码的场次不再查询。|Detect automatically or enter sessions manually. Recent sessions become a recurring timetable. Review incomplete or ambiguous groups. Completed sessions and sessions with usable codes are skipped.
+检测期间请勿关闭浏览器页面。|Keep the browser page open while detection is running.
 保持 Chrome 运行并登录学校 Gmail、Moodle 和签到系统。电脑睡眠或登录过期时，检查会延后。缺少日期、组别或识别不确定的内容会保存为|Keep Chrome running and sign in to school Gmail, Moodle and attendance. Runs are delayed while the computer sleeps or login expires. Incomplete or uncertain results are marked
 填写 Moodle 课程、Week 栏目或公告网址，每行一个。两种来源都填时先查 Gmail，再从 Moodle 补齐缺少的场次。|Enter Moodle course, weekly section or announcement URLs, one per line. With both sources selected, Gmail is searched first, then Moodle for remaining sessions.
 可选，填写签到系统中的活动类型，例如 Studio、Seminar、Workshop 或 Applied。|Optional: the activity type shown on the attendance site, e.g. Studio, Seminar, Workshop or Applied.
@@ -358,7 +385,7 @@ Mac 原生图片识别|Mac text recognition
 完成这一步后，才能识别签到图片。|Install the service to read attendance code images.
 打开下载并解压的安装包。|Open the downloaded and extracted package.
 双击|Double-click
-安装Mac识别服务.command|安装Mac识别服务.command
+Install Mac Recognition.command|Install Mac Recognition.command
 按终端提示安装。|Follow the terminal instructions.
 如果再次提示|If macOS also blocks
 被阻止，请再到|, go to
@@ -455,6 +482,11 @@ export function translate(text,lang=language){
  const patterns=[
   [/已自动选择 (.*?)，正在等待 Gmail；如需密码或验证，请完成后等待自动检测。/g,'Selected $1; waiting for Gmail. Complete any password or verification prompt to continue.'],
   [/请在 Gmail 登录 (.*?)，完成验证后会自动检测。/g,'Sign in to Gmail as $1. Verification will continue automatically.'],
+  [/检测中 · 剩余 (\d+) 秒 · 请勿关闭浏览器页面/g,'Checking · $1 seconds remaining · Do not close the browser page'],
+  [/请勿关闭新打开的 Gmail 标签页，完成登录后会自动检测 (.*?)。/g,'Keep the new Gmail tab open. Verification will continue after signing in as $1.'],
+  [/请在新打开的 Gmail 标签页登录 (.*?)，完成验证后会自动检测；请勿关闭页面。/g,'Sign in as $1 in the new Gmail tab. Verification will continue; keep the page open.'],
+  [/尚未确认 Gmail 账号，请在此标签页登录 (.*?) 后等待检测；请勿关闭页面。/g,'Gmail account not confirmed. Sign in as $1 in this tab and keep the page open while verification continues.'],
+  [/请在新打开的 (.*?) 标签页完成学校账号登录，检测会自动继续；请勿关闭页面。/g,'Sign in to your school account in the new $1 tab. Verification will continue; keep the page open.'],
   [/当前 Gmail 是 (.*?)，正在自动切换到 (.*?)；尚未读取邮件。/g,'Gmail is signed in as $1; switching to $2. No messages have been read.'],
   [/当前 Gmail 是 (.*?)，目标邮箱为 (.*?)；请完成登录，助手将继续检测，尚未读取邮件。/g,'Gmail is signed in as $1; the target is $2. Complete sign-in to continue. No messages have been read.'],
   [/尚未确认 Gmail 账号，请登录 (.*?) 后等待检测。/g,'Gmail account not confirmed. Sign in as $1 and wait for verification.'],
@@ -484,7 +516,7 @@ export function translate(text,lang=language){
  return result.replace(/每周\s*(\d+)\s*场/g,'$1 sessions per week').replace(/(\d+)\s*场/g,'$1 sessions').replace(/(\d+)\s*秒前更新/g,'Updated $1 seconds ago').replace(/最多\s*(\d+)\s*秒/g,'up to $1 seconds');
 }
 export function installLanguageUI(doc=document){
- const picker=doc.createElement('select');picker.id='language';picker.setAttribute('aria-label','Language / 语言');picker.innerHTML='<option value="auto">Auto / 自动</option><option value="en">English</option><option value="zh">中文</option>';const header=doc.querySelector('header'),tools=doc.createElement('div');tools.className='header-tools';const actions=header.querySelector('.header-actions');if(actions)tools.append(actions);tools.append(picker);header.append(tools);
+ const picker=doc.createElement('select');picker.id='language';picker.setAttribute('aria-label','Language / 语言');picker.innerHTML='<option value="auto">Language / 语言</option><option value="en">English</option><option value="zh">中文</option>';const header=doc.querySelector('header'),tools=doc.createElement('div');tools.className='header-tools';const actions=header.querySelector('.header-actions');if(actions)tools.append(actions);tools.append(picker);header.append(tools);
  let choice='auto';try{choice=doc.defaultView.localStorage.getItem('mamo-language')||'auto';}catch{}
  picker.value=['en','zh'].includes(choice)?choice:'auto';
  const texts=new WeakMap(),attrs=new WeakMap();

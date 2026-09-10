@@ -23,6 +23,10 @@ Collect attendance codes from Gmail and Monash Moodle, recognize text and images
 
 In Settings, **Sign in and verify** saves only the verified email or name. Save other settings separately. With multiple Gmail accounts, the assistant attempts to select your configured school email; passwords and school verification must still be completed by you.
 
+School identity shows the Attendance name first, followed by Gmail and Moodle verification for the sources your courses use. Verified buttons turn white and read **Sign in and verify again**. Checks display a countdown; keep the opened browser pages available and complete any requested school sign-in there. The assistant page stays in place.
+
+**Check in now** verifies the required accounts in one initial dialog, confirms that checks passed, then starts processing. A failed check reports the affected website and lets you retry. An already-attended session without a code has a question-mark explanation. Pending-session retries also include source details and run logs. The setup guide can import a saved personal configuration.
+
 For Moodle, enter the `course_id` after `course/view.php?id=` or paste the full course URL. Courses are numbered; expand **More courses?** to add another. Timetables can be edited or detected again.
 
 Supports English and Chinese, configuration import/export, copying codes, retrying pending courses, and CSV export. Records are grouped by course and source week, or by date range when no week is available. Saving settings and background completion do not switch tabs.
@@ -65,6 +69,10 @@ Public tests use synthetic data. Real course text extraction has been verified, 
 - **签到记录**：点击“立即签到”进入此页。记录按课程和 Week 分组，支持复制签到码、重试等待中的课程和导出 CSV。保存设置及后台运行结束不会切换分页。
 
 右上角支持导入、导出个人配置（JSON）。界面支持 English / 中文，自动匹配浏览器语言，也可手动切换。Week 优先使用来源标注；没有标注时按日期范围分组。
+
+学校身份先显示签到系统姓名，再按课程来源显示 Gmail、Moodle 登录检测。检测通过后按钮变为白底“重新登录并检测”。检测中显示倒计时，请保留打开的浏览器页面，并在对应网站完成学校登录；助手保持当前页面。
+
+点击“立即签到”后，在同一个初始弹窗中逐项验证账号，提示初始化检测通过后开始执行。检测失败会明确显示对应网站和原因，支持重新尝试。已签到但没有签到码的记录带问号说明；重试待签到课程时也能查看来源和日志。初始化引导支持导入已有个人配置。
 
 只处理最近 7 天内、网站仍开放且信息匹配的场次；不确定时提示核对。开启自动运行后可关闭助手页面，但 Chrome 需运行、电脑不能睡眠。
 

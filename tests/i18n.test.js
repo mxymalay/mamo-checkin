@@ -9,6 +9,11 @@ test('dynamic progress translates before shorter dictionary fragments',()=>{
  assert.equal(translate(samples[1],'en'),'Website attendance loaded (10 sessions)');
 });
 test('English is fallback; Chinese locales select Chinese',()=>{assert.equal(detectLanguage('zh-TW'),'zh');assert.equal(detectLanguage('en-MY'),'en');assert.equal(detectLanguage('fr'),'en');assert.equal(translate('等待签到码','en'),'Waiting for code');});
+test('all verification states and repeat buttons translate as whole phrases',()=>{
+ const messages=['重新登录并检测','登录检测通过。','请在打开的网站完成登录，检测会自动继续。','正在保存检测结果…','检测中 · 剩余 180 秒 · 请勿关闭浏览器页面','请在新打开的 Attendance 签到系统 标签页完成学校账号登录，检测会自动继续；请勿关闭页面。','Moodle 姓名与配置不一致，请登录配置的学校账号后继续检测。'];
+ for(const message of messages)assert.doesNotMatch(translate(message,'en'),/[\u3400-\u9fff]/);
+ assert.equal(translate(messages[0],'en'),'Sign in and verify again');
+});
 test('settings tabs and new actions translate and restore Chinese',()=>{
  const labels=['设置','课程来源与课表','签到记录','还有更多课程？','添加更多课程','保存设置','检查识别服务'];
  const dom=new JSDOM('<header></header>'+labels.map(label=>`<button>${label}</button>`).join(''),{url:'https://extension.test'}),doc=dom.window.document;

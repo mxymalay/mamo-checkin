@@ -1,9 +1,17 @@
 export function gmailMailbox(url){
  try{const u=new URL(url),match=u.pathname.match(/^\/mail\/u\/\d+\//);return u.origin==='https://mail.google.com'&&match?u.origin+match[0]:null;}catch{return null;}
 }
-export async function openVerifiedGmail({email,search,tabs,readIdentity,create,navigate,recoverAccount}){
+export async function openVerifiedGmail({email,search,tabs,readIdentity,create,navigate,recoverAccount,verifiedTabId}){
  const expected=email.trim().toLowerCase();
  let base;
+ if(Number.isInteger(verifiedTabId)){
+  const verifiedTab=await tabs.get(verifiedTabId);
+  base=gmailMailbox(verifiedTab.url||verifiedTab.pendingUrl);
+  if(!base)throw new Error('[LOGIN_REQUIRED] Gmail 登录页面尚未完成，请完成登录后重试；尚未搜索邮件。');
+  const searchUrl=base+'#search/'+encodeURIComponent(search);
+  await navigate(verifiedTabId,searchUrl);
+  return {tabId:verifiedTabId,searchUrl};
+ }
  // Inspect only account identity in existing tabs; never navigate the user's tabs.
  for(const tab of await tabs.query({url:'https://mail.google.com/*'})){
   if(tab.status!=='complete')continue;

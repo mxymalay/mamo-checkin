@@ -17,9 +17,12 @@ await mkdir(path.join(bundle,'native'));await mkdir(path.join(bundle,'build'));
 await cp(path.join(root,'native/host.py'),path.join(bundle,'native/host.py'));
 await cp(path.join(root,'build/attendance-ocr'),path.join(bundle,'build/attendance-ocr'));
 await cp(path.join(root,'scripts/install-native.py'),path.join(bundle,'install-native.py'));
-const command=path.join(bundle,'安装Mac识别服务.command');
+const command=path.join(bundle,'Install Mac Recognition.command');
 await writeFile(command,'#!/bin/sh\nset -eu\ncd -- "$(dirname -- "$0")"\n/usr/bin/python3 ./install-native.py\n');await chmod(command,0o755);
-await cp(path.join(root,'INSTALL.md'),path.join(bundle,'安装说明.md'));
+// Keep package entry points English-first. The documents themselves contain the
+// Chinese section below the English instructions.
+await cp(path.join(root,'README.md'),path.join(bundle,'README.md'));
+await cp(path.join(root,'INSTALL.md'),path.join(bundle,'INSTALL.md'));
 const files={};
 async function add(folder,prefix=''){
   for(const entry of await readdir(folder,{withFileTypes:true})){
@@ -35,7 +38,7 @@ await writeFile(output,zipSync(files,{level:6}));
 console.log('Mac 安装包：'+output);
 if(!includeCompanion)process.exit(0);
 const companion={};
-for(const [name,value] of Object.entries(files))if(!name.startsWith('extension/')&&name!=='安装说明.md')companion[name]=value;
+  for(const [name,value] of Object.entries(files))if(!name.startsWith('extension/')&&name!=='README.md'&&name!=='INSTALL.md')companion[name]=value;
 companion['INSTALL.md']=new Uint8Array(await readFile(path.join(root,'OCR-INSTALL.md')));
 await writeFile(path.join(root,'build/mamo-ocr-mac.zip'),zipSync(companion,{level:6}));
 console.log('Mac OCR 配套包：'+path.join(root,'build/mamo-ocr-mac.zip'));

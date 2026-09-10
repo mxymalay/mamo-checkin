@@ -19,6 +19,7 @@ Copy-Item native/licenses/tessdata-LICENSE.txt "$bundle/host/tessdata/LICENSE.tx
 Set-Content "$bundle/host/tessdata/SOURCE.txt" '@tesseract.js-data/eng 1.0.0 / 4.0.0_best_int, unmodified. Source: https://github.com/naptha/tessdata'
 Copy-Item 'build/win-installer/Install Windows OCR.exe' $bundle
 Copy-Item INSTALL-WINDOWS.md "$bundle/INSTALL.md"
+Copy-Item README.md "$bundle/README.md"
 Get-ChildItem $bundle -Filter '.DS_Store' -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path "$bundle/*" -DestinationPath build/mamo-checkin-windows.zip -Force
 if (-not $IncludeCompanion) { exit 0 }
@@ -28,5 +29,6 @@ New-Item $companion -ItemType Directory | Out-Null
 Copy-Item "$bundle/host" "$companion/host" -Recurse
 Copy-Item "$bundle/Install Windows OCR.exe" $companion
 Copy-Item OCR-INSTALL.md "$companion/INSTALL.md"
+Copy-Item README.md "$companion/README.md"
 Get-ChildItem $companion -Filter '.DS_Store' -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path "$companion/*" -DestinationPath build/mamo-ocr-windows.zip -Force

@@ -65,6 +65,15 @@ test('sent year resolves a December image from a January email',()=>{
 test('Gmail September spelling and exact year are parsed in Malaysia timezone',()=>{
  assert.equal(parseMailDate('2 Sept 2026, 19:31'),'2026-09-02T19:31:00+08:00');
  assert.equal(parseMailDate('Wed, 2 Sept, 19:31'),null);
+ assert.equal(parseMailDate('Wed, 2 September 2026, 7:31 PM'),'2026-09-02T19:31:00+08:00');
+ assert.equal(parseMailDate('2 September 2026\u00a0 7:31 PM'),'2026-09-02T19:31:00+08:00');
+});
+test('Gmail date parser accepts Windows and localized timestamp formats without guessing the year',()=>{
+ assert.equal(parseMailDate('Sep 4, 2026, 10:08 PM'),'2026-09-04T22:08:00+08:00');
+ assert.equal(parseMailDate('2026年9月4日 下午10:08'),'2026-09-04T22:08:00+08:00');
+ assert.equal(parseMailDate('2026-09-04 22:08'),'2026-09-04T22:08:00+08:00');
+ assert.equal(parseMailDate('Sep 4, 10:08 PM'),null);
+ assert.equal(parseMailDate('31 February 2026, 10:00'),null);
 });
 test('conflicting codes block a session, identical codes deduplicate',()=>{
  const r=parseImageRows([observation(row)],meta)[0];

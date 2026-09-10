@@ -1,10 +1,11 @@
 // Serialized into Chrome's isolated page world. Navigation is returned as data.
 export function moodleAdapter(command,args={},doc=document){
-  if(command!=='read')throw new Error('未知 Moodle 操作');
+  if(!['read','identity'].includes(command))throw new Error('未知 Moodle 操作');
   if(doc.location.pathname.startsWith('/login/')||doc.querySelector('form input[type="password"],#okta-sign-in'))throw new Error('[LOGIN_REQUIRED] Moodle 需要登录，请完成学校账号登录及验证后重试');
   if(doc.location.origin!=='https://learning.monash.edu')throw new Error('Moodle 需要重新登录');
   const text=el=>(el?.innerText||el?.textContent||'').replace(/\s+/g,' ').trim();
   const identity=doc.querySelector('.usermenu [role="img"][title]')?.getAttribute('title')||doc.querySelector('.usermenu img[alt]')?.getAttribute('alt');
+  if(command==='identity')return identity?{name:identity.trim()}:{loading:true};
   if(identity!==args.name)throw new Error('Moodle 登录账号无法确认，请登录配置的学校账号');
   const main=doc.querySelector('[role="main"],main');if(!main)return {loading:true};
   const courseContext=[...doc.querySelectorAll('[aria-label="Breadcrumb"] a,h1')].map(text).join(' ');

@@ -5,6 +5,13 @@ import {JSDOM} from 'jsdom';
 
 const html=await readFile(new URL('../extension/options.html',import.meta.url),'utf8');
 
+async function waitForScan(){
+ const deadline=Date.now()+2000;
+ while(document.getElementById('login-preflight').open&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,20));
+ assert.equal(document.getElementById('login-preflight').open,false,'preflight should finish before scanning');
+ await new Promise(resolve=>setTimeout(resolve,0));
+}
+
 function installDom(sendMessage){
   const dom=new JSDOM(html,{url:'https://extension.test/options.html'});
   Object.defineProperty(dom.window.navigator,'language',{value:'zh-CN',configurable:true});
@@ -199,8 +206,8 @@ test('bursts of progress notifications never overlap status requests',async()=>{
 
 test('save and scan acknowledge clicks before the background replies',async()=>{
  const originalSetInterval=globalThis.setInterval;let resolveSave,resolveScan;
- const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:[]},records:[]};
- const env=installDom(async p=>p.type==='health'?{ok:true,binaryReady:true}:p.type==='settings'?new Promise(r=>{resolveSave=r;}):p.type==='scan'?new Promise(r=>{resolveScan=r;}):state);
+ const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]},schedules:{ABC1234:[]}},records:[]};
+ const env=installDom(async p=>p.type==='health'?{ok:true,binaryReady:true}:p.type==='checkEmail'?{matched:true,email:p.email}:p.type==='readIdentity'?{matched:true,name:'Example Student'}:p.type==='settings'?new Promise(r=>{resolveSave=r;}):p.type==='scan'?new Promise(r=>{resolveScan=r;}):state);
  try{
   await import(`../extension/options.js?feedback=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   document.getElementById('settings').dispatchEvent(new env.dom.window.Event('submit',{cancelable:true}));
@@ -208,6 +215,8 @@ test('save and scan acknowledge clicks before the background replies',async()=>{
   assert.equal(document.querySelector('#settings button[type="submit"]').disabled,true);
   resolveSave({ok:true});await new Promise(r=>setTimeout(r,0));
   document.getElementById('scan').click();
+  assert.equal(document.getElementById('login-preflight').open,true);
+  await waitForScan();
   assert.match(document.getElementById('notice').textContent,/正在请求/);
   assert.equal(document.getElementById('scan').disabled,true);
   resolveScan({ok:true});await new Promise(r=>setTimeout(r,0));
@@ -227,11 +236,11 @@ test('records include weekdays and each course field has its own help',async()=>
 
 test('finished run replaces the pending scan notice',async()=>{
  const originalSetInterval=globalThis.setInterval;
- const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:[]},records:[],status:{finishedAt:'2026-09-07T00:00:00Z'}};
- const env=installDom(async p=>p.type==='health'?{ok:true}:p.type==='scan'?{ok:true}:state);
+ const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]},schedules:{ABC1234:[]}},records:[],status:{finishedAt:'2026-09-07T00:00:00Z'}};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:p.type==='checkEmail'?{matched:true,email:p.email}:p.type==='readIdentity'?{matched:true,name:'Example Student'}:p.type==='scan'?{ok:true}:state);
  try{
   await import(`../extension/options.js?finished-notice=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
-  document.getElementById('scan').click();await new Promise(r=>setTimeout(r,0));
+  document.getElementById('scan').click();await waitForScan();
   assert.match(document.getElementById('notice').textContent,/等待运行状态/);
   state.status={running:false,finishedAt:'2026-09-08T00:00:00Z',message:'本次检查完成'};
   env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
@@ -265,7 +274,61 @@ test('native form validation gives visible feedback without sending a save',asyn
  try{
   await import(`../extension/options.js?invalid=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   document.querySelector('#settings button[type="submit"]').click();
-  assert.equal(saves,0);assert.match(document.getElementById('notice').textContent,/无法保存/);
+  assert.equal(saves,0);assert.match(document.getElementById('config-alert').textContent,/无法保存/);
+  assert.equal(document.getElementById('config-alert').open,true);
+  assert.equal(document.getElementById('notice').hidden,true,'only the dialog reports invalid fields');
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('invalid events prevent browser focus behind the dialog and expand the target page',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},schedules:{ABC1234:[{weekday:1,time:'09:00'}]}},records:[]};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?validation-focus=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  document.getElementById('tab-records').click();
+  const input=document.querySelector('[data-field="time"]'),event=new env.dom.window.Event('invalid',{cancelable:true});input.dispatchEvent(event);
+  assert.equal(event.defaultPrevented,true);assert.equal(document.body.dataset.page,'courses');assert.equal(input.closest('details').open,true);assert.equal(document.getElementById('config-alert').open,true);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('Moodle-only configuration hides and disables Gmail fields but restores them for email courses',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1']}},records:[]};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?moodle-identity=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const email=document.getElementById('email');assert.equal(email.disabled,true);assert.equal(email.required,false);assert.equal(email.closest('label').hidden,true);
+  assert.equal(document.getElementById('moodle-login').hidden,false);assert.equal(document.querySelector('.identity-source-divider').hidden,false);
+  const mode=document.querySelector('[data-field="source-mode"]');mode.value='email';mode.dispatchEvent(new env.dom.window.Event('change'));
+  assert.equal(email.disabled,false);assert.equal(email.required,true);assert.equal(email.closest('label').hidden,false);assert.equal(document.getElementById('moodle-login').hidden,true);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('failed initial check never starts scanning and restores the main action',async()=>{
+ const originalSetInterval=globalThis.setInterval;let scans=0;
+ const state={settings:{email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'}},records:[]};
+ const env=installDom(async p=>{if(p.type==='checkEmail')return {ok:false,error:'No tab with id: 12.'};if(p.type==='scan')scans++;return p.type==='health'?{ok:true}:state;});
+ try{
+  await import(`../extension/options.js?preflight-error=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  document.getElementById('scan').click();await waitForScan();
+  assert.equal(scans,0);assert.equal(document.getElementById('scan').disabled,false);assert.equal(document.body.dataset.page,'settings');
+  assert.match(document.getElementById('notice').textContent,/Gmail.*页面已被关闭/);assert.doesNotMatch(document.getElementById('notice').textContent,/No tab|12/);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('status refresh preserves an unchanged record tooltip and keyboard focus',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{courses:['ABC1234']},records:[{id:'done',course:'ABC1234',date:'2026-09-08',status:'submitted'}],status:{}};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?stable-record-help=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const help=document.querySelector('.record-code-help'),tip=document.getElementById(help.getAttribute('aria-describedby'));help.focus();
+  assert.equal(tip.getAttribute('popover'),'manual');assert.equal(tip.getAttribute('role'),'tooltip');
+  env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.querySelector('.record-code-help'),help);assert.equal(document.activeElement,help);
+  state.records[0].code='ABC12';env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.querySelector('.record-code-help'),null);assert.match(document.getElementById('records').textContent,/ABC12/);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
@@ -448,11 +511,11 @@ test('setup gates course discovery until service installation and offers reload 
 test('unchanged form input does not block check but a real edit does',async()=>{
  const originalSetInterval=globalThis.setInterval;let scans=0;
  const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'}},records:[]};
- const env=installDom(async p=>{if(p.type==='scan'){scans++;return {ok:true};}return p.type==='health'?{ok:true,binaryReady:true}:state;});
+ const env=installDom(async p=>{if(p.type==='scan'){scans++;return {ok:true};}if(p.type==='checkEmail')return {matched:true,email:p.email};if(p.type==='readIdentity')return {matched:true,name:'Example Student'};return p.type==='health'?{ok:true,binaryReady:true}:state;});
  try{
   await import(`../extension/options.js?dirty-regression=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   const input=document.getElementById('email');input.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
-  document.getElementById('scan').click();await new Promise(r=>setTimeout(r,0));assert.equal(scans,1);
+  document.getElementById('scan').click();await waitForScan();assert.equal(scans,1);
   input.value='changed@example.edu';input.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
   document.getElementById('scan').click();await new Promise(r=>setTimeout(r,0));assert.equal(scans,1);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
@@ -460,12 +523,13 @@ test('unchanged form input does not block check but a real edit does',async()=>{
 test('manual check needs no automatic switch and saves changed settings before scanning',async()=>{
  const originalSetInterval=globalThis.setInterval,calls=[];
  const state={settings:{enabled:false,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'}},records:[]};
- const env=installDom(async p=>{if(p.type==='settings'){calls.push('save');state.settings=p.settings;return {ok:true};}if(p.type==='scan'){calls.push('scan');return {ok:true};}return p.type==='health'?{ok:true,binaryReady:true}:state;});
+ const env=installDom(async p=>{if(p.type==='settings'){calls.push('save');state.settings=p.settings;return {ok:true};}if(p.type==='scan'){calls.push('scan');return {ok:true};}if(p.type==='checkEmail')return {matched:true,email:p.email};if(p.type==='readIdentity')return {matched:true,name:state.settings.name};return p.type==='health'?{ok:true,binaryReady:true}:state;});
  try{
   await import(`../extension/options.js?manual-saved=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
-  document.getElementById('scan').click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(calls,['scan']);assert.equal(state.settings.enabled,false);
+  document.getElementById('scan').click();await waitForScan();assert.deepEqual(calls,['scan']);assert.equal(state.settings.enabled,false);
   const input=document.getElementById('name');input.value='Updated Student';input.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
   assert.equal(document.getElementById('scan').textContent,'保存并立即签到');document.getElementById('scan').click();await new Promise(r=>setTimeout(r,0));
+  await waitForScan();
   assert.deepEqual(calls,['scan','save','scan']);assert.equal(state.settings.name,'Updated Student');assert.equal(state.settings.enabled,false);
   assert.ok(document.getElementById('save-general').closest('.columns'));
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}

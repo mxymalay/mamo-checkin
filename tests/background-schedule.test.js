@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {expectedSessions} from '../extension/timetable.js';
 const event=()=>({addListener(){},removeListener(){}});
-async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false,reset=false,enabled=true,savedExpired=false,login=false){
- const previous=globalThis.chrome,tabs=new Map(),opened=[],queries=[];
+async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false,reset=false,enabled=true,savedExpired=false,login=false,options={}){
+ const previous=globalThis.chrome,tabs=new Map(),opened=[],queries=[],removed=[];
+ if(options.preflight)tabs.set(100,{id:100,url:'https://attendance.monash.edu.my/student/Default.aspx',status:'complete'});
  const settings={enabled,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,intervalMinutes:15,courses:['ABC1234','DEF1234'],senders:{ABC1234:'a@example.edu',DEF1234:'d@example.edu'},subjectKeywords:{ABC1234:'ABC1234',DEF1234:'DEF1234'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1'],DEF1234:['https://learning.monash.edu/course/view.php?id=2']},schedules:{ABC1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}],DEF1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}]}};
  const values={settings,records:savedExpired?[{id:'old-expired',course:'ABC1234',date:'2020-01-01',time:'18:00',status:'expired'}]:[],seenMessages:{},seenThreads:{}};let listener,alarmListener;
  const activities=settings.courses.flatMap(course=>expectedSessions(settings,course).map(slot=>{
@@ -19,12 +20,12 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   alarms:{onAlarm:{addListener(fn){alarmListener=fn;}},get:async()=>({periodInMinutes:15}),create:async()=>{},clear:async()=>{}},
   action:{onClicked:event(),setBadgeText:async()=>{}},
   storage:{local:{get:async keys=>Object.fromEntries(keys.map(key=>[key,structuredClone(values[key])])),set:async update=>Object.assign(values,structuredClone(update)),clear:async()=>{for(const key of Object.keys(values))delete values[key];}}},
-  tabs:{create:async({url})=>{const tab={id:tabs.size+1,url:login&&url.startsWith('https://mail.google.com')?'https://accounts.google.com/v3/signin/identifier':url,status:'complete'};tabs.set(tab.id,tab);opened.push(url);return tab;},get:async id=>tabs.get(id),update:async(id,update)=>Object.assign(tabs.get(id),update),remove:async()=>{}},
+  tabs:{create:async({url})=>{const tab={id:tabs.size+1,url:login&&url.startsWith('https://mail.google.com')?'https://accounts.google.com/v3/signin/identifier':url,status:'complete'};tabs.set(tab.id,tab);opened.push(url);return tab;},get:async id=>{if(options.closedAttendance&&id===100)throw new Error('No tab with id: 100.');return tabs.get(id);},update:async(id,update)=>Object.assign(tabs.get(id),update),remove:async id=>{removed.push(id);}},
   scripting:{executeScript:async({args,target})=>{
     const [command,cfg]=args;
     if(command===settings.email){tabs.get(target.tabId).url='https://mail.google.com/mail/u/2/';return [{result:{selected:true}}];}
     if(command==='identity')return [{result:{email:cfg.email||settings.email,url:'https://mail.google.com/mail/u/2/'}}];
-    if(command==='activities'||command==='discover')return [{result:{activities}}];
+    if(command==='activities'||command==='discover'){assert.equal(tabs.get(target.tabId).url,'https://attendance.monash.edu.my/student/Units.aspx');return [{result:{activities}}];}
     if(command==='list'){queries.push(cfg.courses);return [{result:{threads:[]}}];}
     if(command==='read')return [{result:{messages:[],links:[],priorityLinks:[],pageTitle:cfg.course}}];
     throw new Error('Unexpected adapter command '+command);
@@ -32,18 +33,18 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
  };
  globalThis.chrome.tabs.query=async()=>[];
  try{
-  await import(`../extension/background.js?scenario=${completed.join('-')}&alarm=${viaAlarm}&auto=${automatic}&discover=${discovery}&clear=${clear}&reset=${reset}&enabled=${enabled}&expired=${savedExpired}&login=${login}`);
+  await import(`../extension/background.js?scenario=${completed.join('-')}&alarm=${viaAlarm}&auto=${automatic}&discover=${discovery}&clear=${clear}&reset=${reset}&enabled=${enabled}&expired=${savedExpired}&login=${login}&preflight=${options.preflight}&closed=${options.closedAttendance}`);
   if(reset){const result=await new Promise(resolve=>listener({type:'reset'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);assert.deepEqual(values,{});return result;}
   if(clear){values.records=[{id:'saved-record',code:'ABC12'}];const result=await new Promise(resolve=>listener({type:'clearCourses'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);return {settings:values.settings,records:values.records};}
   if(discovery){const result=await new Promise(resolve=>listener({type:'redetect'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(values.status,undefined);assert.equal(values.settings.courses.length,0);return result;}
   if(viaAlarm)alarmListener({name:'scan'});
-  else{const result=await new Promise(resolve=>listener({type:'scan'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);}
+  else{const result=await new Promise(resolve=>listener({type:'scan',...(options.preflight?{verifiedLogin:{attendance:{tabId:100}}}:{})},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);}
   const deadline=Date.now()+5000;
   while(!values.status?.finishedAt&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,1));
   assert.ok(values.status?.finishedAt,'run must finish');
-  assert.equal(values.status.error,false,JSON.stringify(values.diagnostics));
+  assert.equal(values.status.error,Boolean(options.closedAttendance),JSON.stringify(values.diagnostics));
   await new Promise(resolve=>setTimeout(resolve,5));
-  return {opened,queries,settings:values.settings,summary:values.status.summary,records:values.records};
+  return {opened,queries,removed,settings:values.settings,summary:values.status.summary,records:values.records,status:values.status};
  }finally{globalThis.chrome=previous;}
 }
 test('Gmail chooser automatically selects the target and resumes the same run',async()=>{
@@ -51,6 +52,14 @@ test('Gmail chooser automatically selects the target and resumes the same run',a
  assert.ok(result.queries.length>0);
  assert.deepEqual(result.summary.loginRequired,[]);
  assert.equal(result.summary.quiet,false);
+});
+test('preflight Attendance page navigates to the timetable without closing the reused login tab',async()=>{
+ const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,true,false,false,{preflight:true});
+ assert.deepEqual(result.opened,[]);assert.equal(result.removed.includes(100),false);assert.equal(result.summary.allCompleted,true);
+});
+test('closed Attendance preflight page reports Attendance and never starts mail collection',async()=>{
+ const result=await runScenario([],false,false,false,false,false,true,false,false,{preflight:true,closedAttendance:true});
+ assert.match(result.status.message,/Attendance.*页面已被关闭/);assert.doesNotMatch(result.status.message,/Gmail|No tab|100/);assert.deepEqual(result.queries,[]);
 });
 test('completed timetable slots skip both Gmail and Moodle in an actual background run',async()=>{
  const result=await runScenario(['ABC1234','DEF1234']);

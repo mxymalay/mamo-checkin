@@ -17,7 +17,7 @@ await writeFile(path.join(vendor,'SOURCES.txt'),'Tesseract.js 7.0.0: https://git
 const files={};
 async function add(folder,prefix){for(const entry of await readdir(folder,{withFileTypes:true})){const name=path.join(folder,entry.name),relative=prefix+'/'+entry.name;if(entry.isDirectory())await add(name,relative);else files[relative]=new Uint8Array(await readFile(name));}}
 await add(target,'extension');
-files['安装说明.md']=new Uint8Array(await readFile(path.join(root,'README.md')));
+files['README.md']=new Uint8Array(await readFile(path.join(root,'README.md')));
 const output=path.join(root,'build','签到助手-Windows-macOS.zip');
 await writeFile(output,zipSync(files,{level:6}));
 console.log('扩展目录：'+target);console.log('Windows / macOS 安装包：'+output);console.log('安装包大小：'+(new Uint8Array(await readFile(output)).length/1024/1024).toFixed(1)+' MB');

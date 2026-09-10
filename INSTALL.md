@@ -1,3 +1,19 @@
+# Mamo Check-in installation
+
+## English
+
+macOS 12+ and Google Chrome are required. Download the latest `mamo-checkin-mac.zip` from the [GitHub Release](https://github.com/mxymalay/mamo-checkin/releases/latest). Do not download Source code.
+
+1. Extract the ZIP into a permanent folder.
+2. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the package's `extension` folder.
+3. Run `Install Mac Recognition.command` from the extracted folder.
+4. If macOS blocks the installer or `attendance-ocr`, open **System Settings > Privacy & Security > Open Anyway** for that file, then return to the extension and check again. Do not disable system security.
+5. Enter your student email prefix and Attendance name, sign in to Attendance, detect courses, choose Gmail or Moodle sources, and save.
+
+The full package already includes the extension, local OCR service, and installer. No separate OCR download is needed. Images and records stay on this computer.
+
+## 中文
+
 # 马莫签到助手安装指南
 
 仅支持 **macOS 12+ 和 Chrome**。请从[本项目 Release](https://github.com/mxymalay/mamo-checkin/releases/latest)下载 Mac 安装包，不要下载 Source code。
@@ -14,7 +30,7 @@
 
 ## 3. 安装识别服务
 
-双击包内的 **安装Mac识别服务.command**，按提示完成安装。需要 Python 3；若系统要求安装开发者命令行工具，请先完成安装。
+双击包内的 **Install Mac Recognition.command**，按提示完成安装。需要 Python 3；若系统要求安装开发者命令行工具，请先完成安装。
 
 ### 如果 macOS 阻止打开
 

@@ -7,7 +7,7 @@ This package installs the local OCR helper only. Use it when the browser extensi
 ### macOS 12+
 
 1. Extract the ZIP. Do not run a file from inside the archive.
-2. Run `安装Mac识别服务.command`. macOS must have Python 3 available; install Apple's command-line tools if prompted.
+2. Run `Install Mac Recognition.command`. macOS must have Python 3 available; install Apple's command-line tools if prompted.
 3. If macOS blocks the installer or `attendance-ocr`, verify the source, then use System Settings > Privacy & Security > Open Anyway for that file. Do not disable system security.
 4. Return to the extension and click the installation check, then Refresh and continue when ready.
 
@@ -27,7 +27,7 @@ Downloads must come from the [latest GitHub release](https://github.com/mxymalay
 ### macOS 12+
 
 1. 完整解压 ZIP，不要直接运行压缩包内的文件。
-2. 运行 `安装Mac识别服务.command`。需要系统可用的 Python 3；若提示安装 Apple 命令行工具，请先完成安装。
+2. 运行 `Install Mac Recognition.command`。需要系统可用的 Python 3；若提示安装 Apple 命令行工具，请先完成安装。
 3. 安装命令或 `attendance-ocr` 被拦截时，确认文件来源后到“系统设置 → 隐私与安全性 → 仍要打开”允许对应文件，不要关闭系统安全保护。
 4. 返回扩展点击检测，通过后点击“刷新并继续”。
 

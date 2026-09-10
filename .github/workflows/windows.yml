@@ -19,6 +19,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
+      - name: Verify shared parsing and interface behavior
+        run: node --test tests/core.test.js tests/adapters.test.js tests/options-ui.test.js tests/verification.test.js tests/i18n.test.js tests/page-tabs.test.js tests/gmail-session.test.js tests/site-check.test.js
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

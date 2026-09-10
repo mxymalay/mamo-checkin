@@ -8,11 +8,28 @@ const canonicalType=text=>{
 };
 export const recordKey = r => [r.course,r.date,r.type,r.group,r.time].join('|');
 export function parseMailDate(text) {
-  const m=String(text).match(/(\d{1,2})\s+([A-Za-z]+)\s+(20\d{2}),?\s+(\d{1,2}):(\d{2})/);
-  if(!m) return null;
-  const month=MONTHS.indexOf(m[2].slice(0,3).toLowerCase());
-  if(month<0 || +m[4]>23 || +m[5]>59) return null;
-  return `${m[3]}-${pad(month+1)}-${pad(m[1])}T${pad(m[4])}:${m[5]}:00+08:00`;
+  const value=String(text).replace(/\u00a0/g,' ').replace(/[，]/g,',').replace(/\s+/g,' ').trim();
+  const clock=(hour,minute,meridiem)=>{
+    hour=Number(hour);minute=Number(minute);if(!Number.isInteger(hour)||!Number.isInteger(minute)||minute>59)return null;
+    if(meridiem){if(hour<1||hour>12)return null;hour=hour%12+(meridiem.toLowerCase()==='pm'?12:0);}
+    if(hour>23)return null;return `${pad(hour)}:${pad(minute)}`;
+  };
+  const result=(year,month,day,time)=>{
+    year=Number(year);month=Number(month);day=Number(day);if(!year||month<1||month>12||day<1||day>31||!time)return null;
+    const date=new Date(Date.UTC(year,month-1,day));
+    if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)return null;
+    return `${year}-${pad(month)}-${pad(day)}T${time}:00+08:00`;
+  };
+  const weekday='(?:\\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\\w*\\s*,?\\s*)?';
+  let m=value.match(new RegExp(`${weekday}(\\d{1,2})\\s+([A-Za-z]+)\\s*,?\\s*(20\\d{2})\\s*,?\\s+(\\d{1,2}):(\\d{2})(?:\\s*(am|pm))?`,'i'));
+  if(m){const month=MONTHS.indexOf(m[2].slice(0,3).toLowerCase());return result(m[3],month+1,m[1],clock(m[4],m[5],m[6]));}
+  m=value.match(new RegExp(`${weekday}([A-Za-z]+)\\s+(\\d{1,2})\\s*,?\\s*(20\\d{2})\\s*,?\\s+(\\d{1,2}):(\\d{2})(?:\\s*(am|pm))?`,'i'));
+  if(m){const month=MONTHS.indexOf(m[1].slice(0,3).toLowerCase());return result(m[3],month+1,m[2],clock(m[4],m[5],m[6]));}
+  m=value.match(/(20\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日\s*(?:(上午|下午)\s*)?(\d{1,2})[:：](\d{2})/i);
+  if(m)return result(m[1],m[2],m[3],clock(m[5],m[6],m[4]?m[4]==='下午'?'pm':'am':null));
+  m=value.match(/\b(20\d{2})[-/]([01]?\d)[-/]([0-3]?\d)(?:[ T]+)(\d{1,2})[:：](\d{2})(?:\s*(am|pm))?/i);
+  if(m)return result(m[1],m[2],m[3],clock(m[4],m[5],m[6]));
+  return null;
 }
 export function siteDate(value) {
   const m=String(value).match(/^(\d{1,2})_([A-Za-z]{3})_(\d{2})$/);

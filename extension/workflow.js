@@ -70,7 +70,7 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,save
     if(recentOnly&&messageOutsideWindow({...msg,sentAt},Date.parse(now()))){state.seenMessages[msg.messageId]=now();await progress({message:'跳过超过 7 天的旧内容',increment:{skipped:1}});await save();continue;}
     await progress({message:'正在读取签到文字和图片',context:{course:msg.course,subject:msg.subject,sourceUrl:msg.sourceUrl},increment:{messages:1}});
     if(!sentAt) {
-      await recordDiagnostic(state,{scope:'message',messageId:msg.messageId,subject:msg.subject,error:`无法识别邮件发送年份：${msg.subject}`},saveDiagnostics,now);
+      await recordDiagnostic(state,{scope:'message',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,error:`无法识别邮件发送年份：${msg.subject}`},saveDiagnostics,now);
       continue;
     }
     let failed=false,incomplete=false;
@@ -80,7 +80,7 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,save
       if(textRecords.length){const before=state.records.length;state.records=mergeRecords(state.records,textRecords);await save();await progress({message:`已保存 ${textRecords.length} 条文字记录`,increment:{records:state.records.length-before}});}
     }catch(error){
       failed=true;
-      await recordDiagnostic(state,{scope:'text',messageId:msg.messageId,subject:msg.subject,error:error?.message||String(error)},saveDiagnostics,now);
+      await recordDiagnostic(state,{scope:'text',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,error:error?.message||String(error)},saveDiagnostics,now);
     }
     const images=[...new Set(msg.images||[])];
     for(const [imageIndex,imageUrl] of images.entries()) {
@@ -99,7 +99,7 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,save
       } catch(error) {
         failed=true;
         await progress({message:`第 ${imageIndex+1}/${images.length} 张图片失败：${error?.message||String(error)}`,level:'error'});
-        await recordDiagnostic(state,{scope:'image',messageId:msg.messageId,subject:msg.subject,imageIndex,error:error?.message||String(error)},saveDiagnostics,now);
+        await recordDiagnostic(state,{scope:'image',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,imageIndex,error:error?.message||String(error)},saveDiagnostics,now);
       }
     }
     if(!failed&&!incomplete) {
@@ -107,7 +107,7 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,save
       try{await save();}
       catch(error){
         delete state.seenMessages[msg.messageId];
-        await recordDiagnostic(state,{scope:'message',messageId:msg.messageId,subject:msg.subject,error:error?.message||String(error)},saveDiagnostics,now);
+        await recordDiagnostic(state,{scope:'message',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,error:error?.message||String(error)},saveDiagnostics,now);
       }
     }
   }
