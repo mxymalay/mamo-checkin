@@ -1,3 +1,4 @@
+param([switch]$IncludeCompanion)
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 python -m PyInstaller --noconfirm --clean --onedir --console --name mamo-host --hidden-import windows_ocr --paths native --distpath build/win-runtime --workpath build/pyinstaller-host native/host.py
@@ -20,6 +21,7 @@ Copy-Item 'build/win-installer/Install Windows OCR.exe' $bundle
 Copy-Item INSTALL-WINDOWS.md "$bundle/INSTALL.md"
 Get-ChildItem $bundle -Filter '.DS_Store' -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path "$bundle/*" -DestinationPath build/mamo-checkin-windows.zip -Force
+if (-not $IncludeCompanion) { exit 0 }
 $companion = 'build/windows-ocr'
 if (Test-Path $companion) { Remove-Item $companion -Recurse -Force }
 New-Item $companion -ItemType Directory | Out-Null
