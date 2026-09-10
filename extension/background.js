@@ -331,7 +331,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       if(message.expectedIdentity){const current=await loadState();if(message.expectedIdentity.email!==current.settings.email||message.expectedIdentity.name!==current.settings.name)throw new Error('签到前身份已改变，请重新登录并检测后再试');}
       void start(true,null,message.expectedIdentity,message.verifiedLogin);return {ok:true};
     }
-    if(message.type==='retry'){if(activeRun||activeDetection)throw new Error('正在签到，请等待本轮结束');const state=await loadState();if(!state.settings.courses.includes(message.course))throw new Error('课程已被移除，请重新配置');void start(true,message.course);return {ok:true};}
+    if(message.type==='retry'){if(activeRun||activeDetection)throw new Error('正在签到，请等待本轮结束');const state=await loadState();if(!state.settings.courses.includes(message.course))throw new Error('课程已被移除，请重新配置');if(message.expectedIdentity&&(message.expectedIdentity.email!==state.settings.email||message.expectedIdentity.name!==state.settings.name))throw new Error('签到前身份已改变，请重新登录并检测后再试');void start(true,message.course,message.expectedIdentity,message.verifiedLogin);return {ok:true};}
     if(message.type==='redetect'){if(activeRun||activeDetection)throw new Error('正在运行，请等待当前检查结束再重新检测课程');activeDetection=redetect().finally(()=>{activeDetection=null;});return activeDetection;}
     if(message.type==='clearCourses'){
       if(activeRun||activeDetection)throw new Error('正在运行，请等待检查结束再清空课程');

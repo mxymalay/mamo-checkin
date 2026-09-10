@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
 
 const html=await readFile(new URL('../extension/options.html',import.meta.url),'utf8');
+const manifest=JSON.parse(await readFile(new URL('../extension/manifest.json',import.meta.url),'utf8'));
 
 async function waitForScan(){
  const deadline=Date.now()+2000;
@@ -20,7 +21,7 @@ function installDom(sendMessage){
   globalThis.Blob=dom.window.Blob;
   globalThis.URL=dom.window.URL;
   const listeners=[];
-  globalThis.chrome={runtime:{id:'test',sendMessage},storage:{onChanged:{addListener(fn){listeners.push(fn);}}}};
+  globalThis.chrome={runtime:{id:'test',sendMessage,getManifest:()=>manifest},storage:{onChanged:{addListener(fn){listeners.push(fn);}}}};
   const intervals=[];
   globalThis.setInterval=(fn,ms)=>{intervals.push({fn,ms});return intervals.length;};
   return {dom,listeners,intervals};
@@ -302,6 +303,9 @@ test('Moodle-only configuration hides and disables Gmail fields but restores the
   assert.equal(document.getElementById('moodle-login').hidden,false);assert.equal(document.querySelector('.identity-source-divider').hidden,false);
   const mode=document.querySelector('[data-field="source-mode"]');mode.value='email';mode.dispatchEvent(new env.dom.window.Event('change'));
   assert.equal(email.disabled,false);assert.equal(email.required,true);assert.equal(email.closest('label').hidden,false);assert.equal(document.getElementById('moodle-login').hidden,true);
+  assert.equal(document.getElementById('email-moodle-divider').hidden,true);
+  mode.value='both';mode.dispatchEvent(new env.dom.window.Event('change'));
+  assert.equal(document.getElementById('email-moodle-divider').hidden,false);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
@@ -324,6 +328,8 @@ test('status refresh preserves an unchanged record tooltip and keyboard focus',a
  try{
   await import(`../extension/options.js?stable-record-help=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   const help=document.querySelector('.record-code-help'),tip=document.getElementById(help.getAttribute('aria-describedby'));help.focus();
+  const style=document.createElement('style');style.textContent=await readFile(new URL('../extension/style.css',import.meta.url),'utf8');document.head.append(style);
+  assert.equal(env.dom.window.getComputedStyle(tip).transition,'none');assert.equal(env.dom.window.getComputedStyle(tip).transform,'none');
   assert.equal(tip.getAttribute('popover'),'manual');assert.equal(tip.getAttribute('role'),'tooltip');
   env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
   assert.equal(document.querySelector('.record-code-help'),help);assert.equal(document.activeElement,help);
@@ -534,12 +540,20 @@ test('manual check needs no automatic switch and saves changed settings before s
   assert.ok(document.getElementById('save-general').closest('.columns'));
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
-test('a codeless waiting session shows a retry action for its own course',async()=>{
- const originalSetInterval=globalThis.setInterval,calls=[];
- const state={settings:{enabled:false,courses:['ABC1234']},records:[{id:'waiting',course:'ABC1234',date:'2026-09-07',time:'18:00',type:'Workshop',group:'01',status:'waiting_code',code:''}]};
- const env=installDom(async p=>{if(p.type==='retry'){calls.push(p);return {ok:true};}return p.type==='health'?{ok:true,binaryReady:true}:state;});
- try{await import(`../extension/options.js?waiting-retry=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
- assert.match(document.getElementById('records').textContent,/等待签到码/);assert.equal(document.querySelector('[aria-label="复制签到码"]'),null);
- const retry=[...document.querySelectorAll('#records button')].find(b=>b.textContent==='重试');assert.ok(retry);assert.equal(retry.closest('td').cellIndex,2);retry.click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(calls,[{type:'retry',course:'ABC1234'}]);
+for(const outcome of ['pass','fail','cancel'])test('single-course retry shares initial checks: '+outcome,async()=>{
+ const originalSetInterval=globalThis.setInterval,calls=[],checks=[];
+ const state={settings:{enabled:false,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,courses:['ABC1234','DEF1234'],senders:{DEF1234:'teacher@example.edu'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1']}},records:[{id:'waiting',course:'ABC1234',date:'2026-09-07',time:'18:00',status:'waiting_code',code:''}]};
+ const env=installDom(async p=>{if(p.type==='retry'){calls.push(p);return {ok:true};}if(['checkMoodle','readIdentity','checkEmail'].includes(p.type)){checks.push(p.type);if(outcome==='fail')return {ok:false,error:'Moodle 页面已被关闭，无法执行签到'};return {matched:true,name:state.settings.name,tabId:7};}return p.type==='health'?{ok:true,binaryReady:true}:state;});
+ try{
+  await import(`../extension/options.js?waiting-retry=${outcome}-${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.getElementById('app-version').textContent,manifest.version);
+  document.getElementById('tab-records').click();
+  const retry=[...document.querySelectorAll('#records button')].find(b=>b.textContent==='重试');retry.click();
+  assert.equal(document.getElementById('login-preflight').open,true);assert.equal(calls.length,0);
+  if(outcome==='cancel')document.getElementById('login-preflight').dispatchEvent(new env.dom.window.Event('cancel',{cancelable:true}));
+  await waitForScan();
+  assert.equal(document.body.dataset.page,'records');assert.equal(document.getElementById('scan').disabled,false);
+  if(outcome==='pass'){assert.deepEqual(checks,['checkMoodle','readIdentity']);assert.deepEqual(calls,[{type:'retry',course:'ABC1234',expectedIdentity:{email:state.settings.email,name:state.settings.name},verifiedLogin:{moodle:{tabId:7},attendance:{tabId:7}}}]);}
+  else assert.equal(calls.length,0);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });

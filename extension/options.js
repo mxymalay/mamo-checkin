@@ -13,6 +13,8 @@ import {bindVerification,configuredLoginSites,loginRequest} from './verification
 import {createLoginPreflight} from './login-preflight.js';
 import {appendRecordHelp} from './record-help.js';
 const $=id=>document.getElementById(id);
+$('app-version').textContent=globalThis.chrome?.runtime?.getManifest?.()?.version||'';
+const sourceDivider=document.createElement('div');sourceDivider.id='email-moodle-divider';sourceDivider.className='identity-source-divider';sourceDivider.hidden=true;sourceDivider.setAttribute('aria-hidden','true');$('moodle-login').before(sourceDivider);
 const pageTabs=createPageTabs();
 const automationSave=document.createElement('button');automationSave.id='save-automation';automationSave.type='button';automationSave.className='primary';automationSave.textContent='保存设置';document.querySelector('.automation-settings').append(automationSave);
 const moreCourses=document.createElement('details');moreCourses.className='more-courses';const moreSummary=document.createElement('summary');moreSummary.textContent='还有更多课程？';moreCourses.append(moreSummary);$('add-course').before(moreCourses);moreCourses.append($('add-course'));$('add-course').textContent='添加更多课程';
@@ -111,6 +113,7 @@ function syncIdentitySources(){
  const modes=[...$('courses').querySelectorAll('[data-field="source-mode"]')].map(input=>input.value),gmail=modes.some(mode=>['email','both'].includes(mode)),moodle=modes.some(mode=>['moodle','both'].includes(mode));
  $('email').closest('label').hidden=!gmail;$('email-check').hidden=!gmail;$('email-check-status').hidden=!gmail;$('moodle-login').hidden=!moodle;const divider=document.querySelector('.identity-source-divider');if(divider)divider.hidden=!(gmail||moodle);
  $('email').disabled=!gmail;$('email').required=gmail;
+ sourceDivider.hidden=!(gmail&&moodle);
  if(!gmail)identityBindings.gmail.reset();if(!moodle)identityBindings.moodle.reset();
  $('mail-query').closest('label').hidden=!gmail;
 }
@@ -161,7 +164,7 @@ function render(state,settings=false){
     if(r.status==='submitted'&&!r.code)appendRecordHelp(code);
     if(r.code){const copy=document.createElement('button');copy.type='button';copy.className='copy-code';copy.textContent='复制';copy.setAttribute('aria-label','复制签到码');copy.addEventListener('click',async()=>{copy.disabled=true;copy.textContent='复制中…';try{await window.navigator.clipboard.writeText(r.code);copy.textContent='已复制';notice('签到码已复制。','success');}catch{copy.textContent='重试复制';notice('复制失败，请选中签到码手动复制。','error');}finally{copy.disabled=false;}});code.append(copy);}
     const statusCell=cell(''),badge=document.createElement('span');badge.className='state '+r.status;badge.textContent=labels[r.status]||r.status;statusCell.append(badge);
-    if(r.status==='waiting_code'){const retry=document.createElement('button');retry.type='button';retry.className='copy-code';retry.textContent='重试';retry.disabled=Boolean(latest.status?.running)||scanPending;retry.onclick=async()=>{retry.disabled=true;retry.textContent='正在请求…';scanPreviousFinish=latest.status?.finishedAt||null;notice('正在重新查找 '+r.course+' 的签到码…','scan');try{await request({type:'retry',course:r.course});await refresh();}catch(error){notice(error.message,'error');retry.disabled=false;retry.textContent='重试';}};code.append(retry);}
+    if(r.status==='waiting_code'){const retry=document.createElement('button');retry.type='button';retry.className='copy-code';retry.textContent='重试';retry.disabled=Boolean(latest.status?.running)||scanPending;retry.onclick=()=>startManualCheck(r.course);code.append(retry);}
     const source=cell('',r.reason||'');
     if(r.sources?.length)appendDiagnostics(source,r.sources.map(item=>({...item,error:item.sourceUrl||'已读取此来源'})));
     if(/^https:\/\/(mail\.google\.com|learning\.monash\.edu|attendance\.monash\.edu\.my)\//.test(r.sourceUrl||'')){const link=document.createElement('a');link.href=r.sourceUrl;link.textContent=r.sourceUrl.includes('attendance.monash.edu.my')?'查看签到系统 ↗':r.sourceUrl.includes('learning.monash.edu')?'查看 Moodle ↗':'查看邮件 ↗';link.target='_blank';link.rel='noreferrer';source.prepend(link);}
@@ -202,20 +205,23 @@ $('settings-file').addEventListener('change',async()=>{
     editing=false;await refresh(true);notice('个人配置已导入并保存。','success');
   }catch(error){notice(error.message,'error');}finally{$('settings-file').value='';}
 });
-$('scan').addEventListener('click',async()=>{
+async function startManualCheck(course=null){
  if(scanPending||saving||latest.status?.running)return;
  editing=hasUnsavedChanges();scanPending=true;$('scan').disabled=true;scanPreviousFinish=latest.status?.finishedAt||null;
+ render(latest);
  try{
   for(const binding of Object.values(identityBindings))binding.stop();
   if(editing){await request({type:'settings',settings:readFormSettings()});editing=false;await refresh(true);}
   const settings=normalizeSettings(latest.settings||DEFAULTS,readFormSettings(),Boolean(latest.records?.length));
+  if(course&&!settings.courses.includes(course))throw new Error('课程已被移除，请重新配置');
   notice('');
-  const preflight=await loginPreflight.run(settings);if(!preflight)return;if(preflight.error)throw new Error(preflight.error);
-  notice('正在请求后台开始签到…','scan');await request({type:'scan',expectedIdentity:{email:settings.email,name:settings.name},verifiedLogin:preflight.verifiedLogin});
-  pageTabs.show('records');
+  const preflight=await loginPreflight.run(course?{...settings,courses:[course]}:settings);if(!preflight)return;if(preflight.error)throw new Error(preflight.error);
+  notice('正在请求后台开始签到…','scan');await request({type:course?'retry':'scan',...(course?{course}:{}),expectedIdentity:{email:settings.email,name:settings.name},verifiedLogin:preflight.verifiedLogin});
+  if(!course)pageTabs.show('records');
   if(scanNotice)notice('后台已收到签到请求，正在等待运行状态…','scan');await refresh();
- }catch(error){notice(error.message,'error');}finally{scanPending=false;$('scan').disabled=Boolean(latest.status?.running);$('scan').textContent=latest.status?.running?'正在签到…':editing?'保存并立即签到':'立即签到';}
-});
+ }catch(error){notice(error.message,'error');}finally{scanPending=false;render(latest);}
+}
+$('scan').addEventListener('click',()=>startManualCheck());
 $('check-health').addEventListener('click',()=>health(true));
 $('settings').addEventListener('invalid',event=>{
  // The dialog owns focus; prevent Chrome from focusing a now-inert form field.

@@ -82,3 +82,4 @@ dialog::backdrop{background:#183b5166}
 .record-code-help-wrap{display:inline-block;margin-left:8px;vertical-align:middle}.record-code-help-wrap .record-code-help{margin-left:0}.record-code-help-wrap .tooltip{position:fixed;inset:auto;left:0;top:0;margin:0;border:0;z-index:1000;width:260px;max-width:calc(100vw - 40px);line-height:1.6;pointer-events:none}.record-code-help-wrap .tooltip:popover-open{opacity:1;visibility:visible;transform:none}
 #login-preflight .login-check-row .login-identity{margin:0;color:#657384;font-size:14px;line-height:1.5}
 #login-preflight .login-check-row .identity-check{vertical-align:top}
+.record-code-help-wrap .tooltip{transition:none;transform:none}
