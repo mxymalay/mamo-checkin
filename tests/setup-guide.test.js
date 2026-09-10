@@ -27,6 +27,13 @@ test('failed native startup stops automatic retries until manual recovery',()=>{
  assert.match(doc.getElementById('setup-check').textContent,/重新检测/);
  e.guide.health({binaryReady:true});assert.equal(doc.getElementById('setup-reload').hidden,false);e.dom.window.close();
 });
+test('Windows native setup errors do not mix raw English into Chinese status text',()=>{
+ const e=make(),doc=e.dom.window.document;e.guide.update({setupGuide:true,settings:{}});
+ e.guide.health({binaryReady:false,healthError:'Install Tesseract OCR with English language data, then click Check service again.'});
+ assert.doesNotMatch(doc.getElementById('setup-health').textContent,/Install Tesseract OCR with English language data/);
+ assert.match(doc.getElementById('setup-health').textContent,/Tesseract OCR/);
+ e.dom.window.close();
+});
 test('identity form accepts only the school prefix and sends the completed address',async()=>{
  const e=make(),doc=e.dom.window.document;e.guide.update({setupGuide:true,settings:{}});e.guide.health({binaryReady:true});
  const email=doc.getElementById('setup-email');email.value='abc123';assert.equal(email.checkValidity(),false);email.value='ABCD1234';assert.equal(email.checkValidity(),true);

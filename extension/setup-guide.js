@@ -3,6 +3,18 @@ import {installIdentityChecks} from './email-input.js';
 import {isWindows} from './platform.js';
 import {installCompanionDownload} from './companion-setup.js';
 import {schoolEmail,emailPrefix,configureEmailInput} from './school-email.js';
+
+const nativeHealthErrors=new Map([
+ ['Install Tesseract OCR with English language data, then click Check service again.','请安装 Tesseract OCR，并保留 English 语言数据，然后点击“重新检测”。'],
+ ['Bundled English model is missing. Run the latest Install Windows OCR.exe again.','缺少内置 English 模型，请重新运行最新版 Install Windows OCR.exe。'],
+ ['Please run the latest Install Windows OCR.exe to install the corrected English model.','请重新运行最新版 Install Windows OCR.exe，安装修正后的 English 模型。'],
+ ['Allow the OCR executable','请在系统安全设置中允许识别程序，然后点击“重新检测”。']
+]);
+function normalizeNativeHealthError(value){
+ const raw=String(value||'').trim();
+ return nativeHealthErrors.get(raw)||raw;
+}
+
 export function createSetupGuide({doc=document,request,refresh,detect,checkHealth,reload,reset}){
  const box=doc.createElement('section');box.id='setup-guide';box.className='card';box.innerHTML=`
  <ol class="setup-steps"><li>1 安装识别服务</li><li>2 填写身份</li><li>3 登录并配置课程</li></ol>
@@ -37,7 +49,7 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
  $('setup-identity').onsubmit=async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;$('setup-identity-error').textContent='正在保存…';try{await request({type:'identity',email:schoolEmail($('setup-email').value),name:$('setup-name').value});identityEdit=false;$('setup-identity-error').textContent='';await refresh(true);}catch(error){$('setup-identity-error').textContent=error.message;}finally{button.disabled=false;}};
  render();return {
   update(value){state=value;enabled=value.setupGuide===true;render();},
-  health(result,error){blocked=Boolean(result?.nativeBlocked);error=result?.healthError||error;$('setup-check').textContent=blocked?'已在系统设置允许，重新检测':'我已安装，立即检测';healthy=Boolean(result?.binaryReady);if(!healthy)failed=true;else if(failed)reloadRequired=true;$('setup-health').textContent=healthy?(reloadRequired?'已检测到识别服务安装成功。请点击下方按钮刷新，继续填写身份。':'识别服务已就绪。'):(blocked?'attendance-ocr 未通过启动自检。请按提示更新或允许程序，再手动点击重新检测。':'尚未连接识别服务。请完成安装；本页每 5 秒自动重试，无需反复刷新。')+(error?' '+error:'');render();},
+  health(result,error){blocked=Boolean(result?.nativeBlocked);error=normalizeNativeHealthError(result?.healthError||error);$('setup-check').textContent=blocked?'已在系统设置允许，重新检测':'我已安装，立即检测';healthy=Boolean(result?.binaryReady);if(!healthy)failed=true;else if(failed)reloadRequired=true;$('setup-health').textContent=healthy?(reloadRequired?'已检测到识别服务安装成功。请点击下方按钮刷新，继续填写身份。':'识别服务已就绪。'):(blocked?'attendance-ocr 未通过启动自检。请按提示更新或允许程序，再手动点击重新检测。':'尚未连接识别服务。请完成安装；本页每 5 秒自动重试，无需反复刷新。')+(error?' '+error:'');render();},
   needsHealth(){return enabled&&!healthy&&!blocked;},
   message(text,error=false){$('setup-course-message').textContent=text;$('setup-course-message').dataset.error=String(error);},
   detecting(value){$('setup-detect').disabled=value;$('setup-detect').textContent=value?'正在检测课程（最多 30 秒）…':'② 已登录，检测课程信息';},

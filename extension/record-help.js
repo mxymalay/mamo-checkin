@@ -5,11 +5,12 @@ export function appendRecordHelp(cell,doc=cell.ownerDocument){
  tip.id='record-help-'+doc.querySelectorAll('.record-code-help').length;
  tip.textContent='已检测到该场次已签到，因此没有重复查询签到码。';help.setAttribute('aria-describedby',tip.id);
  const show=()=>{
-  // A native popover enters the top layer, outside the scrolling table's clip.
-  tip.style.visibility='hidden';tip.showPopover?.();
+  // Set the final coordinates before opening the top-layer popover so it never paints at (0, 0).
+  tip.style.visibility='hidden';tip.style.transition='none';tip.style.transform='none';
   const rect=help.getBoundingClientRect(),width=tip.offsetWidth||260,height=tip.offsetHeight||54,view=doc.defaultView;
   tip.style.left=`${Math.max(8,Math.min(rect.left,view.innerWidth-width-8))}px`;
   tip.style.top=`${Math.max(8,rect.top-height-8)}px`;
+  tip.showPopover?.();
   tip.style.removeProperty('visibility');
  };
  const hide=()=>{tip.hidePopover?.();};

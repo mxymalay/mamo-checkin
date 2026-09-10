@@ -19,6 +19,8 @@ await cp(path.join(root,'build/attendance-ocr'),path.join(bundle,'build/attendan
 await cp(path.join(root,'scripts/install-native.py'),path.join(bundle,'install-native.py'));
 const command=path.join(bundle,'Install Mac Recognition.command');
 await writeFile(command,'#!/bin/sh\nset -eu\ncd -- "$(dirname -- "$0")"\n/usr/bin/python3 ./install-native.py\n');await chmod(command,0o755);
+const localizedCommand=path.join(bundle,'安装 Mac 识别服务.command');
+await writeFile(localizedCommand,'#!/bin/sh\nset -eu\ncd -- "$(dirname -- "$0")"\nexec ./Install Mac Recognition.command\n');await chmod(localizedCommand,0o755);
 // Keep package entry points English-first. The documents themselves contain the
 // Chinese section below the English instructions.
 await cp(path.join(root,'README.md'),path.join(bundle,'README.md'));
