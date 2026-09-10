@@ -7,7 +7,7 @@ export function schoolEmail(value){
 }
 export function emailPrefix(value){return String(value||'').replace(/@student\.monash\.edu$/i,'');}
 export function configureEmailInput(input){
- input.type='text';input.placeholder='abcd1234';input.pattern='[A-Za-z]{4}[0-9]{4}';input.title='4 个英文字母加 4 个数字，例如 abcd1234';input.autocomplete='username';input.spellcheck=false;
+ input.type='text';input.placeholder='abcd1234';input.pattern='[A-Za-z]{4}[0-9]{4}';input.title='学校邮箱前缀必须是 4 个英文字母加 4 个数字，例如 abcd1234';input.autocomplete='username';input.spellcheck=false;
  const group=input.ownerDocument.createElement('span');group.className='school-email-field';input.replaceWith(group);group.append(input);
  const suffix=input.ownerDocument.createElement('span');suffix.className='school-email-suffix';suffix.textContent=SCHOOL_EMAIL_SUFFIX;group.append(suffix);
  input.addEventListener('input',()=>{input.setCustomValidity('');if(input.value&&!input.validity.patternMismatch)return;if(input.value)input.setCustomValidity(input.title);});
