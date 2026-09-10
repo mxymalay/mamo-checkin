@@ -28,6 +28,7 @@ Moodle course_id|Moodle course_id
 打开 Moodle 查看课程网址|Open Moodle to find the course URL
 打开 Moodle 后进入对应课程，网址中 course/view.php?id= 后面的数字就是 course_id；粘贴完整课程网址也会自动提取。|Open your course in Moodle. The number after course/view.php?id= is the course_id. You can also paste the full course URL to extract it automatically.
 学校身份|School identity
+课程检索|Course search
 登录可自动填写|Sign in to auto-fill
 为什么没有签到码？|Why is there no attendance code?
 已检测到该场次已签到，因此没有重复查询签到码。|This session was already marked as attended, so the attendance code was not searched again.
@@ -474,10 +475,12 @@ Install Mac Recognition.command|Install Mac Recognition.command
 是否检测课程信息？确认后将打开已登录的签到页面，读取最近 7 天的课程并生成可编辑课表。此步骤不会提交签到。|Detect courses now? The signed-in attendance page will open to read the last 7 days and create an editable timetable. This does not submit attendance.
 `.trim().split('\n').map(line=>line.split('|')).filter(([source,target])=>source&&target);
 const sortedEntries=[...entries].sort((a,b)=>b[0].length-a[0].length);
+const exactTranslations=new Map(entries);
 let language='en';
 export function detectLanguage(value){return /^zh(?:-|$)/i.test(value||'')?'zh':'en';}
 export function translate(text,lang=language){
  if(lang==='zh')return text;
+ if(exactTranslations.has(text))return exactTranslations.get(text);
  let result=String(text);
  const patterns=[
   [/已自动选择 (.*?)，正在等待 Gmail；如需密码或验证，请完成后等待自动检测。/g,'Selected $1; waiting for Gmail. Complete any password or verification prompt to continue.'],

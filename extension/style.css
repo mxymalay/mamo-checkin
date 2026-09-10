@@ -55,12 +55,14 @@ dialog::backdrop{background:#183b5166}
 #login-preflight{max-height:calc(100vh - 32px);overflow:auto}
 #login-preflight h2{margin:0 0 6px;font-size:22px}
 #login-preflight>.muted{margin:0 0 18px}
-#login-preflight .login-checks{gap:0}
-#login-preflight .login-check-row{border:0;border-top:1px solid #e1e7ed;border-radius:0;padding:18px 0 16px}
+#login-preflight .login-checks{gap:0;grid-template-columns:minmax(0,1fr)}
+#login-preflight .login-check-row{min-width:0;border:0;border-top:1px solid #e1e7ed;border-radius:0;padding:18px 0 16px}
 #login-preflight .login-check-row h3{font-size:16px;margin:0 0 4px}
 #login-preflight .login-check-row .identity-check{display:block;margin:12px auto 0}
 #login-preflight .login-check-row .identity-check{display:none}
 #login-preflight .login-check-row .verification-activity{display:flex;justify-content:center;width:max-content;max-width:100%;margin:10px auto 0;vertical-align:middle}
+#login-preflight .verification-countdown{min-width:0;overflow-wrap:anywhere;line-height:1.5}
+.verification-spinner{flex:0 0 13px}
 #login-preflight .login-check-row .identity-check-status{margin:9px 0 0;line-height:1.5;text-align:center}
 #login-preflight .login-check-row:last-child{padding-bottom:6px}
 #login-preflight>.result-actions{border-top:1px solid #e1e7ed;margin-top:12px;padding-top:16px;display:flex;justify-content:flex-end}
