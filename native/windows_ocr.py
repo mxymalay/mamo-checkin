@@ -1,5 +1,6 @@
 """Local Tesseract adapter; preserve measured confidence and Vision coordinates."""
 import csv
+from collections import Counter
 import io
 import os
 from pathlib import Path
@@ -33,6 +34,23 @@ def _enhance(image, scale):
         return image
     resampling = getattr(Image, 'Resampling', Image).LANCZOS
     return image.resize((image.width * scale, image.height * scale), resampling)
+
+
+def _enhance_variants(image, scale=4):
+    """Build independent inputs for small table cells instead of trusting one threshold."""
+    from PIL import Image, ImageFilter, ImageOps
+
+    gray=ImageOps.autocontrast(ImageOps.grayscale(image), cutoff=1)
+    if scale != 1:
+        resampling=getattr(Image, 'Resampling', Image).LANCZOS
+        gray=gray.resize((gray.width*scale, gray.height*scale), resampling)
+    sharpened=gray.filter(ImageFilter.UnsharpMask(radius=1, percent=150, threshold=2))
+    return [
+        gray,
+        sharpened,
+        gray.point(lambda value: 255 if value >= 170 else 0),
+        gray.point(lambda value: 255 if value >= 210 else 0),
+    ]
 
 
 def preprocess_image(source_path, destination_path):
@@ -145,8 +163,6 @@ def _rows(observations):
 
 
 def _crop_path(source, observation, destination, scale=4):
-    from PIL import Image
-
     width, height = source.size
     left = max(0, int(observation['x'] * width) - max(4, int(width * .005)))
     top = max(0, int((1 - observation['y'] - observation['height']) * height) - max(3, int(height * .08)))
@@ -160,15 +176,43 @@ def _crop_path(source, observation, destination, scale=4):
     return destination
 
 
+def _code_candidate(value):
+    compact=re.sub(r'[^A-Z0-9]', '', str(value).upper())
+    return compact if CODE.fullmatch(compact) else None
+
+
+def consensus_code(samples):
+    """Return a code only when independent OCR passes agree on the same five characters."""
+    votes=Counter()
+    confidence={}
+    for text,score in samples:
+        candidate=_code_candidate(text)
+        if not candidate:
+            continue
+        votes[candidate]+=1
+        confidence.setdefault(candidate,[]).append(float(score))
+    if not votes:
+        return None
+    ordered=votes.most_common()
+    best,count=ordered[0]
+    second=ordered[1][1] if len(ordered)>1 else 0
+    if count<2 or count==second:
+        return None
+    scores=confidence[best]
+    return {'text':best,'votes':count,'total':sum(votes.values()),'confidence':sum(scores)/len(scores),'candidates':dict(ordered)}
+
+
 def _verify_uncertain_cells(image_path, observations, data, folder):
     """Confirm independent crop agreement for candidate attendance rows."""
     candidates = []
     for cells in _rows(observations):
-        has_code = any(CODE.fullmatch(cell['text'].strip().upper()) for cell in cells)
         has_weekday = any(WEEKDAY.match(cell['text'].strip()) for cell in cells)
         has_time = any(TIME.fullmatch(cell['text'].strip()) for cell in cells)
-        if has_code and has_weekday and has_time:
-            candidates.extend(cells)
+        rightmost = max(cells, key=lambda cell: cell['x'], default=None)
+        raw_code = re.sub(r'[^A-Z0-9]', '', str(rightmost.get('text', '')).upper()) if rightmost else ''
+        needs_review = rightmost and (rightmost['confidence'] < .96 or not CODE.fullmatch(raw_code))
+        if has_weekday and has_time and needs_review:
+            candidates.append(rightmost)
     if not candidates:
         return
 
@@ -177,24 +221,45 @@ def _verify_uncertain_cells(image_path, observations, data, folder):
     with Image.open(image_path) as source:
         source.load()
         for index, cell in enumerate(candidates):
-            text = cell['text'].strip()
-            is_code = bool(CODE.fullmatch(text.upper()))
-            if not is_code and cell['confidence'] >= .96:
+            left = max(0, int(cell['x'] * source.width) - max(8, int(source.width * .01)))
+            top = max(0, int((1 - cell['y'] - cell['height']) * source.height) - max(5, int(source.height * .1)))
+            right = min(source.width, int((cell['x'] + cell['width']) * source.width) + max(8, int(source.width * .01)))
+            bottom = min(source.height, int((1 - cell['y']) * source.height) + max(5, int(source.height * .1)))
+            if right <= left or bottom <= top:
                 continue
-            crop = _crop_path(source, cell, Path(folder) / f'verify-{index}.png')
-            if crop is None:
-                continue
-            second = _run_tesseract(crop, data, psm=7 if is_code else 8,
-                                    whitelist='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' if is_code else '')
-            recognized = ''.join(item['text'] for item in sorted(second, key=lambda item: item['x'])).strip()
-            agrees = (recognized.upper() == text.upper()) if is_code else (_normalize_text(recognized) == _normalize_text(text))
-            confidence = max((item['confidence'] for item in second), default=0)
-            if is_code:
-                cell['codeVerified'] = agrees
-                cell['verificationConfidence'] = confidence
-            else:
-                cell['fieldVerified'] = agrees
-                cell['fieldVerificationConfidence'] = confidence
+            crop=source.crop((left, top, right, bottom))
+            samples=[];variant_paths=[]
+            try:
+                for variant_index,variant in enumerate(_enhance_variants(crop)):
+                    variant_path=Path(folder) / f'verify-{index}-{variant_index}.png'
+                    variant.save(variant_path, format='PNG', optimize=False)
+                    variant_paths.append(variant_path)
+                    variant.close()
+                for variant_path in variant_paths:
+                    for psm in (7,8,13):
+                        second=_run_tesseract(variant_path, data, psm=psm,
+                                              whitelist='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
+                        recognized=''.join(item['text'] for item in sorted(second, key=lambda item: item['x'])).strip()
+                        samples.append((recognized,max((item['confidence'] for item in second), default=0)))
+            finally:
+                crop.close()
+            candidate_votes=Counter()
+            candidate_confidences={}
+            for text,score in samples:
+                candidate=_code_candidate(text)
+                if candidate:
+                    candidate_votes[candidate]+=1
+                    candidate_confidences.setdefault(candidate,[]).append(float(score))
+            cell['verificationAttempted']=True
+            cell['verificationSamples']=len(samples)
+            cell['verificationCandidates']=dict(candidate_votes)
+            cell['verificationBestConfidence']=max((max(scores) for scores in candidate_confidences.values()), default=0)
+            consensus=consensus_code(samples)
+            if consensus:
+                cell['verifiedText']=consensus['text']
+                cell['verificationVotes']=consensus['votes']
+                cell['codeVerified']=consensus['votes']>=3
+                cell['verificationConfidence']=consensus['confidence']
 
 
 def recognize(image_path):

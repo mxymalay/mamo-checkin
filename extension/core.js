@@ -24,7 +24,7 @@ function positionalCodeCandidates(cells){
   for(let start=0;start<right.length;start++){
     let value='';
     for(let end=start;end<Math.min(right.length,start+3);end++){
-      value+=normalizeCode(right[end].text);
+      value+=normalizeCode(right[end].verifiedText||right[end].text);
       if(value.length>6)break;
       result.push(...codeVariants(value));
     }
@@ -94,7 +94,9 @@ export function parseImageRows(observations,meta) {
   }
   const result=[];
   for(const [index,line] of lines.entries()) {
-    const rawText=line.cells.sort((a,b)=>a.x-b.x).map(c=>c.text.trim()).join(' ').replace(/[–—]/g,'-');
+    const orderedCells=line.cells.sort((a,b)=>a.x-b.x);
+    const cellText=cell=>String(cell.verifiedText||cell.text||'').trim();
+    const rawText=orderedCells.map(cellText).join(' ').replace(/[–—]/g,'-');
     const types=[...rawText.matchAll(/(?:^|\b[A-Z0-9]{5}\s+)([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(?=\b(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b)/ig)];
     if(!types.length) continue;
     const groups=[...rawText.matchAll(/\b(\d{2}(?:-P\d+)?)\s+(?=\d{1,2}\s*[:.]\s*\d{2}\s*(?:am|pm)\b)/ig)];
@@ -114,12 +116,12 @@ export function parseImageRows(observations,meta) {
     const time=times.length===1?parseTime(times[0][0]):null;
     const {date=null,error}=dates.length===1?rowDate(rawText,meta.sentAt):{error:dates.length?'同一行包含多个日期':'缺少可靠的日期或邮件年份'};
     const confidence=Math.min(...line.cells.map(c=>Number(c.confidence)||0));
-    const codeCell=code&&line.cells.find(c=>codeVariants(c.text).includes(code)||normalizeCode(c.text)===code);
+    const codeCell=code&&orderedCells.find(c=>codeVariants(cellText(c)).includes(code)||normalizeCode(cellText(c))===code);
     const codeVerified=codeCell?.codeVerified===true;
     const verificationFailed=codeCell?.codeVerified===false;
     const codeConfidence=Number(codeCell?.confidence??confidence)||0;
     const codeReliable=!verificationFailed&&(codeConfidence>=.96||codeVerified);
-    const fieldVerification=line.cells.filter(cell=>cell!==codeCell).map(cell=>({text:cell.text.trim(),confidence:Number(cell.confidence)||0,fieldVerified:cell.fieldVerified===true}));
+    const fieldVerification=orderedCells.filter(cell=>cell!==codeCell).map(cell=>({text:cellText(cell),confidence:Number(cell.confidence)||0,fieldVerified:cell.fieldVerified===true}));
     const fieldsReliable=fieldVerification.every(field=>field.confidence>=.96||field.fieldVerified);
     const reasons=[error,ambiguous.length&&`同一行包含多个${ambiguous.join('、')}`,!group&&'组别不完整',!time&&'上课时间不完整',!code&&'签到码不是 5 位字母数字',verificationFailed&&'签到码两次识别复核结果不一致',code&&!codeReliable&&!verificationFailed&&'签到码识别置信度不足',!fieldsReliable&&'活动类型、日期、时间或组别识别置信度不足'].filter(Boolean);
     const r={...meta,type,group,code,time,date,confidence,codeConfidence,codeVerified,codeVerificationFailed:verificationFailed,fieldVerification,rawText,status:reasons.length?'review':'ready',reason:reasons.join('；')};

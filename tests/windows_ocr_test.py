@@ -36,6 +36,11 @@ class AdapterTest(unittest.TestCase):
         with patch.object(windows_ocr,'binary',return_value='tesseract'), patch.object(windows_ocr.subprocess,'run',return_value=result) as run:
             self.assertEqual(windows_ocr.software_version(),'tesseract 5.5.0')
             run.assert_called_once()
+    def test_code_consensus_requires_independent_agreement(self):
+        self.assertEqual(windows_ocr.consensus_code([
+            ('F59V7', .82), ('F59V7', .74), ('F59V7', .69), ('F59VV7', .91),
+        ])['text'], 'F59V7')
+        self.assertIsNone(windows_ocr.consensus_code([('F59V7', .82), ('F59W7', .8)]))
     def test_ocr_diagnostics_are_written_as_rotatable_json_lines(self):
         import json
         import tempfile

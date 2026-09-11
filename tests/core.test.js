@@ -43,6 +43,13 @@ test('duplicate OCR characters in the right code column are collapsed to five ch
  assert.equal(parsed.code,'F59V7');
  assert.equal(parsed.status,'review');
 });
+test('Windows consensus code replaces a low-confidence raw token without code-specific rules',()=>{
+ const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','F59Vv7'].map((text,index)=>({...observation(text,.7,index===4?.65:1),x:[0,.3,.55,.7,.9][index],width:.08,...(index===4&&{verifiedText:'F59V7',codeVerified:true,verificationVotes:8})}));
+ const parsed=parseImageRows(cells,meta)[0];
+ assert.equal(parsed.code,'F59V7');
+ assert.equal(parsed.codeVerified,true);
+ assert.equal(parsed.status,'ready');
+});
 test('verified code crop allows low raw confidence but an explicit disagreement blocks',()=>{
  const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','ZQSB3'].map((text,index)=>({...observation(text,.7,index===4?.55:1),x:[0,.3,.55,.7,.9][index],width:.08,...(index===4&&{codeVerified:true})}));
  const verified=parseImageRows(cells,meta)[0];
