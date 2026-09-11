@@ -1,4 +1,5 @@
 import sys
+import importlib.util
 from pathlib import Path
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'native'))
@@ -41,6 +42,27 @@ class AdapterTest(unittest.TestCase):
             ('F59V7', .82), ('F59V7', .74), ('F59V7', .69), ('F59VV7', .91),
         ])['text'], 'F59V7')
         self.assertIsNone(windows_ocr.consensus_code([('F59V7', .82), ('F59W7', .8)]))
+    @unittest.skipUnless(importlib.util.find_spec('PIL'), 'Pillow dependency')
+    def test_uncertain_schedule_fields_are_verified_without_rechecking_code(self):
+        from PIL import Image
+        from unittest.mock import patch
+        import tempfile
+        observations=[
+            dict(text='Seminar',confidence=.99,x=.02,y=.4,width=.1,height=.1),
+            dict(text='Friday,',confidence=.8,x=.3,y=.4,width=.1,height=.1),
+            dict(text='5:00PM',confidence=.99,x=.65,y=.4,width=.1,height=.1),
+            dict(text='F59V7',confidence=.99,x=.9,y=.4,width=.08,height=.1),
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            image=Path(folder)/'row.png'
+            Image.new('RGB',(1000,500),'white').save(image)
+            result=[dict(text='Friday,',confidence=.9,x=0,y=.4,width=.1,height=.1)]
+            with patch.object(windows_ocr,'_run_tesseract',return_value=result) as run:
+                windows_ocr._verify_uncertain_cells(image,observations,Path(folder),folder)
+            self.assertTrue(observations[1]['fieldVerified'])
+            self.assertEqual(observations[1]['fieldVerificationVotes'],4)
+            self.assertFalse(any('verificationAttempted' in cell for cell in observations if cell['text']=='F59V7'))
+            self.assertEqual(run.call_count,4)
     def test_ocr_diagnostics_are_written_as_rotatable_json_lines(self):
         import json
         import tempfile

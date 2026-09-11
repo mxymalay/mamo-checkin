@@ -79,7 +79,9 @@ function showResult(state){
  if(!summary.records?.length&&!summary.courses?.length&&!status.error){const li=document.createElement('li');li.textContent='暂无可确认的近期场次，请核对课表及签到码来源。';$('result-records').append(li);}
  $('result-login-links').hidden=!status.error;$('result-edit').hidden=!confirm&&!status.error;$('result-close').textContent=confirm?'已核对，关闭':'知道了';if(!box.open){if(box.showModal)box.showModal();else box.setAttribute('open','');}
 }
-function appendDiagnostics(parent,diagnostics){const details=document.createElement('details');details.className='source-log';const summary=document.createElement('summary');summary.textContent='查看来源与运行日志';const list=document.createElement('ul');for(const item of diagnostics){const row=document.createElement('li');row.textContent=[item.scope,item.course,item.error].filter(Boolean).join(' · ');if(item.sourceUrl){const link=document.createElement('a');link.href=item.sourceUrl;link.target='_blank';link.rel='noreferrer';link.textContent='打开来源';row.append(' ',link);}list.append(row);}details.append(summary,list);parent.append(details);}
+function sourceLabel(url){if(/mail\.google\.com/i.test(url||''))return translate('查看邮件');if(/learning\.monash\.edu/i.test(url||''))return translate('查看 Moodle');if(/attendance\.monash\.edu\.my/i.test(url||''))return translate('查看签到系统');return translate('打开来源');}
+function appendDiagnostics(parent,diagnostics){const details=document.createElement('details');details.className='source-log';const summary=document.createElement('summary');summary.textContent=translate('查看来源与运行日志');const list=document.createElement('ul');for(const item of diagnostics){const row=document.createElement('li'),url=item.sourceUrl||'',message=item.error&&item.error!==url&&item.error!=='已读取此来源'?item.error:'';if(message)row.append(document.createTextNode([item.scope,item.course,message].filter(Boolean).join(' · ')));if(url){const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noreferrer';link.textContent=sourceLabel(url);link.title=url;if(message)row.append(document.createTextNode(' · '));row.append(link);}else if(!message){row.textContent=item.scope||translate('打开来源');}list.append(row);}details.append(summary,list);parent.append(details);}
+function appendArchivePath(parent,path){const details=document.createElement('details');details.className='archive-path';const summary=document.createElement('summary');summary.textContent=translate('查看本机原图路径');const code=document.createElement('code');code.textContent=path;details.append(summary,code);parent.append(details);}
 let noticeTimer;
 function notice(message,kind='general'){
  clearTimeout(noticeTimer);scanNotice=kind==='scan';const target=$('notice');target.hidden=!message;target.textContent=message;target.dataset.tone=['success','error','warning'].includes(kind)?kind:'info';target.setAttribute('role',kind==='error'?'alert':'status');
@@ -167,10 +169,10 @@ function render(state,settings=false){
     const statusCell=cell(''),badge=document.createElement('span');badge.className='state '+r.status;badge.textContent=translate(labels[r.status]||r.status);statusCell.append(badge);
     if(r.status==='review'&&r.code){const confirm=document.createElement('button');confirm.type='button';confirm.className='copy-code review-confirm';confirm.textContent=translate('确认信息并签到');confirm.disabled=Boolean(latest.status?.running)||scanPending;confirm.onclick=()=>confirmLowConfidenceAndRetry(r,confirm);statusCell.append(confirm);}
     if(r.status==='waiting_code'){const retry=document.createElement('button');retry.type='button';retry.className='copy-code';retry.textContent='重试';retry.disabled=Boolean(latest.status?.running)||scanPending;retry.onclick=()=>startManualCheck(r.course);code.append(retry);}
-    const source=cell('',r.reason||'');
-    if(r.sources?.length)appendDiagnostics(source,r.sources.map(item=>({...item,error:item.sourceUrl||'已读取此来源'})));
-    if(/^https:\/\/(mail\.google\.com|learning\.monash\.edu|attendance\.monash\.edu\.my)\//.test(r.sourceUrl||'')){const link=document.createElement('a');link.href=r.sourceUrl;link.textContent=r.sourceUrl.includes('attendance.monash.edu.my')?'查看签到系统 ↗':r.sourceUrl.includes('learning.monash.edu')?'查看 Moodle ↗':'查看邮件 ↗';link.target='_blank';link.rel='noreferrer';source.prepend(link);}
-    if(r.imagePath){const detail=document.createElement('small');detail.textContent=r.imagePath;source.append(detail);}
+    const source=cell('',r.reason||''),sourceItems=[...(r.sources||[])];
+    if(r.sourceUrl&&!sourceItems.some(item=>item.sourceUrl===r.sourceUrl))sourceItems.unshift({sourceUrl:r.sourceUrl});
+    if(sourceItems.length)appendDiagnostics(source,sourceItems.map(item=>({...item,error:item.error||item.sourceUrl||'已读取此来源'})));
+    if(r.imagePath)appendArchivePath(source,r.imagePath);
     $('records').append(tr);
   }
   }

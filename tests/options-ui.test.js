@@ -178,6 +178,21 @@ test('running status renders context, counters, elapsed timing and recent event 
   }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
+test('record sources use compact links and keep archive paths collapsed',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const sourceUrl='https://mail.google.com/mail/u/0/#search/newer_than%3A7d%2Fattendance%2Fvery-long-message-id';
+ const state={settings:{enabled:true,courses:['FIT5120'],schedules:{FIT5120:[]}},records:[{course:'FIT5120',date:'2026-09-11',time:'17:00',type:'Seminar',group:'01',code:'F59V7',status:'submitted',reason:'网站已确认签到',sourceUrl,sources:[{sourceUrl}],imagePath:'C:\\Users\\xy\\Documents\\签到助手归档\\images\\image.png'}]};
+ const env=installDom(async p=>p.type==='health'?{ok:true,binaryReady:true}:state);
+ try{
+  await import(`../extension/options.js?compact-sources=${Date.now()}`);await new Promise(resolve=>setTimeout(resolve,0));
+  const source=document.querySelector('#records tr:not(.week-heading) td:nth-child(5)');
+  assert.equal(source.querySelectorAll('.source-log a').length,1);
+  assert.doesNotMatch(source.textContent,/mail\.google\.com/);
+  assert.equal(source.querySelector('.archive-path').open,false);
+  assert.match(source.querySelector('.archive-path code').textContent,/image\.png/);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
 test('bursts of progress notifications never overlap status requests',async()=>{
   const originalSetInterval=globalThis.setInterval;
   let statusCalls=0,active=0,maxActive=0,release;

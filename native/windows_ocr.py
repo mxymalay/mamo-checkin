@@ -162,18 +162,38 @@ def _rows(observations):
     return [sorted(row['cells'], key=lambda item: item['x']) for row in result]
 
 
-def _crop_path(source, observation, destination, scale=4):
+def _observation_bounds(source, observation, x_ratio=.01, y_ratio=.1, min_x=8, min_y=5):
     width, height = source.size
-    left = max(0, int(observation['x'] * width) - max(4, int(width * .005)))
-    top = max(0, int((1 - observation['y'] - observation['height']) * height) - max(3, int(height * .08)))
-    right = min(width, int((observation['x'] + observation['width']) * width) + max(4, int(width * .005)))
-    bottom = min(height, int((1 - observation['y']) * height) + max(3, int(height * .08)))
-    if right <= left or bottom <= top:
-        return None
-    cropped = _enhance(source.crop((left, top, right, bottom)), scale)
-    cropped.save(destination, format='PNG', optimize=False)
-    cropped.close()
-    return destination
+    x_padding=max(min_x, int(width*x_ratio))
+    y_padding=max(min_y, int(height*y_ratio))
+    left=max(0, int(observation['x']*width)-x_padding)
+    top=max(0, int((1-observation['y']-observation['height'])*height)-y_padding)
+    right=min(width, int((observation['x']+observation['width'])*width)+x_padding)
+    bottom=min(height, int((1-observation['y'])*height)+y_padding)
+    return (left,top,right,bottom) if right>left and bottom>top else None
+
+
+def _crop_samples(source, observation, data, folder, prefix, psms, whitelist='', variant_count=4, joiner=''):
+    bounds=_observation_bounds(source, observation)
+    if not bounds:
+        return []
+    crop=source.crop(bounds)
+    samples=[];variant_paths=[]
+    try:
+        for variant_index,variant in enumerate(_enhance_variants(crop)[:variant_count]):
+            variant_path=Path(folder)/f'{prefix}-{variant_index}.png'
+            variant.save(variant_path, format='PNG', optimize=False)
+            variant_paths.append(variant_path)
+            variant.close()
+        for variant_path in variant_paths:
+            for psm in psms:
+                result=_run_tesseract(variant_path, data, psm=psm, whitelist=whitelist)
+                ordered=sorted(result, key=lambda item:item['x'])
+                recognized=joiner.join(item['text'] for item in ordered).strip()
+                samples.append((recognized, max((item['confidence'] for item in result), default=0)))
+    finally:
+        crop.close()
+    return samples
 
 
 def _code_candidate(value):
@@ -210,9 +230,10 @@ def _verify_uncertain_cells(image_path, observations, data, folder):
         has_time = any(TIME.fullmatch(cell['text'].strip()) for cell in cells)
         rightmost = max(cells, key=lambda cell: cell['x'], default=None)
         raw_code = re.sub(r'[^A-Z0-9]', '', str(rightmost.get('text', '')).upper()) if rightmost else ''
-        needs_review = rightmost and (rightmost['confidence'] < .96 or not CODE.fullmatch(raw_code))
-        if has_weekday and has_time and needs_review:
-            candidates.append(rightmost)
+        uncertain_fields=[cell for cell in cells if cell is not rightmost and cell['confidence']<.96]
+        needs_code_review=rightmost and (rightmost['confidence']<.96 or not CODE.fullmatch(raw_code))
+        if has_weekday and has_time and (needs_code_review or uncertain_fields):
+            candidates.append((cells,rightmost,uncertain_fields,needs_code_review))
     if not candidates:
         return
 
@@ -220,46 +241,42 @@ def _verify_uncertain_cells(image_path, observations, data, folder):
 
     with Image.open(image_path) as source:
         source.load()
-        for index, cell in enumerate(candidates):
-            left = max(0, int(cell['x'] * source.width) - max(8, int(source.width * .01)))
-            top = max(0, int((1 - cell['y'] - cell['height']) * source.height) - max(5, int(source.height * .1)))
-            right = min(source.width, int((cell['x'] + cell['width']) * source.width) + max(8, int(source.width * .01)))
-            bottom = min(source.height, int((1 - cell['y']) * source.height) + max(5, int(source.height * .1)))
-            if right <= left or bottom <= top:
-                continue
-            crop=source.crop((left, top, right, bottom))
-            samples=[];variant_paths=[]
-            try:
-                for variant_index,variant in enumerate(_enhance_variants(crop)):
-                    variant_path=Path(folder) / f'verify-{index}-{variant_index}.png'
-                    variant.save(variant_path, format='PNG', optimize=False)
-                    variant_paths.append(variant_path)
-                    variant.close()
-                for variant_path in variant_paths:
-                    for psm in (7,8,13):
-                        second=_run_tesseract(variant_path, data, psm=psm,
-                                              whitelist='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
-                        recognized=''.join(item['text'] for item in sorted(second, key=lambda item: item['x'])).strip()
-                        samples.append((recognized,max((item['confidence'] for item in second), default=0)))
-            finally:
-                crop.close()
-            candidate_votes=Counter()
-            candidate_confidences={}
-            for text,score in samples:
-                candidate=_code_candidate(text)
-                if candidate:
-                    candidate_votes[candidate]+=1
-                    candidate_confidences.setdefault(candidate,[]).append(float(score))
-            cell['verificationAttempted']=True
-            cell['verificationSamples']=len(samples)
-            cell['verificationCandidates']=dict(candidate_votes)
-            cell['verificationBestConfidence']=max((max(scores) for scores in candidate_confidences.values()), default=0)
-            consensus=consensus_code(samples)
-            if consensus:
-                cell['verifiedText']=consensus['text']
-                cell['verificationVotes']=consensus['votes']
-                cell['codeVerified']=consensus['votes']>=3
-                cell['verificationConfidence']=consensus['confidence']
+        for index,(cells,cell,uncertain_fields,needs_code_review) in enumerate(candidates):
+            if needs_code_review:
+                samples=_crop_samples(source,cell,data,folder,f'code-{index}',(7,8,13),
+                                      whitelist='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',variant_count=4)
+                candidate_votes=Counter();candidate_confidences={}
+                for text,score in samples:
+                    candidate=_code_candidate(text)
+                    if candidate:
+                        candidate_votes[candidate]+=1
+                        candidate_confidences.setdefault(candidate,[]).append(float(score))
+                cell['verificationAttempted']=True
+                cell['verificationSamples']=len(samples)
+                cell['verificationCandidates']=dict(candidate_votes)
+                cell['verificationBestConfidence']=max((max(scores) for scores in candidate_confidences.values()), default=0)
+                consensus=consensus_code(samples)
+                if consensus:
+                    cell['verifiedText']=consensus['text']
+                    cell['verificationVotes']=consensus['votes']
+                    cell['codeVerified']=consensus['votes']>=3
+                    cell['verificationConfidence']=consensus['confidence']
+            for field_index,field in enumerate(uncertain_fields):
+                try:
+                    samples=_crop_samples(source,field,data,folder,f'field-{index}-{field_index}',(7,8),variant_count=2,joiner=' ')
+                except (OSError, ValueError, subprocess.SubprocessError):
+                    field['fieldVerificationAttempted']=True
+                    field['fieldVerificationSamples']=0
+                    field['fieldVerificationVotes']=0
+                    continue
+                expected=_normalize_text(field['text'])
+                matches=[score for text,score in samples if _normalize_text(text)==expected]
+                field['fieldVerificationAttempted']=True
+                field['fieldVerificationSamples']=len(samples)
+                field['fieldVerificationVotes']=len(matches)
+                if len(matches)>=2:
+                    field['fieldVerified']=True
+                    field['fieldVerificationConfidence']=sum(matches)/len(matches)
 
 
 def recognize(image_path):

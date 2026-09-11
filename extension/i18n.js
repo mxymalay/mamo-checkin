@@ -53,6 +53,8 @@ Gmail 登录已确认，正在读取目标邮箱|Gmail sign-in confirmed. Readin
 可以导入以前导出的个人配置，跳过重复填写。|Import your saved configuration to skip re-entering it.
 显示导入配置|Import configuration
 查看来源与运行日志|View sources and run logs
+查看本机原图路径|View archived image path
+打开来源|Open source
 OCR 诊断日志|OCR diagnostic log
 忽略已签到|Ignore attended sessions
 忽略已签到说明|Ignore attended sessions explanation
