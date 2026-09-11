@@ -235,6 +235,16 @@ test('records include weekdays and each course field has its own help',async()=>
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
+test('recognition settings expose the attended-session test switch and tooltip',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]},schedules:{ABC1234:[]},ignoreCompleted:false},records:[]};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?ignore-completed=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const toggle=document.getElementById('ignore-completed');assert.ok(toggle);assert.equal(toggle.checked,false);assert.ok(toggle.closest('label').querySelector('.help-button'));
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
 test('finished run replaces the pending scan notice',async()=>{
  const originalSetInterval=globalThis.setInterval;
  const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]},schedules:{ABC1234:[]}},records:[],status:{finishedAt:'2026-09-07T00:00:00Z'}};
@@ -351,6 +361,26 @@ test('copy button writes exactly the attendance code and reports success or fail
   env.dom.window.navigator.clipboard.writeText=async()=>{throw new Error('denied');};
   buttons[0].click();await new Promise(r=>setTimeout(r,0));
   assert.match(document.getElementById('notice').textContent,/复制失败/);assert.equal(document.getElementById('notice').dataset.tone,'error');assert.equal(buttons[0].disabled,false);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('low-confidence records offer explicit confirmation before retrying',async()=>{
+ const originalSetInterval=globalThis.setInterval,calls=[];
+ const state={settings:{enabled:false,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]}},records:[{id:'review-one',course:'ABC1234',date:'2026-09-08',time:'18:00',type:'Studio',group:'01',code:'F59V7',status:'review',confidence:.72,reason:'图片文字置信度不足'}]};
+ const env=installDom(async p=>{
+  calls.push(p);
+  if(p.type==='confirmRecord'){state.records[0]={...state.records[0],status:'ready',manualConfirmed:true};return {ok:true};}
+  if(p.type==='checkEmail')return {matched:true,email:p.email,tabId:7};
+  if(p.type==='readIdentity')return {matched:true,name:state.settings.name,tabId:7};
+  if(p.type==='scan')return {ok:true};
+  return p.type==='health'?{ok:true,binaryReady:true}:state;
+ });
+ try{
+  await import(`../extension/options.js?manual-confirm=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  env.dom.window.confirm=()=>true;
+  const button=[...document.querySelectorAll('.review-confirm')][0];assert.ok(button);button.click();await waitForScan();
+  const deadline=Date.now()+2000;while(!calls.some(p=>p.type==='retry')&&Date.now()<deadline)await new Promise(r=>setTimeout(r,20));
+  assert.equal(calls[0].type,'status');assert.ok(calls.some(p=>p.type==='confirmRecord'));assert.ok(calls.some(p=>p.type==='retry'));
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 

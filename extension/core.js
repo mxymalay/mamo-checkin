@@ -6,6 +6,20 @@ const canonicalType=text=>{
   if(/^Applied Workshop$/i.test(value)) return 'Applied';
   return value.toLowerCase().replace(/\b[a-z]/g,s=>s.toUpperCase());
 };
+const normalizeCode=text=>String(text).toUpperCase().replace(/[^A-Z0-9]/g,'');
+function positionalCodeCandidates(cells){
+  const right=cells.filter(cell=>cell.x>=.78).sort((a,b)=>a.x-b.x);
+  const result=[];
+  for(let start=0;start<right.length;start++){
+    let value='';
+    for(let end=start;end<Math.min(right.length,start+3);end++){
+      value+=normalizeCode(right[end].text);
+      if(value.length>5)break;
+      if(value.length===5&&/^[A-Z0-9]{5}$/.test(value))result.push(value);
+    }
+  }
+  return [...new Set(result)];
+}
 export const recordKey = r => [r.course,r.date,r.type,r.group,r.time].join('|');
 export function parseMailDate(text) {
   const value=String(text).replace(/\u00a0/g,' ').replace(/[，]/g,',').replace(/\s+/g,' ').trim();
@@ -74,7 +88,8 @@ export function parseImageRows(observations,meta) {
     if(!types.length) continue;
     const groups=[...rawText.matchAll(/\b(\d{2}(?:-P\d+)?)\s+(?=\d{1,2}\s*[:.]\s*\d{2}\s*(?:am|pm)\b)/ig)];
     const times=[...rawText.matchAll(/\b(\d{1,2})\s*[:.]\s*(\d{2})\s*(am|pm)\b/ig)];
-    const codes=[...rawText.matchAll(/\b([A-Z0-9]{5})\b/g)];
+    const inlineCodes=[...rawText.matchAll(/\b([A-Z0-9]{5})\b/ig)].map(match=>match[1].toUpperCase());
+    const codes=inlineCodes.length?inlineCodes:positionalCodeCandidates(line.cells);
     const dates=[...rawText.matchAll(/\b(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\s*[,.]?\s*(\d{1,2})\s*[A-Za-z]{3,9}\b/ig)];
     const ambiguous=[];
     if(types.length>1) ambiguous.push('活动类型');
@@ -84,11 +99,11 @@ export function parseImageRows(observations,meta) {
     if(codes.length>1) ambiguous.push('签到码');
     const type=types.length===1?canonicalType(types[0][1]):null;
     const group=groups.length===1?groups[0][1].toUpperCase():null;
-    const code=codes.length===1?codes[0][1]:null;
+    const code=codes.length===1?codes[0]:null;
     const time=times.length===1?parseTime(times[0][0]):null;
     const {date=null,error}=dates.length===1?rowDate(rawText,meta.sentAt):{error:dates.length?'同一行包含多个日期':'缺少可靠的日期或邮件年份'};
     const confidence=Math.min(...line.cells.map(c=>Number(c.confidence)||0));
-    const codeCell=code&&line.cells.find(c=>c.text?.trim()===code);
+    const codeCell=code&&line.cells.find(c=>c.text?.trim().toUpperCase()===code);
     const codeVerified=codeCell?.codeVerified===true;
     const verificationFailed=codeCell?.codeVerified===false;
     const codeConfidence=Number(codeCell?.confidence??confidence)||0;
@@ -114,6 +129,7 @@ export function mergeRecords(existing,incoming) {
     if(!old){map.set(r.id,{...r});continue;}
     if(old.sessionOnly&&!old.code){map.set(r.id,{...r,...(['submitted','expired'].includes(old.status)?{status:old.status,reason:old.reason}:{})});continue;}
     const sources=[...new Map([...recordSources(old),...recordSources(r)].map(source=>[[source.sourceUrl,source.messageId,source.imagePath].join('|'),source])).values()];
+    if(old.status==='submitted'&&!old.code&&r.code){map.set(r.id,{...old,...r,status:'submitted',reason:old.reason,sources});continue;}
     if(old.code!==r.code){map.set(r.id,{...old,sources,status:'review',reason:'同一场次出现不同签到码',conflicts:[...new Set([...(old.conflicts||[]),old.code,r.code].filter(Boolean))]});continue;}
     const untouchedReview=old.status==='review'&&!old.attemptedAt&&!old.submittedAt&&!(old.conflicts||[]).length;
     if(untouchedReview&&r.status==='ready'&&reliableEvidence(r)){map.set(r.id,{...r,sources});continue;}
@@ -128,6 +144,7 @@ function recordSources(record){
   return [...(Array.isArray(record.sources)?record.sources:[]),...(Object.keys(own).length?[own]:[])];
 }
 function reliableEvidence(record){
+  if(record.manualConfirmed===true)return true;
   const fields=Array.isArray(record.fieldVerification)?record.fieldVerification:null;
   const fieldsReliable=fields?fields.length>0&&fields.every(field=>Number(field.confidence)>=.96||field.fieldVerified===true):Number(record.confidence)>=.96;
   const codeConfidence=Number(record.codeConfidence??record.confidence)||0;

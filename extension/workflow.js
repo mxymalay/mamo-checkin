@@ -26,7 +26,7 @@ export async function recordDiagnostic(state,details,saveDiagnostics=async()=>{}
   try{await saveDiagnostics();}catch{}
 }
 
-const codeCandidates=text=>[...new Set([...String(text).matchAll(/\b[A-Z0-9]{5}\b/g)].map(match=>match[0]))];
+const codeCandidates=text=>[...new Set([...String(text).matchAll(/\b([A-Z0-9]{5})\b/ig)].map(match=>match[1].toUpperCase()))];
 const textSourceType=sourceType=>`${String(sourceType||'gmail').replace(/-(?:text|image)$/,'')}-text`;
 const addReason=(record,reason)=>({...record,status:'review',reason:[record.reason,reason].filter(Boolean).join('；')});
 function checkDateBasis(records,msg){

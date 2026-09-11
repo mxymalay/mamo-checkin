@@ -26,6 +26,17 @@ test('uncertain code or wrong weekday never becomes submit-ready',()=>{
  assert.equal(parseImageRows([observation(row.replace('Friday','Monday'))],meta)[0].status,'review');
  assert.equal(parseImageRows([observation(row.replace('ZQSB3','WQSB?'))],meta)[0].status,'review');
 });
+test('five-character codes are normalized when Windows OCR changes the letter case',()=>{
+ const parsed=parseImageRows([observation('Studio Friday,4 Sep 01-P2 6:00PM f59v7')],meta)[0];
+ assert.equal(parsed.code,'F59V7');
+ assert.equal(parsed.status,'ready');
+});
+test('five-character codes split by Windows OCR are recovered from the code column',()=>{
+ const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','F59 V7'].map((text,index)=>({...observation(text),x:[0,.3,.55,.7,.9][index],width:.08}));
+ const parsed=parseImageRows(cells,meta)[0];
+ assert.equal(parsed.code,'F59V7');
+ assert.equal(parsed.status,'ready');
+});
 test('verified code crop allows low raw confidence but an explicit disagreement blocks',()=>{
  const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','ZQSB3'].map((text,index)=>({...observation(text,.7,index===4?.55:1),x:[0,.3,.55,.7,.9][index],width:.08,...(index===4&&{codeVerified:true})}));
  const verified=parseImageRows(cells,meta)[0];
@@ -47,6 +58,12 @@ test('verified code cannot excuse an unverified low-confidence structural field'
  assert.equal(verified.status,'ready');
  assert.deepEqual(verified.fieldVerification.find(field=>field.text==='01-P2'),{text:'01-P2',confidence:.01,fieldVerified:true});
  assert.equal(eligible(verified,Date.parse('2026-09-04T19:00:00+08:00')),true);
+});
+test('explicit user confirmation allows a low-confidence record to be submitted',()=>{
+ const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','ZQSB3'].map((text,index)=>({...observation(text,.7,.4),x:[0,.3,.55,.7,.9][index],width:.08}));
+ const review=parseImageRows(cells,meta)[0];
+ assert.equal(review.status,'review');
+ assert.equal(eligible({...review,status:'ready',manualConfirmed:true},Date.parse('2026-09-04T19:00:00+08:00')),true);
 });
 test('image date permits Monash period punctuation and missing day-month whitespace',()=>{
  const parsed=parseImageRows([observation('Applied Wednesday. 2Sep 01 6:00PM PNK7L')],{...meta,course:'FIT5122',sentAt:'2026-09-02T19:31:00+08:00'})[0];
@@ -106,6 +123,13 @@ test('reliable repeats never reset protected attempts or records with conflicts'
    assert.equal(merged.attemptedAt,protectedRecord.attemptedAt);
    assert.equal(merged.submittedAt,protectedRecord.submittedAt);
  }
+});
+test('a forced source read can fill a submitted record that had no stored code',()=>{
+ const submitted={course:'ABC1234',date:'2026-09-04',time:'17:00',type:'Seminar',group:'01',id:'ABC1234|2026-09-04|Seminar|01|17:00',status:'submitted',sourceUrl:'https://attendance.example/old'};
+ const incoming={...submitted,code:'AB123',status:'ready',confidence:1,messageId:'mail',imagePath:'/archive/new.png'};
+ const [merged]=mergeRecords([submitted],[incoming]);
+ assert.equal(merged.status,'submitted');assert.equal(merged.code,'AB123');assert.equal(merged.reason,undefined);
+ assert.equal(merged.sources.length,2);
 });
 test('future sessions, uncertain attempts and mismatched groups cannot submit',()=>{
  const r=parseImageRows([observation(row)],meta)[0];

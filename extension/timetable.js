@@ -28,6 +28,7 @@ export function expectedSessions(settings,course,now=Date.now()){
 }
 export function matchesSession(slot,record){return ['course','date','time'].every(key=>record[key]===slot[key])&&['type','group'].every(key=>!slot[key]||record[key]===slot[key]);}
 function covered(state,slot,now){
+ if(state.settings?.ignoreCompleted===true)return false;
  const activities=(state.activities||[]).filter(a=>matchesSession(slot,a));
  if(activities.length&&activities.every(a=>['completed','expired'].includes(a.state)))return true;
  const matching=state.records.filter(r=>matchesSession(slot,r));

@@ -15,13 +15,28 @@ class AdapterTest(unittest.TestCase):
         from unittest.mock import patch
         import subprocess
         result=subprocess.CompletedProcess([],0,(HEADER+'1\t1\t0\t0\t0\t0\t0\t0\t64\t64\t-1\t\n').encode(),b'')
-        with patch.object(windows_ocr,'binary',return_value='tesseract'), patch.object(windows_ocr.Path,'is_file',return_value=True), patch.object(windows_ocr.subprocess,'run',return_value=result) as run:
+        with patch.object(windows_ocr,'binary',return_value='tesseract'), patch.object(windows_ocr,'preprocess_image',return_value=Path('prepared.png')) as prepare, patch.object(windows_ocr.Path,'is_file',return_value=True), patch.object(windows_ocr.subprocess,'run',return_value=result) as run:
             self.assertEqual(windows_ocr.recognize('test.png'),[])
+            prepare.assert_called_once()
             self.assertIn('tessedit_create_tsv=1',run.call_args.args[0])
+            self.assertIn('--oem',run.call_args.args[0])
+            self.assertIn('--dpi',run.call_args.args[0])
             self.assertNotIn('tsv',run.call_args.args[0])
             args=run.call_args.args[0]
             self.assertEqual(args[args.index('--tessdata-dir')+1],'tessdata')
             self.assertTrue(run.call_args.kwargs['cwd'])
+    def test_tiny_attendance_rows_use_a_three_times_quality_profile(self):
+        self.assertEqual(windows_ocr.ocr_scale((1000,43)),3)
+        self.assertEqual(windows_ocr.ocr_scale((4000,200)),1)
+    def test_ocr_diagnostics_are_written_as_rotatable_json_lines(self):
+        import json
+        import tempfile
+        from unittest.mock import patch
+        import host
+        with tempfile.TemporaryDirectory() as folder, patch.object(host, 'archive_directory', return_value=Path(folder)):
+            host.append_ocr_log({'event':'ocr', 'engine':'Tesseract', 'confidence':.82})
+            line=(Path(folder) / 'ocr.log').read_text(encoding='utf-8').strip()
+            self.assertEqual(json.loads(line)['confidence'], .82)
     def test_malformed_output_is_rejected(self):
         with self.assertRaises(ValueError): windows_ocr.parse_tsv(HEADER)
     @unittest.skipUnless(sys.platform == 'win32', 'Windows integration test')

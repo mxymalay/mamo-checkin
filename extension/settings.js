@@ -1,6 +1,6 @@
 import {schoolEmail} from './school-email.js';
 import {moodleCourseUrl} from './moodle-course-id.js';
-export const DEFAULTS={enabled:false,email:'',name:'',intervalMinutes:1440,academicYear:new Date().getFullYear(),mailQuery:'attendance',courses:[],senders:{},subjectKeywords:{},moodleUrls:{},schedules:{}};
+export const DEFAULTS={enabled:false,email:'',name:'',intervalMinutes:1440,academicYear:new Date().getFullYear(),mailQuery:'attendance',courses:[],senders:{},subjectKeywords:{},moodleUrls:{},schedules:{},ignoreCompleted:false};
 export function normalizeIdentityField(existing,field,value,hasRecords=false){
  if(!['email','name'].includes(field))throw new Error('无效的身份字段');
  const normalized=field==='email'?schoolEmail(value):String(value||'').trim();
@@ -19,7 +19,7 @@ export function normalizeSettings(existing,update,hasRecords=false){
   cfg.email=schoolEmail(cfg.email);cfg.name=String(cfg.name||'').trim();
   if(!/^[^\s@]+@[^\s@]+$/.test(cfg.email)||!cfg.name)throw new Error('请填写邮箱和姓名');
   if(hasRecords&&(cfg.email!==existing.email||cfg.name!==existing.name))throw new Error('已有记录时请使用单独的 Chrome 配置文件切换账号');
-  cfg.enabled=Boolean(cfg.enabled);cfg.intervalMinutes=Math.max(5,Math.min(10080,Number(cfg.intervalMinutes)||1440));
+  cfg.enabled=Boolean(cfg.enabled);cfg.intervalMinutes=Math.max(5,Math.min(10080,Number(cfg.intervalMinutes)||1440));cfg.ignoreCompleted=Boolean(cfg.ignoreCompleted);
   cfg.academicYear=Number(cfg.academicYear);if(!Number.isInteger(cfg.academicYear)||cfg.academicYear<2020||cfg.academicYear>2100)throw new Error('请填写有效课程年份');
   cfg.courses=[...new Set((cfg.courses||[]).map(c=>String(c).trim().toUpperCase()))];
   if(!cfg.courses.length||cfg.courses.length>20||cfg.courses.some(c=>!/^([A-Z]{2,10}\d{3,6})$/.test(c)))throw new Error('请填写 1–20 门课程，例如 FIT5120');

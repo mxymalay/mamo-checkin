@@ -53,6 +53,21 @@ Gmail 登录已确认，正在读取目标邮箱|Gmail sign-in confirmed. Readin
 可以导入以前导出的个人配置，跳过重复填写。|Import your saved configuration to skip re-entering it.
 显示导入配置|Import configuration
 查看来源与运行日志|View sources and run logs
+OCR 诊断日志|OCR diagnostic log
+忽略已签到|Ignore attended sessions
+忽略已签到说明|Ignore attended sessions explanation
+勾选后仍会读取已在 Attendance 中标记为已签到的场次，用于测试识别；不会重复提交签到。|When enabled, sessions already marked attended in Attendance are read again for recognition testing; check-in is not submitted twice.
+需要核对|Needs review
+确认信息并签到|Confirm details and check in
+正在确认…|Confirming…
+我已核对课程、日期、星期、时间、组别和签到码，确认这些信息正确并允许签到。|I have checked the course, date, weekday, time, group and attendance code. These details are correct and check-in is allowed.
+已确认识别结果，准备签到…|Recognition confirmed. Preparing check-in…
+用户已核对识别结果，允许签到|User confirmed the recognized details; check-in allowed
+签到码必须是 5 位字母数字|The attendance code must contain 5 letters or digits
+日期、活动类型、组别和时间必须完整后才能确认|Date, activity type, group and time must be complete before confirmation
+只有需要核对的记录可以确认|Only records needing review can be confirmed
+该记录存在多个签到码候选，请重新检测后再确认|This record has multiple attendance-code candidates. Detect again before confirming.
+请使用最新的 Install Windows OCR.exe 安装改进后的 Windows 识别服务。|Run the latest Install Windows OCR.exe to install the improved Windows OCR service.
 等待检测|Waiting to verify
 登录检测通过。|Sign-in verification passed.
 请在打开的网站完成登录，检测会自动继续。|Complete sign-in in the opened website. Verification will continue automatically.

@@ -12,6 +12,7 @@ import {parseConfiguration,exportConfiguration} from './configuration.js';
 import {bindVerification,configuredLoginSites,loginRequest} from './verification.js';
 import {createLoginPreflight} from './login-preflight.js';
 import {appendRecordHelp} from './record-help.js';
+import {confirmLowConfidenceRecord} from './record-confirmation.js';
 const $=id=>document.getElementById(id);
 $('app-version').textContent=globalThis.chrome?.runtime?.getManifest?.()?.version||'';
 const sourceDivider=document.createElement('div');sourceDivider.id='email-moodle-divider';sourceDivider.className='identity-source-divider';sourceDivider.hidden=true;sourceDivider.setAttribute('aria-hidden','true');$('moodle-login').before(sourceDivider);
@@ -102,7 +103,7 @@ function renderProgress(status={}){
  const keys=['pages','messages','images','cached','records','skipped'],counts=status.counts||{};[...$('run-counts').querySelectorAll('dd')].forEach((node,index)=>node.textContent=String(counts[keys[index]]||0));
  $('run-events').replaceChildren();for(const event of (status.events||[]).slice(-8).reverse()){const li=document.createElement('li'),time=document.createElement('time');time.textContent=event.at?new Date(event.at).toLocaleTimeString('zh-CN',{hour12:false}):'—';li.append(time,document.createTextNode(event.message||'运行状态已更新'));const url=event.context?.sourceUrl;if(/^https:\/\//.test(url||'')){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noreferrer';a.textContent='查看来源 ↗';li.append(a);}$('run-events').append(li);}if(!$('run-events').children.length){const li=document.createElement('li');li.textContent='暂无运行明细';$('run-events').append(li);}
 }
-function renderHealth(service={}){const stage=service.stage||'';$('health').textContent=service.busy||['recognizing','running','busy'].includes(stage)?'正在识别':service.binaryReady?'就绪':'识别服务未就绪，请完成安装引导。';}
+function renderHealth(service={}){const stage=service.stage||'';$('health').textContent=service.busy||['recognizing','running','busy'].includes(stage)?'正在识别':service.binaryReady?'就绪':'识别服务未就绪，请完成安装引导。';if(service.ocrLogPath)$('ocr-log').textContent=service.ocrLogPath;}
 function scheduleRow(value={}){
  const row=document.createElement('div');row.className='schedule-row';row.innerHTML='<label>星期<select data-field="weekday" required><option value="">请选择</option><option value="1">星期一</option><option value="2">星期二</option><option value="3">星期三</option><option value="4">星期四</option><option value="5">星期五</option><option value="6">星期六</option><option value="7">星期日</option></select></label><label>时间（UTC+8）<input data-field="time" type="time" required></label><label>活动类型（可选）<input data-field="type" placeholder="例如 Workshop"></label><label>组别（可选）<input data-field="group" placeholder="例如 01"></label>';
  row.querySelector('[data-field="weekday"]').value=value.weekday?String(value.weekday):'';row.querySelector('[data-field="time"]').value=value.time||'';row.querySelector('[data-field="type"]').value=value.type||'';row.querySelector('[data-field="group"]').value=value.group||'';fieldHelp(row);return row;
@@ -141,10 +142,10 @@ function render(state,settings=false){
   if(scanNotice){if(status.running)notice(status.message||'正在签到…','scan');else if(status.finishedAt&&status.finishedAt!==scanPreviousFinish)notice(status.error?'签到结束：'+(status.message||'处理失败，请查看明细'):'签到流程完成：'+(status.message||'本轮已结束'),checkinResult(status.summary,Boolean(status.error)).tone);}
   $('mode').textContent=config.enabled?'自动运行已开启':'自动运行已暂停';$('mode').classList.toggle('on',Boolean(config.enabled));
   const configured=Boolean(config.email&&config.name&&(config.courses||[]).length);$('status').textContent=!configured&&!status.running?'请先填写邮箱、姓名和至少一门课程':status.message||'等待首次检查';
-  renderProgress(status);if(status.service)renderHealth(status.service);if(status.running&&healthWarning){healthWarning=false;notice('');}
+  renderProgress(status);if(status.service)renderHealth(status.service);if(status.ocrLogPath)$('ocr-log').textContent=status.ocrLogPath;if(status.running&&healthWarning){healthWarning=false;notice('');}
   $('last-run').textContent=status.running?'正在处理，请稍候':status.finishedAt?'最近检查：'+new Date(status.finishedAt).toLocaleString('zh-CN'):'开启后，工具将按设定间隔自动检查。';
   $('scan').disabled=Boolean(status.running)||scanPending;$('scan').textContent=status.running?'正在签到…':scanPending?'正在请求…':editing?'保存并立即签到':'立即签到';
-  if(settings&&!editing){$('enabled').checked=Boolean(config.enabled);$('email').value=emailPrefix(config.email);$('name').value=config.name||'';$('interval').value=String([1440,4320,7200,10080].includes(config.intervalMinutes)?config.intervalMinutes:1440);$('year').value=String(config.academicYear||new Date().getFullYear());$('mail-query').value=config.mailQuery??'attendance';$('courses').replaceChildren();for(const c of config.courses||[])courseRule(c,config);savedFormSnapshot=formSnapshot();}
+  if(settings&&!editing){$('enabled').checked=Boolean(config.enabled);$('ignore-completed').checked=Boolean(config.ignoreCompleted);$('email').value=emailPrefix(config.email);$('name').value=config.name||'';$('interval').value=String([1440,4320,7200,10080].includes(config.intervalMinutes)?config.intervalMinutes:1440);$('year').value=String(config.academicYear||new Date().getFullYear());$('mail-query').value=config.mailQuery??'attendance';$('courses').replaceChildren();for(const c of config.courses||[])courseRule(c,config);savedFormSnapshot=formSnapshot();}
   const snapshot=JSON.stringify([config.email,config.name]);if(identitySnapshot&&snapshot!==identitySnapshot&&!editing)for(const binding of Object.values(identityBindings||{}))binding.reset();identitySnapshot=snapshot;
   syncSaveButton();if(status.archiveDir)$('archive').textContent=status.archiveDir;
   const records=[...(state.records||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -163,7 +164,8 @@ function render(state,settings=false){
     const code=cell(''),strong=document.createElement('strong');strong.textContent=r.code||'—';code.append(strong);
     if(r.status==='submitted'&&!r.code)appendRecordHelp(code);
     if(r.code){const copy=document.createElement('button');copy.type='button';copy.className='copy-code';copy.textContent='复制';copy.setAttribute('aria-label','复制签到码');copy.addEventListener('click',async()=>{copy.disabled=true;copy.textContent='复制中…';try{await window.navigator.clipboard.writeText(r.code);copy.textContent='已复制';notice('签到码已复制。','success');}catch{copy.textContent='重试复制';notice('复制失败，请选中签到码手动复制。','error');}finally{copy.disabled=false;}});code.append(copy);}
-    const statusCell=cell(''),badge=document.createElement('span');badge.className='state '+r.status;badge.textContent=labels[r.status]||r.status;statusCell.append(badge);
+    const statusCell=cell(''),badge=document.createElement('span');badge.className='state '+r.status;badge.textContent=translate(labels[r.status]||r.status);statusCell.append(badge);
+    if(r.status==='review'&&r.code){const confirm=document.createElement('button');confirm.type='button';confirm.className='copy-code review-confirm';confirm.textContent=translate('确认信息并签到');confirm.disabled=Boolean(latest.status?.running)||scanPending;confirm.onclick=()=>confirmLowConfidenceAndRetry(r,confirm);statusCell.append(confirm);}
     if(r.status==='waiting_code'){const retry=document.createElement('button');retry.type='button';retry.className='copy-code';retry.textContent='重试';retry.disabled=Boolean(latest.status?.running)||scanPending;retry.onclick=()=>startManualCheck(r.course);code.append(retry);}
     const source=cell('',r.reason||'');
     if(r.sources?.length)appendDiagnostics(source,r.sources.map(item=>({...item,error:item.sourceUrl||'已读取此来源'})));
@@ -175,7 +177,7 @@ function render(state,settings=false){
 }
 async function refresh(settings=false){if(refreshing){refreshQueued=true;refreshSettings||=settings;return;}refreshing=true;try{const state=await request({type:'status'});render(state,settings);if(state.discoveryAvailable&&!guide?.active&&state.settings?.autoDiscover!==false&&!state.settings?.courses?.length&&!discoveryStarted&&!editing){discoveryStarted=true;if(askConfirm('是否检测课程信息？确认后将打开已登录的签到页面，读取最近 7 天的课程并生成可编辑课表。此步骤不会提交签到。'))void discoverCourses(true);}}catch(e){notice(e.message,'error');}finally{refreshing=false;if(refreshQueued){const nextSettings=refreshSettings;refreshQueued=false;refreshSettings=false;void refresh(nextSettings);}}}
 async function health(manual=false){if(healthPending){if(manual)notice('正在检查识别服务，请稍候（最多等待 10 秒）。');return;}healthPending=true;$('check-health').disabled=true;$('check-health').textContent='正在检查识别服务…';if(manual)notice('正在检查识别服务（最多等待 10 秒）…');try{const r=await request({type:'health'});renderHealth(r);guide?.health(r);healthWarning=false;if(manual)notice(r.binaryReady?'识别服务检查通过，可以识别图片。':'识别服务未就绪，请运行对应系统的识别服务安装程序。',r.binaryReady?'success':'warning');if(r.archiveDir)$('archive').textContent=r.archiveDir;}catch(e){renderHealth({});guide?.health(null,e.message);healthWarning=true;notice(e.message,'error');}finally{healthPending=false;$('check-health').disabled=false;$('check-health').textContent='检查识别服务';}}
-function readFormSettings(){const courses=[],senders={},subjectKeywords={},moodleUrls={},schedules={};for(const row of $('courses').children){const value=f=>row.querySelector(`[data-field="${f}"]`).value.trim();const c=value('course').toUpperCase();if(courses.includes(c))throw new Error('课程代码重复：'+c);if(!value('source-mode'))throw new Error(c+' 请选择签到码来源');courses.push(c);senders[c]=value('source-mode')==='moodle'?'':value('sender');subjectKeywords[c]=value('keyword')||c;moodleUrls[c]=value('source-mode')==='email'?[]:value('urls').split('\n').map(s=>s.trim()).filter(Boolean);schedules[c]=[...row.querySelectorAll('.schedule-row')].map(item=>{const field=name=>item.querySelector(`[data-field="${name}"]`).value.trim(),weekday=Number(field('weekday')),time=field('time');if(!weekday||!time)throw new Error(`${c||'该课程'} 请填写每个场次的星期和时间`);return {weekday,time,type:field('type'),group:field('group')};});}return {email:schoolEmail($('email').value),name:$('name').value,enabled:$('enabled').checked,intervalMinutes:Number($('interval').value),academicYear:Number($('year').value),mailQuery:$('mail-query').value,courses,senders,subjectKeywords,moodleUrls,schedules};}
+function readFormSettings(){const courses=[],senders={},subjectKeywords={},moodleUrls={},schedules={};for(const row of $('courses').children){const value=f=>row.querySelector(`[data-field="${f}"]`).value.trim();const c=value('course').toUpperCase();if(courses.includes(c))throw new Error('课程代码重复：'+c);if(!value('source-mode'))throw new Error(c+' 请选择签到码来源');courses.push(c);senders[c]=value('source-mode')==='moodle'?'':value('sender');subjectKeywords[c]=value('keyword')||c;moodleUrls[c]=value('source-mode')==='email'?[]:value('urls').split('\n').map(s=>s.trim()).filter(Boolean);schedules[c]=[...row.querySelectorAll('.schedule-row')].map(item=>{const field=name=>item.querySelector(`[data-field="${name}"]`).value.trim(),weekday=Number(field('weekday')),time=field('time');if(!weekday||!time)throw new Error(`${c||'该课程'} 请填写每个场次的星期和时间`);return {weekday,time,type:field('type'),group:field('group')};});}return {email:schoolEmail($('email').value),name:$('name').value,enabled:$('enabled').checked,intervalMinutes:Number($('interval').value),academicYear:Number($('year').value),mailQuery:$('mail-query').value,courses,senders,subjectKeywords,moodleUrls,schedules,ignoreCompleted:$('ignore-completed').checked};}
 function hasUnsavedChanges(){if(formSnapshot()===savedFormSnapshot)return false;try{const actual=normalizeSettings(latest.settings||DEFAULTS,readFormSettings(),Boolean(latest.records?.length));const stored=normalizeSettings(latest.settings||DEFAULTS,{},Boolean(latest.records?.length));return JSON.stringify(actual)!==JSON.stringify(stored);}catch{return true;}}
 $('settings').addEventListener('input',()=>{editing=hasUnsavedChanges();if(!scanPending&&!latest.status?.running)$('scan').textContent=editing?'保存并立即签到':'立即签到';});
 $('save-general').addEventListener('click',()=>$('settings').requestSubmit());
@@ -220,6 +222,18 @@ async function startManualCheck(course=null){
   if(!course)pageTabs.show('records');
   if(scanNotice)notice('后台已收到签到请求，正在等待运行状态…','scan');await refresh();
  }catch(error){notice(error.message,'error');}finally{scanPending=false;render(latest);}
+}
+async function confirmLowConfidenceAndRetry(record,button){
+ if(scanPending||latest.status?.running)return;
+ if(!askConfirm('我已核对课程、日期、星期、时间、组别和签到码，确认这些信息正确并允许签到。'))return;
+ button.disabled=true;button.textContent=translate('正在确认…');
+ try{
+  confirmLowConfidenceRecord(record);
+  await request({type:'confirmRecord',id:record.id});
+  notice('已确认识别结果，准备签到…','success');
+  await refresh();
+  await startManualCheck(record.course);
+ }catch(error){notice(error.message,'error');button.disabled=false;button.textContent=translate('确认信息并签到');}
 }
 $('scan').addEventListener('click',()=>startManualCheck());
 $('check-health').addEventListener('click',()=>health(true));

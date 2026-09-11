@@ -18,6 +18,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 
 
 MAX_REQUEST_BYTES = 16 * 1024 * 1024
@@ -25,7 +26,8 @@ MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_OCR_OUTPUT_BYTES = MAX_RESPONSE_BYTES - 64 * 1024
 OCR_TIMEOUT_SECONDS = 30
-OCR_CACHE_VERSION = 2 if sys.platform == "win32" else 1
+OCR_CACHE_VERSION = 3 if sys.platform == "win32" else 1
+OCR_LOG_MAX_BYTES = 5 * 1024 * 1024
 PROTOCOL_VERSION = 1
 IS_WINDOWS = sys.platform == "win32"
 OCR_ENGINE = "Tesseract" if IS_WINDOWS else "Apple Vision"
@@ -48,6 +50,29 @@ def archive_directory():
     else:
         path = Path.home() / "Documents" / "签到助手归档"
     return path.resolve()
+
+
+def ocr_log_path():
+    return archive_directory() / "ocr.log"
+
+
+def append_ocr_log(event):
+    """Append one diagnostic JSON line without making OCR depend on logging."""
+    path = ocr_log_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists() and path.stat().st_size >= OCR_LOG_MAX_BYTES:
+            rotated = path.with_name("ocr.log.1")
+            try:
+                rotated.unlink()
+            except FileNotFoundError:
+                pass
+            path.replace(rotated)
+        with path.open("a", encoding="utf-8") as output:
+            output.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")))
+            output.write("\n")
+    except OSError:
+        pass
 
 
 def atomic_write(path, data):
@@ -245,6 +270,7 @@ def verify_original(path, expected_image_id):
 
 
 def handle_ocr(request):
+    started = time.monotonic()
     mime_type = request.get("mimeType")
     if mime_type not in MIME_EXTENSIONS:
         raise RequestError("mimeType must be image/png or image/jpeg")
@@ -304,19 +330,48 @@ def handle_ocr(request):
         else:
             # Save source provenance even when Vision later fails or times out.
             atomic_write(sidecar_path, json_bytes(sidecar) + b"\n")
-            observations = run_ocr(image_path)
+            try:
+                observations = run_ocr(image_path)
+            except Exception as error:
+                append_ocr_log(
+                    {
+                        "timestamp": time.time(),
+                        "event": "ocr-error",
+                        "engine": OCR_ENGINE,
+                        "course": meta["course"],
+                        "imageId": image_id,
+                        "durationMs": round((time.monotonic() - started) * 1000),
+                        "error": str(error)[:500],
+                    }
+                )
+                raise
             sidecar["ocr"] = {
                 "version": OCR_CACHE_VERSION,
                 "engine": OCR_ENGINE,
                 "observations": observations,
             }
         atomic_write(sidecar_path, json_bytes(sidecar) + b"\n")
+        append_ocr_log(
+            {
+                "timestamp": time.time(),
+                "event": "ocr",
+                "engine": OCR_ENGINE,
+                "profile": "grayscale-autocontrast-upscale-crop-verification" if IS_WINDOWS else "apple-vision",
+                "course": meta["course"],
+                "imageId": image_id,
+                "cached": cached,
+                "durationMs": round((time.monotonic() - started) * 1000),
+                "observationCount": len(observations),
+                "observations": observations,
+            }
+        )
     return {
         "ok": True,
         "imageId": image_id,
         "imagePath": str(image_path),
         "observations": observations,
         "cached": cached,
+        "ocrLogPath": str(ocr_log_path()),
     }
 
 
@@ -354,6 +409,7 @@ def handle_request(request):
             "healthError": health_error,
             "binaryPath": str(OCR_BINARY),
             "archiveDir": str(archive_directory()),
+            "ocrLogPath": str(ocr_log_path()),
             "engine": OCR_ENGINE,
             "ocrRevision": OCR_CACHE_VERSION,
             "companionRevision": 1,

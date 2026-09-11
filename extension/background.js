@@ -13,6 +13,7 @@ import {DEFAULTS,normalizeSettings,normalizeIdentity,normalizeIdentityField,gmai
 import {crawlMoodle} from './moodle-frontier.js';
 import {createRunProgress} from './progress.js';
 import {scanSinceDate,messageOutsideWindow,outsideAttendanceWindow} from './recent-window.js';
+import {confirmLowConfidenceRecord} from './record-confirmation.js';
 import {courseNeedsSource,recordInSchedule,expectedSessions,detectSessions,detectWeeklySchedule} from './timetable.js';
 import {getImage} from './image-download.js';
 import {LOGIN_REQUIRED,readAuthenticatedPage,isClosedPageError,pageError} from './login-state.js';
@@ -40,7 +41,7 @@ async function save(state,native){
   // The extra JSON download is written once at run end; submission checkpoints
   // and every extracted code are already durable in extension storage.
 }
-const collectionAdapter=(state,native,readImage=getImage)=>({getImage:readImage,ocr:(payload,meta)=>native.call({op:'ocr',...payload,meta}),save:()=>save(state,native),saveDiagnostics:()=>chrome.storage.local.set({diagnostics:state.diagnostics}),recentOnly:true,progress:event=>state.progress(event),shouldContinue:msg=>courseNeedsSource(state,msg.course)});
+const collectionAdapter=(state,native,readImage=getImage)=>({getImage:readImage,ocr:(payload,meta)=>native.call({op:'ocr',...payload,meta}),save:()=>save(state,native),saveDiagnostics:()=>chrome.storage.local.set({diagnostics:state.diagnostics}),recentOnly:true,refresh:Boolean(state.settings.ignoreCompleted),progress:event=>state.progress(event),shouldContinue:msg=>courseNeedsSource(state,msg.course)});
 async function diagnose(state,details){
  details={...details,error:userError(details.error,['gmail','thread'].includes(details.scope)?'Gmail':details.scope==='moodle'?'Moodle':details.scope==='archive'?'归档':'Attendance 签到系统')};
  const source=['gmail','thread'].includes(details.scope)?'Gmail':details.scope==='moodle'?'Moodle':'Attendance 签到系统';
@@ -74,12 +75,12 @@ async function collectMail(state,native,verifiedLogin={}){
   await state.progress({message:'Gmail 账号已确认，正在搜索最近 7 天的邮件',context:{sourceUrl:searchUrl}});
   mailStarted=Date.now();deadline=mailStarted+100000;
   const initial=await poll(()=>runFunction(tab,gmailAdapter,'list',cfg),r=>r&&!r.loading);
-  const pending=initial.threads.filter(thread=>state.seenThreads[thread.id]!==thread.lastMessageId);
+  const pending=initial.threads.filter(thread=>state.settings.ignoreCompleted||state.seenThreads[thread.id]!==thread.lastMessageId);
   if(pending.length>40)await diagnose(state,{scope:'gmail',error:'本轮最多处理 40 个新会话，其余下轮继续'});
   await state.progress({message:`Gmail 列表读取完成（${((Date.now()-mailStarted)/1000).toFixed(1)} 秒），${pending.length} 个待检查会话`,increment:{pages:1}});
   for(const [threadIndex,thread] of pending.slice(0,40).entries()){
     if(Date.now()>deadline){await diagnose(state,{scope:'gmail',error:'本轮邮件检查达到时间上限，其余会话下轮继续'});break;}
-    if(state.seenThreads[thread.id]===thread.lastMessageId||!courseNeedsSource(state,thread.course))continue;
+    if((!state.settings.ignoreCompleted&&state.seenThreads[thread.id]===thread.lastMessageId)||!courseNeedsSource(state,thread.course))continue;
     try{
       if(!thread.lastMessageId)throw new Error('邮件会话缺少最新消息标识');
       await state.progress({message:`检查邮件会话 ${threadIndex+1}/${Math.min(pending.length,40)}（最多等待 25 秒）`,context:{subject:thread.subject,sourceUrl:searchUrl}});
@@ -109,7 +110,7 @@ async function collectMoodle(state,native,verifiedLogin={}){
   for(let i=0;i<courses.length;i++){
     if(Date.now()>deadline){await diagnose(state,{scope:'moodle',error:'本轮 Moodle 检查达到时间上限，其余课程下轮继续'});break;}
     const index=(start+i)%courses.length,course=courses[index];
-    await crawlMoodle({roots:cfg.moodleUrls[course],previous:state.moodleProgress[course],deadline,maxPages:4,shouldContinue:()=>courseNeedsSource(state,course),version:cfg.academicYear+':recent-v1:'+scanSinceDate(),persist:async progress=>{state.moodleProgress[course]=progress;await chrome.storage.local.set({moodleProgress:state.moodleProgress});},read:async url=>{
+    await crawlMoodle({roots:cfg.moodleUrls[course],previous:state.settings.ignoreCompleted?{}:state.moodleProgress[course],deadline,maxPages:4,shouldContinue:()=>courseNeedsSource(state,course),version:cfg.academicYear+':recent-v1:'+scanSinceDate(),persist:async progress=>{state.moodleProgress[course]=progress;await chrome.storage.local.set({moodleProgress:state.moodleProgress});},read:async url=>{
       try{
         const pageStarted=Date.now();
         await state.progress({message:'正在加载 Moodle 课程页面（最多等待 25 秒）',context:{course,sourceUrl:url}});
@@ -275,7 +276,7 @@ async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin=
     summary.allCompleted=summary.quiet;
     if(summary.allCompleted&&!state.autoNeedsConfirmation)summary.needsConfirmation=false;
     const outcome=checkinResult(summary,Boolean(failures));
-    await progress.finish({message:outcome.success?outcome.title:outcome.title+'：'+message,error:Boolean(failures)||outcome.tone==='error',diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,summary});
+    await progress.finish({message:outcome.success?outcome.title:outcome.title+'：'+message,error:Boolean(failures)||outcome.tone==='error',diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,ocrLogPath:health.ocrLogPath,summary});
     await chrome.action.setBadgeText({text:attention||failures?'!':''});
     return {ok:true};
   }catch(e){const error=userError(e,'签到').replaceAll(LOGIN_REQUIRED+' ','');await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}
@@ -316,6 +317,14 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       if(activeRun||activeDetection)throw new Error('请等待当前检查结束再修改身份');
       const state=await loadState(),identity=normalizeIdentity(state.settings,message,state.records.length>0);
       await chrome.storage.local.set({settings:{...state.settings,...identity}});return {ok:true};
+    }
+    if(message.type==='confirmRecord'){
+      if(activeRun||activeDetection)throw new Error('正在签到，请等待本轮结束');
+      const state=await loadState(),record=state.records.find(item=>item.id===message.id);
+      const confirmed=confirmLowConfidenceRecord(record);
+      state.records=state.records.map(item=>item.id===confirmed.id?confirmed:item);
+      await chrome.storage.local.set({records:state.records});
+      return {ok:true,record:confirmed};
     }
     if(message.type==='reset'){
       if(activeRun||activeDetection)throw new Error('请等待当前检查结束后再重置');

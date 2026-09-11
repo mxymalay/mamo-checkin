@@ -1,5 +1,5 @@
 import {normalizeSettings} from './settings.js';
-const FIELDS=['enabled','email','name','intervalMinutes','academicYear','mailQuery','courses','senders','subjectKeywords','moodleUrls','schedules'];
+const FIELDS=['enabled','email','name','intervalMinutes','academicYear','mailQuery','courses','senders','subjectKeywords','moodleUrls','schedules','ignoreCompleted'];
 export function parseConfiguration(text,existing,hasRecords=false){
   if(text.length>131072)throw new Error('配置文件超过 128 KB');
   let value;try{value=JSON.parse(text);}catch{throw new Error('配置文件不是有效 JSON');}

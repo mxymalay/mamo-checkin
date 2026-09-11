@@ -20,6 +20,10 @@ test('website-completed slots need no code search, while another group never clo
  assert.equal(courseNeedsSource(state,'ABC1234',now),false);
  state.activities[1].group='02';assert.equal(courseNeedsSource(state,'ABC1234',now),true);
 });
+test('ignore attended sessions forces source recognition for testing',()=>{
+ const slots=expectedSessions(settings,'ABC1234',now),state={settings:{...settings,ignoreCompleted:true},records:[],activities:slots.map(s=>({...s,state:'completed'}))};
+ assert.equal(courseNeedsSource(state,'ABC1234',now),true);
+});
 test('timetable is also enforced immediately before submitting saved records',()=>{
  const [slot]=expectedSessions(settings,'ABC1234',now);
  assert.equal(recordInSchedule(settings,slot,now),true);
