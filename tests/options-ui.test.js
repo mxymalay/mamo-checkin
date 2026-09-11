@@ -188,8 +188,9 @@ test('record sources use compact links and keep archive paths collapsed',async()
   const source=document.querySelector('#records tr:not(.week-heading) td:nth-child(5)');
   assert.equal(source.querySelectorAll('.source-log a').length,1);
   assert.doesNotMatch(source.textContent,/mail\.google\.com/);
-  assert.equal(source.querySelector('.archive-path').open,false);
-  assert.match(source.querySelector('.archive-path code').textContent,/image\.png/);
+  assert.equal(source.querySelector('.archive-path-toggle').getAttribute('aria-expanded'),'false');
+  assert.equal(source.querySelector('.archive-path-value').hidden,true);
+  assert.match(source.querySelector('.archive-path-value').textContent,/image\.png/);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 

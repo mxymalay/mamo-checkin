@@ -26,7 +26,7 @@ MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_OCR_OUTPUT_BYTES = MAX_RESPONSE_BYTES - 64 * 1024
 OCR_TIMEOUT_SECONDS = 30
-OCR_CACHE_VERSION = 6 if sys.platform == "win32" else 1
+OCR_CACHE_VERSION = 7 if sys.platform == "win32" else 1
 OCR_LOG_MAX_BYTES = 5 * 1024 * 1024
 PROTOCOL_VERSION = 1
 IS_WINDOWS = sys.platform == "win32"
@@ -374,7 +374,7 @@ def handle_ocr(request):
                 "engine": OCR_ENGINE,
                 "ocrRevision": OCR_CACHE_VERSION,
                 **({"ocrSoftwareVersion": software_version} if software_version else {}),
-                "profile": "grayscale-autocontrast-upscale-multipass-consensus-fields" if IS_WINDOWS else "apple-vision",
+                "profile": "grayscale-autocontrast-upscale-multipass-consensus-fields-context" if IS_WINDOWS else "apple-vision",
                 "course": meta["course"],
                 "imageId": image_id,
                 "cached": cached,

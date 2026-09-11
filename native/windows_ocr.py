@@ -12,6 +12,7 @@ import sys
 
 CODE = re.compile(r'^[A-Z0-9]{5}$')
 WEEKDAY = re.compile(r'^(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b', re.I)
+MONTH = re.compile(r'^(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b', re.I)
 TIME = re.compile(r'^\d{1,2}\s*[:.]\s*\d{2}\s*(?:am|pm)$', re.I)
 _VERSION_CACHE = None
 
@@ -166,10 +167,11 @@ def _observation_bounds(source, observation, x_ratio=.01, y_ratio=.1, min_x=8, m
     width, height = source.size
     x_padding=max(min_x, int(width*x_ratio))
     y_padding=max(min_y, int(height*y_ratio))
-    left=max(0, int(observation['x']*width)-x_padding)
-    top=max(0, int((1-observation['y']-observation['height'])*height)-y_padding)
-    right=min(width, int((observation['x']+observation['width'])*width)+x_padding)
-    bottom=min(height, int((1-observation['y'])*height)+y_padding)
+    items=observation if isinstance(observation,(list,tuple)) else [observation]
+    left=max(0, min(int(item['x']*width) for item in items)-x_padding)
+    top=max(0, min(int((1-item['y']-item['height'])*height) for item in items)-y_padding)
+    right=min(width, max(int((item['x']+item['width'])*width) for item in items)+x_padding)
+    bottom=min(height, max(int((1-item['y'])*height) for item in items)+y_padding)
     return (left,top,right,bottom) if right>left and bottom>top else None
 
 
@@ -199,6 +201,24 @@ def _crop_samples(source, observation, data, folder, prefix, psms, whitelist='',
 def _code_candidate(value):
     compact=re.sub(r'[^A-Z0-9]', '', str(value).upper())
     return compact if CODE.fullmatch(compact) else None
+
+
+def _field_spans(cells):
+    """Keep date text together so a small day digit is verified in context."""
+    spans=[]
+    weekday_index=next((index for index,cell in enumerate(cells)
+                        if WEEKDAY.match(cell['text'].strip())),None)
+    if weekday_index is not None:
+        type_cells=[cell for cell in cells[:weekday_index] if not CODE.fullmatch(cell['text'].strip())]
+        if type_cells:
+            spans.append(type_cells)
+        month_index=next((index for index in range(weekday_index+1,min(len(cells),weekday_index+4))
+                          if MONTH.match(cells[index]['text'].strip())),None)
+        spans.append(cells[weekday_index:(month_index+1 if month_index is not None else weekday_index+1)])
+    for cell in cells:
+        if TIME.fullmatch(cell['text'].strip()) or re.fullmatch(r'\d{2}(?:-P\d+)?',cell['text'].strip(),re.I):
+            spans.append([cell])
+    return spans
 
 
 def consensus_code(samples):
@@ -261,22 +281,29 @@ def _verify_uncertain_cells(image_path, observations, data, folder):
                     cell['verificationVotes']=consensus['votes']
                     cell['codeVerified']=consensus['votes']>=3
                     cell['verificationConfidence']=consensus['confidence']
-            for field_index,field in enumerate(uncertain_fields):
-                try:
-                    samples=_crop_samples(source,field,data,folder,f'field-{index}-{field_index}',(7,8),variant_count=2,joiner=' ')
-                except (OSError, ValueError, subprocess.SubprocessError):
-                    field['fieldVerificationAttempted']=True
-                    field['fieldVerificationSamples']=0
-                    field['fieldVerificationVotes']=0
+            verified_field_ids=set()
+            for field_index,span in enumerate(_field_spans(cells)):
+                fields=[field for field in span if field in uncertain_fields and id(field) not in verified_field_ids]
+                if not fields:
                     continue
-                expected=_normalize_text(field['text'])
+                try:
+                    samples=_crop_samples(source,span,data,folder,f'field-{index}-{field_index}',(7,8),variant_count=2,joiner=' ')
+                except (OSError, ValueError, subprocess.SubprocessError):
+                    for field in fields:
+                        field['fieldVerificationAttempted']=True
+                        field['fieldVerificationSamples']=0
+                        field['fieldVerificationVotes']=0
+                    continue
+                expected=_normalize_text(' '.join(field['text'] for field in span))
                 matches=[score for text,score in samples if _normalize_text(text)==expected]
-                field['fieldVerificationAttempted']=True
-                field['fieldVerificationSamples']=len(samples)
-                field['fieldVerificationVotes']=len(matches)
-                if len(matches)>=2:
-                    field['fieldVerified']=True
-                    field['fieldVerificationConfidence']=sum(matches)/len(matches)
+                for field in fields:
+                    field['fieldVerificationAttempted']=True
+                    field['fieldVerificationSamples']=len(samples)
+                    field['fieldVerificationVotes']=len(matches)
+                    if len(matches)>=2:
+                        field['fieldVerified']=True
+                        field['fieldVerificationConfidence']=sum(matches)/len(matches)
+                        verified_field_ids.add(id(field))
 
 
 def recognize(image_path):
