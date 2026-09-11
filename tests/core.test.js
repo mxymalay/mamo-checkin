@@ -37,6 +37,12 @@ test('five-character codes split by Windows OCR are recovered from the code colu
  assert.equal(parsed.code,'F59V7');
  assert.equal(parsed.status,'ready');
 });
+test('duplicate OCR characters in the right code column are collapsed to five characters',()=>{
+ const cells=['Seminar','Friday,4 Sep','01','5:00PM','F59Vv7'].map((text,index)=>({...observation(text,.7,index===4?.66:1),x:[0,.3,.55,.7,.9][index],width:.08}));
+ const parsed=parseImageRows(cells,meta)[0];
+ assert.equal(parsed.code,'F59V7');
+ assert.equal(parsed.status,'review');
+});
 test('verified code crop allows low raw confidence but an explicit disagreement blocks',()=>{
  const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','ZQSB3'].map((text,index)=>({...observation(text,.7,index===4?.55:1),x:[0,.3,.55,.7,.9][index],width:.08,...(index===4&&{codeVerified:true})}));
  const verified=parseImageRows(cells,meta)[0];

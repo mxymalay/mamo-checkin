@@ -28,6 +28,14 @@ class AdapterTest(unittest.TestCase):
     def test_tiny_attendance_rows_use_a_three_times_quality_profile(self):
         self.assertEqual(windows_ocr.ocr_scale((1000,43)),3)
         self.assertEqual(windows_ocr.ocr_scale((4000,200)),1)
+    def test_tesseract_version_is_read_for_diagnostics(self):
+        from unittest.mock import patch
+        import subprocess
+        windows_ocr._VERSION_CACHE=None
+        result=subprocess.CompletedProcess([],0,b'tesseract 5.5.0\n leptonica-1.85.0\n',b'')
+        with patch.object(windows_ocr,'binary',return_value='tesseract'), patch.object(windows_ocr.subprocess,'run',return_value=result) as run:
+            self.assertEqual(windows_ocr.software_version(),'tesseract 5.5.0')
+            run.assert_called_once()
     def test_ocr_diagnostics_are_written_as_rotatable_json_lines(self):
         import json
         import tempfile

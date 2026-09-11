@@ -50,7 +50,7 @@ jobs:
               while output:
                   size=struct.unpack('<I',output[:4])[0]; replies.append(json.loads(output[4:4+size])); output=output[4+size:]
               assert len(replies)==3 and all(r.get('ok') for r in replies), replies
-              assert replies[0]['binaryReady'] and replies[0]['engine']=='Tesseract' and replies[0]['ocrRevision']==3, replies[0]
+              assert replies[0]['binaryReady'] and replies[0]['engine']=='Tesseract' and replies[0]['ocrRevision']==4, replies[0]
               assert 'AB123' in ' '.join(o['text'] for o in replies[1]['observations']), replies[1]
               assert '01' in [o['text'] for o in replies[1]['observations']], replies[1]
               assert pathlib.Path(replies[2]['archivePath']).exists()

@@ -12,6 +12,7 @@ import sys
 CODE = re.compile(r'^[A-Z0-9]{5}$')
 WEEKDAY = re.compile(r'^(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b', re.I)
 TIME = re.compile(r'^\d{1,2}\s*[:.]\s*\d{2}\s*(?:am|pm)$', re.I)
+_VERSION_CACHE = None
 
 
 def ocr_scale(size):
@@ -58,6 +59,21 @@ def binary():
     if found:
         return found
     raise FileNotFoundError('Install Tesseract OCR with English language data, then click Check service again.')
+
+
+def software_version():
+    global _VERSION_CACHE
+    if _VERSION_CACHE is not None:
+        return _VERSION_CACHE
+    try:
+        result = subprocess.run([binary(), '--version'], stdin=subprocess.DEVNULL,
+                                capture_output=True, timeout=6,
+                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        output=(result.stdout or result.stderr).decode('utf-8', errors='replace')
+        _VERSION_CACHE=next((line.strip() for line in output.splitlines() if line.strip()), '')
+    except (OSError, subprocess.SubprocessError):
+        _VERSION_CACHE=''
+    return _VERSION_CACHE or None
 
 
 def parse_tsv(value):

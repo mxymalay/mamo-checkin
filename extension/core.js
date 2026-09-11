@@ -7,6 +7,17 @@ const canonicalType=text=>{
   return value.toLowerCase().replace(/\b[a-z]/g,s=>s.toUpperCase());
 };
 const normalizeCode=text=>String(text).toUpperCase().replace(/[^A-Z0-9]/g,'');
+function codeVariants(text){
+  const normalized=normalizeCode(text),variants=[];
+  if(/^[A-Z0-9]{5}$/.test(normalized))variants.push(normalized);
+  if(normalized.length===6){
+    for(let index=0;index<normalized.length-1;index++)if(normalized[index]===normalized[index+1]){
+      variants.push(normalized.slice(0,index)+normalized.slice(index+1));
+      break;
+    }
+  }
+  return variants;
+}
 function positionalCodeCandidates(cells){
   const right=cells.filter(cell=>cell.x>=.78).sort((a,b)=>a.x-b.x);
   const result=[];
@@ -14,8 +25,8 @@ function positionalCodeCandidates(cells){
     let value='';
     for(let end=start;end<Math.min(right.length,start+3);end++){
       value+=normalizeCode(right[end].text);
-      if(value.length>5)break;
-      if(value.length===5&&/^[A-Z0-9]{5}$/.test(value))result.push(value);
+      if(value.length>6)break;
+      result.push(...codeVariants(value));
     }
   }
   return [...new Set(result)];
@@ -103,7 +114,7 @@ export function parseImageRows(observations,meta) {
     const time=times.length===1?parseTime(times[0][0]):null;
     const {date=null,error}=dates.length===1?rowDate(rawText,meta.sentAt):{error:dates.length?'同一行包含多个日期':'缺少可靠的日期或邮件年份'};
     const confidence=Math.min(...line.cells.map(c=>Number(c.confidence)||0));
-    const codeCell=code&&line.cells.find(c=>c.text?.trim().toUpperCase()===code);
+    const codeCell=code&&line.cells.find(c=>codeVariants(c.text).includes(code)||normalizeCode(c.text)===code);
     const codeVerified=codeCell?.codeVerified===true;
     const verificationFailed=codeCell?.codeVerified===false;
     const codeConfidence=Number(codeCell?.confidence??confidence)||0;

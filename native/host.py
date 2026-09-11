@@ -26,7 +26,7 @@ MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_OCR_OUTPUT_BYTES = MAX_RESPONSE_BYTES - 64 * 1024
 OCR_TIMEOUT_SECONDS = 30
-OCR_CACHE_VERSION = 3 if sys.platform == "win32" else 1
+OCR_CACHE_VERSION = 4 if sys.platform == "win32" else 1
 OCR_LOG_MAX_BYTES = 5 * 1024 * 1024
 PROTOCOL_VERSION = 1
 IS_WINDOWS = sys.platform == "win32"
@@ -211,6 +211,16 @@ def run_ocr(image_path):
     return observations
 
 
+def ocr_software_version():
+    if not IS_WINDOWS:
+        return None
+    try:
+        from windows_ocr import software_version
+        return software_version()
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def load_sidecar(path, image_id):
     if not path.exists():
         return {"imageId": image_id, "sources": []}
@@ -289,6 +299,7 @@ def handle_ocr(request):
         raise RequestError("image is too large")
 
     image_id = hashlib.sha256(image_data).hexdigest()
+    software_version = ocr_software_version()
     images_directory = archive_directory() / "images"
     sidecar_path = images_directory / f"{image_id}.json"
     with image_lock(images_directory, image_id):
@@ -323,6 +334,7 @@ def handle_ocr(request):
             isinstance(cached_ocr, dict)
             and cached_ocr.get("version") == OCR_CACHE_VERSION
             and cached_ocr.get("engine") == OCR_ENGINE
+            and (not IS_WINDOWS or cached_ocr.get("softwareVersion") == software_version)
             and valid_observations(cached_ocr.get("observations"))
         )
         if cached:
@@ -338,6 +350,8 @@ def handle_ocr(request):
                         "timestamp": time.time(),
                         "event": "ocr-error",
                         "engine": OCR_ENGINE,
+                        "ocrRevision": OCR_CACHE_VERSION,
+                        **({"ocrSoftwareVersion": software_version} if software_version else {}),
                         "course": meta["course"],
                         "imageId": image_id,
                         "durationMs": round((time.monotonic() - started) * 1000),
@@ -350,12 +364,16 @@ def handle_ocr(request):
                 "engine": OCR_ENGINE,
                 "observations": observations,
             }
+            if software_version:
+                sidecar["ocr"]["softwareVersion"] = software_version
         atomic_write(sidecar_path, json_bytes(sidecar) + b"\n")
         append_ocr_log(
             {
                 "timestamp": time.time(),
                 "event": "ocr",
                 "engine": OCR_ENGINE,
+                "ocrRevision": OCR_CACHE_VERSION,
+                **({"ocrSoftwareVersion": software_version} if software_version else {}),
                 "profile": "grayscale-autocontrast-upscale-crop-verification" if IS_WINDOWS else "apple-vision",
                 "course": meta["course"],
                 "imageId": image_id,
@@ -412,6 +430,7 @@ def handle_request(request):
             "ocrLogPath": str(ocr_log_path()),
             "engine": OCR_ENGINE,
             "ocrRevision": OCR_CACHE_VERSION,
+            "ocrSoftwareVersion": ocr_software_version(),
             "companionRevision": 1,
             "busy": False,
             "stage": ("Local OCR ready" if ready else "Local OCR self-test failed") if IS_WINDOWS else ("Mac 原生识别已就绪" if ready else "Mac 原生识别未通过启动自检"),
