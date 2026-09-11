@@ -49,18 +49,20 @@ class AdapterTest(unittest.TestCase):
         import tempfile
         observations=[
             dict(text='Seminar',confidence=.99,x=.02,y=.4,width=.1,height=.1),
-            dict(text='Friday,',confidence=.8,x=.3,y=.4,width=.1,height=.1),
+            dict(text='Wednesday,',confidence=.99,x=.3,y=.4,width=.1,height=.1),
+            dict(text='9',confidence=.2,x=.43,y=.4,width=.03,height=.1),
+            dict(text='Sep',confidence=.99,x=.48,y=.4,width=.08,height=.1),
             dict(text='5:00PM',confidence=.99,x=.65,y=.4,width=.1,height=.1),
             dict(text='F59V7',confidence=.99,x=.9,y=.4,width=.08,height=.1),
         ]
         with tempfile.TemporaryDirectory() as folder:
             image=Path(folder)/'row.png'
             Image.new('RGB',(1000,500),'white').save(image)
-            result=[dict(text='Friday,',confidence=.9,x=0,y=.4,width=.1,height=.1)]
+            result=[dict(text='Wednesday, 9 Sep',confidence=.9,x=0,y=.4,width=.4,height=.1)]
             with patch.object(windows_ocr,'_run_tesseract',return_value=result) as run:
                 windows_ocr._verify_uncertain_cells(image,observations,Path(folder),folder)
-            self.assertTrue(observations[1]['fieldVerified'])
-            self.assertEqual(observations[1]['fieldVerificationVotes'],4)
+            self.assertTrue(observations[2]['fieldVerified'])
+            self.assertEqual(observations[2]['fieldVerificationVotes'],4)
             self.assertFalse(any('verificationAttempted' in cell for cell in observations if cell['text']=='F59V7'))
             self.assertEqual(run.call_count,4)
     def test_ocr_diagnostics_are_written_as_rotatable_json_lines(self):
