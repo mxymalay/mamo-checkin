@@ -38,7 +38,9 @@ export async function localService({onProgress=async()=>{}}={}){
       const cacheKey='image:'+hash;
       let imagePath=(await chrome.storage.local.get(cacheKey))[cacheKey];
       if(!imagePath){await report('正在保存签到原图（最多等待 45 秒）');const blob=await callOffscreen({op:'blob',base64:payload.imageBase64,mimeType:payload.mimeType});imagePath=await download(blob.url,`签到助手/images/${hash}.${ext}`);await chrome.storage.local.set({[cacheKey]:imagePath});}
-      const ocrKey='ocr:verified-v2:'+hash;
+      // Force one fresh pass after the structural-field verification update;
+      // otherwise the store build could reuse observations from older code.
+      const ocrKey='ocr:verified-v3:'+hash;
       const cached=(await chrome.storage.local.get(ocrKey))[ocrKey];
       if(Array.isArray(cached?.observations)){
         await report('相同图片已识别，复用结果',{increment:{cached:1}});
