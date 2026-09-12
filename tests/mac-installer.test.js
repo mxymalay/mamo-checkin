@@ -2,7 +2,7 @@ import {existsSync} from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtemp,readFile,rm} from 'node:fs/promises';
+import {mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -22,6 +22,19 @@ test('installer registers only the intended extension and launcher works with sp
     assert.equal(response.status,0,response.stderr.toString());
     assert.equal(JSON.parse(response.stdout.subarray(4)).binaryReady,true);
   }finally{await rm(directory,{recursive:true,force:true});}
+});
+test('Mac uninstaller removes only the native service from a temporary home',async()=>{
+ const directory=await mkdtemp(path.join(tmpdir(),'attendance uninstall 中文 '));
+ try{
+  const runtime=path.join(directory,'Library/Application Support/签到助手/native-runtime');
+  const registry=path.join(directory,'Library/Application Support/Google/Chrome/NativeMessagingHosts');
+  const settings=path.join(directory,'Library/Application Support/签到助手/settings.json');
+  await mkdir(path.join(runtime,'native'),{recursive:true});await mkdir(registry,{recursive:true});
+  await writeFile(path.join(runtime,'native','host.py'),'test');await writeFile(settings,'keep');await writeFile(path.join(registry,'com.attendanceassistant.vision.json'),'{}');
+  const code="import importlib.util,pathlib,sys\nspec=importlib.util.spec_from_file_location('uninstaller',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\nm.uninstall(pathlib.Path(sys.argv[2]))\nassert not pathlib.Path(sys.argv[3]).exists()\nassert not pathlib.Path(sys.argv[4]).exists()\nassert pathlib.Path(sys.argv[5]).exists()\n";
+  const run=spawnSync('/usr/bin/python3',['-c',code,path.join(root,'scripts/uninstall-native.py'),directory,path.join(registry,'com.attendanceassistant.vision.json'),runtime,settings],{encoding:'utf8'});
+  assert.equal(run.status,0,run.stderr);
+ }finally{await rm(directory,{recursive:true,force:true});}
 });
 test('native health does not report ready when the executable fails or returns malformed output',()=>{
  const code=`import importlib.util, pathlib, sys

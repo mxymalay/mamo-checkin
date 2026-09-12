@@ -11,4 +11,6 @@ for(const platform of ['mac','windows'])test(`${platform} OCR package docs are s
  assert.doesNotMatch(docs.chinese,/^## English$/m);
  assert.match(docs.readme,/required for both the GitHub extension and the Chrome Web Store edition/);
  assert.match(docs.chinese,/GitHub 扩展和商店版都需要/);
+ assert.match(docs.readme,/Uninstall (?:Mac Recognition|Windows OCR)/);
+ assert.match(docs.chinese,/卸载 (?:Mac 识别服务|Windows OCR)/);
 });
