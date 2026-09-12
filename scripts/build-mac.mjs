@@ -14,9 +14,9 @@ await copyFile(path.join(root,'native/host.py'),path.join(bundle,'native/host.py
 await copyFile(path.join(root,'build/attendance-ocr'),path.join(bundle,'build/attendance-ocr'));
 await copyFile(path.join(root,'scripts/install-native.py'),path.join(bundle,'installer/install-native.py'));
 const command=path.join(bundle,'Install Mac Recognition.command');
-await writeFile(command,'#!/bin/sh\nset -eu\ncd -- "$(dirname -- "$0")"\n/usr/bin/python3 ./installer/install-native.py\n');await chmod(command,0o755);
+ await writeFile(command,'#!/bin/sh\nset -eu\nSCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/python3 "$SCRIPT_DIR/installer/install-native.py" --language en\n');await chmod(command,0o755);
 const localizedCommand=path.join(bundle,'安装 Mac 识别服务.command');
-await writeFile(localizedCommand,'#!/bin/sh\nset -eu\ncd -- "$(dirname -- "$0")"\nexec "./Install Mac Recognition.command"\n');await chmod(localizedCommand,0o755);
+await writeFile(localizedCommand,'#!/bin/sh\nset -eu\nSCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/python3 "$SCRIPT_DIR/installer/install-native.py" --language zh\n');await chmod(localizedCommand,0o755);
 const docs=await packageDocs({platform:'mac',kind:'ocr'});
 await writeFile(path.join(bundle,'README.md'),docs.readme);await writeFile(path.join(bundle,'说明.md'),docs.chinese);
 
