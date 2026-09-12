@@ -77,6 +77,16 @@ header{display:grid;grid-template-columns:62px minmax(200px,1fr) auto;align-item
 .settings-main{display:grid;gap:22px;align-content:start;min-width:0}
 dialog{border:1px solid #d7e0e9;border-radius:14px;padding:26px;max-width:calc(100vw - 32px);width:520px;color:#222;box-shadow:0 18px 60px #183b512e}
 dialog::backdrop{background:#183b5166}
+#setup-email-chooser h2{margin:0 0 8px;font-size:21px;color:#23394d}
+#setup-email-chooser>p{margin:0;color:#657384;font-size:14px;line-height:1.6}
+#setup-email-chooser fieldset{border:0;padding:0;margin:18px 0}
+#setup-email-chooser legend{padding:0;margin-bottom:8px;color:#445568;font-size:13px;font-weight:650}
+#setup-email-choices{display:grid;gap:8px}
+#setup-email-chooser .setup-email-choice{display:flex;align-items:center;gap:10px;margin:0;padding:11px 12px;border:1px solid #d5dfe9;border-radius:9px;cursor:pointer;color:#23394d;font-size:14px;line-height:1.4}
+#setup-email-chooser .setup-email-choice:has(input:checked){border-color:#006dae;background:#edf6fc}
+#setup-email-chooser .setup-email-choice input{margin:0;accent-color:#006dae}
+#setup-email-chooser .setup-email-chooser-actions{display:flex;justify-content:flex-end;gap:10px}
+#setup-email-chooser .setup-email-chooser-actions button{margin:0;font-size:14px;padding:9px 14px}
 #login-preflight{max-height:calc(100vh - 32px);overflow:auto}
 #login-preflight h2{margin:0 0 6px;font-size:22px}
 #login-preflight>.muted{margin:0 0 18px}
@@ -117,3 +127,4 @@ dialog::backdrop{background:#183b5166}
 #login-preflight .login-check-row .login-identity{margin:0;color:#657384;font-size:14px;line-height:1.5}
 #login-preflight .login-check-row .identity-check{vertical-align:top}
 .record-code-help-wrap .tooltip{transition:none;transform:none}
+#setup-guide .setup-step-track{align-items:flex-start}

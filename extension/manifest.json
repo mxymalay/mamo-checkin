@@ -2,14 +2,15 @@
   "manifest_version": 3,
   "name": "__MSG_appName__",
   "description": "__MSG_appDescription__",
-  "version": "0.11.20",
+  "version": "0.11.21",
   "minimum_chrome_version": "120",
   "permissions": [
     "tabs",
     "alarms",
     "storage",
     "scripting",
-    "nativeMessaging"
+    "nativeMessaging",
+    "downloads"
   ],
   "host_permissions": [
     "https://accounts.google.com/*",

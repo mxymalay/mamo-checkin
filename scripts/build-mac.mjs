@@ -3,27 +3,28 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {zipSync} from 'fflate';
-import {packageDocs} from './package-docs.mjs';
+import {writeLanguagePackageDocs} from './package-docs.mjs';
 
 const root=fileURLToPath(new URL('..',import.meta.url));
 execFileSync('/bin/sh',[path.join(root,'scripts/build-native.sh')],{stdio:'inherit'});
 const bundle=path.join(root,'build','mac-ocr');
 await rm(bundle,{recursive:true,force:true});await mkdir(bundle,{recursive:true});
-await mkdir(path.join(bundle,'native'));await mkdir(path.join(bundle,'build'));await mkdir(path.join(bundle,'installer'));
-await copyFile(path.join(root,'native/host.py'),path.join(bundle,'native/host.py'));
-await copyFile(path.join(root,'build/attendance-ocr'),path.join(bundle,'build/attendance-ocr'));
-await copyFile(path.join(root,'scripts/install-native.py'),path.join(bundle,'installer/install-native.py'));
-await copyFile(path.join(root,'scripts/uninstall-native.py'),path.join(bundle,'installer/uninstall-native.py'));
-const command=path.join(bundle,'Install Mac Recognition.command');
- await writeFile(command,'#!/bin/sh\nset -eu\nSCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/python3 "$SCRIPT_DIR/installer/install-native.py" --language en\n');await chmod(command,0o755);
-const localizedCommand=path.join(bundle,'安装 Mac 识别服务.command');
-await writeFile(localizedCommand,'#!/bin/sh\nset -eu\nSCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/python3 "$SCRIPT_DIR/installer/install-native.py" --language zh\n');await chmod(localizedCommand,0o755);
-const uninstallCommand=path.join(bundle,'Uninstall Mac Recognition.command');
-await writeFile(uninstallCommand,'#!/bin/sh\nset -eu\nSCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/python3 "$SCRIPT_DIR/installer/uninstall-native.py" --language en\n');await chmod(uninstallCommand,0o755);
-const localizedUninstallCommand=path.join(bundle,'卸载 Mac 识别服务.command');
-await writeFile(localizedUninstallCommand,'#!/bin/sh\nset -eu\nSCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/python3 "$SCRIPT_DIR/installer/uninstall-native.py" --language zh\n');await chmod(localizedUninstallCommand,0o755);
-const docs=await packageDocs({platform:'mac',kind:'ocr'});
-await writeFile(path.join(bundle,'README.md'),docs.readme);await writeFile(path.join(bundle,'说明.md'),docs.chinese);
+const languageBundles=[
+ {directory:'English',language:'en',install:'Install Mac Recognition.command',uninstall:'Uninstall Mac Recognition.command'},
+ {directory:'中文',language:'zh',install:'安装 Mac 识别服务.command',uninstall:'卸载 Mac 识别服务.command'}
+];
+for(const item of languageBundles){
+ const folder=path.join(bundle,item.directory);
+ await mkdir(path.join(folder,'native'),{recursive:true});await mkdir(path.join(folder,'build'),{recursive:true});await mkdir(path.join(folder,'installer'),{recursive:true});
+ await copyFile(path.join(root,'native/host.py'),path.join(folder,'native/host.py'));
+ await copyFile(path.join(root,'build/attendance-ocr'),path.join(folder,'build/attendance-ocr'));
+ await copyFile(path.join(root,'scripts/install-native.py'),path.join(folder,'installer/install-native.py'));
+ await copyFile(path.join(root,'scripts/uninstall-native.py'),path.join(folder,'installer/uninstall-native.py'));
+ const command=path.join(folder,item.install),uninstallCommand=path.join(folder,item.uninstall);
+ await writeFile(command,`#!/bin/sh\nset -eu\nSCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/python3 "$SCRIPT_DIR/installer/install-native.py" --language ${item.language}\n`);await chmod(command,0o755);
+ await writeFile(uninstallCommand,`#!/bin/sh\nset -eu\nSCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\nexec /usr/bin/python3 "$SCRIPT_DIR/installer/uninstall-native.py" --language ${item.language}\n`);await chmod(uninstallCommand,0o755);
+}
+await writeLanguagePackageDocs(bundle,{platform:'mac',kind:'ocr'});
 
 const files={};
 async function add(folder,prefix=''){

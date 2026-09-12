@@ -70,6 +70,45 @@ test('identity setup separates email and name and keeps hints secondary',()=>{
  assert.equal(doc.getElementById('setup-name').placeholder,'登录后自动检测并自动填写');
  e.dom.window.close();
 });
+test('entering the identity step automatically tries Attendance name detection once',async()=>{
+ const dom=new JSDOM('<body><header></header></body>'),doc=dom.window.document,calls=[];
+ const guide=createSetupGuide({doc,request:async payload=>{calls.push(payload);return payload.type==='readIdentity'?{name:'Example Student'}:{};},refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});
+ guide.update({setupGuide:true,settings:{}});guide.health({binaryReady:true});
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(calls.filter(payload=>payload.type==='readIdentity').length,1);
+ assert.equal(doc.getElementById('setup-name').value,'Example Student');
+ guide.update({setupGuide:true,settings:{}});await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(calls.filter(payload=>payload.type==='readIdentity').length,1);
+ dom.window.close();
+});
+test('entering identity with a saved email also verifies Gmail once',async()=>{
+ const dom=new JSDOM('<body><header></header></body>'),doc=dom.window.document,calls=[];
+ const guide=createSetupGuide({doc,request:async payload=>{calls.push(payload);return payload.type==='checkEmail'?{matched:true,email:payload.email}:{};},refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});
+ guide.update({setupGuide:true,settings:{email:'abcd1234@student.monash.edu'}});guide.health({binaryReady:true});
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(doc.getElementById('setup-email').value,'abcd1234');
+ assert.equal(calls.filter(payload=>payload.type==='checkEmail').length,1);
+ guide.update({setupGuide:true,settings:{email:'abcd1234@student.monash.edu'}});await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(calls.filter(payload=>payload.type==='checkEmail').length,1);
+ dom.window.close();
+});
+test('entering identity asks which signed-in school Gmail to use when two are found',async()=>{
+ const dom=new JSDOM('<body><header></header></body>'),doc=dom.window.document,calls=[];
+ const guide=createSetupGuide({doc,request:async payload=>{
+  calls.push(payload);
+  if(payload.type==='listGmailAccounts')return {accounts:['abcd1234@student.monash.edu','efgh5678@student.monash.edu']};
+  if(payload.type==='checkEmail')return {matched:true,email:payload.email};
+  if(payload.type==='readIdentity')return {name:'Example Student'};
+  return {};
+ },refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});
+ guide.update({setupGuide:true,settings:{}});guide.health({binaryReady:true});
+ await new Promise(resolve=>setTimeout(resolve,0));
+ const chooser=doc.getElementById('setup-email-chooser');assert.equal(chooser.open,true);assert.deepEqual([...chooser.querySelectorAll('input[type=radio]')].map(input=>input.value),['abcd1234@student.monash.edu','efgh5678@student.monash.edu']);
+ const radios=chooser.querySelectorAll('input[type=radio]');radios[1].checked=true;chooser.querySelector('form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(chooser.open,false);assert.equal(doc.getElementById('setup-email').value,'efgh5678');assert.equal(calls.filter(payload=>payload.type==='checkEmail').length,1);
+ dom.window.close();
+});
 test('identity save stays hidden until email and Attendance checks both pass',async()=>{
  const dom=new JSDOM('<body><header></header></body>');const doc=dom.window.document;
  const guide=createSetupGuide({doc,request:async payload=>payload.type==='checkEmail'?{matched:true,email:payload.email}:payload.type==='readIdentity'?{name:'Example Student'}:{},refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});

@@ -35,3 +35,14 @@ test('the setup steps slide with arrows and dots',()=>{
  dots[2].click();assert.equal(track.style.transform,'translateX(-200%)');assert.equal(next.disabled,true);assert.equal(dots[2].getAttribute('aria-selected'),'true');
  previous.click();assert.equal(track.style.transform,'translateX(-100%)');assert.equal(next.disabled,false);dom.window.close();
 });
+test('a completed helper download advances to the second step',async()=>{
+ const dom=new JSDOM(markup),doc=dom.window.document,box=doc.querySelector('section');let requested;
+ const downloads={download:async options=>{requested=options;return 7;},search:async({id})=>[{id,state:'complete'}]};
+ installCompanionDownload(box,{doc,downloads});const link=doc.querySelector('#download-companion');link.click();await new Promise(resolve=>dom.window.setTimeout(resolve,0));
+ assert.equal(requested.saveAs,false);assert.equal(requested.conflictAction,'uniquify');assert.equal(doc.querySelector('.setup-step-track').style.transform,'translateX(-100%)');assert.equal(doc.querySelectorAll('.setup-step-dot')[1].getAttribute('aria-selected'),'true');dom.window.close();
+});
+test('the macOS help and divider belong to the second step',()=>{
+ const dom=new JSDOM('<section><div data-setup="install"><h2>Install</h2><ol class="setup-instructions"><li class="authorization-step"><strong class="authorization-title">Authorize</strong></li></ol><div class="setup-install-divider"></div><details><summary>macOS help</summary></details><a href="https://github.com/mxymalay/mamo-checkin/releases/latest">Download package</a></div></section>'),doc=dom.window.document,box=doc.querySelector('section');
+ installCompanionDownload(box,{doc});const second=doc.querySelectorAll('.setup-step-panel')[1],divider=second.querySelector('.setup-install-divider'),help=second.querySelector('details');
+ assert.ok(divider);assert.equal(divider.nextElementSibling,help);assert.equal(help.parentElement,second);dom.window.close();
+});

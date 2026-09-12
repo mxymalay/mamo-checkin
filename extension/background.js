@@ -18,7 +18,7 @@ import {courseNeedsSource,recordInSchedule,expectedSessions,detectSessions,detec
 import {getImage} from './image-download.js';
 import {LOGIN_REQUIRED,readAuthenticatedPage,isClosedPageError,pageError} from './login-state.js';
 import {openVerifiedGmail} from './gmail-session.js';
-import {checkEmailLogin} from './email-check.js';
+import {checkEmailLogin,listGmailAccounts} from './email-check.js';
 import {selectGoogleAccount} from './google-account.js';
 import {checkSiteLogin} from './site-check.js';
 
@@ -306,6 +306,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('')))return false;
   const handle=async()=>{
     if(message.type==='checkEmail')return checkEmailLogin(message,emailCheckAdapters);
+    if(message.type==='listGmailAccounts')return listGmailAccounts(emailCheckAdapters);
     if(message.type==='status'){const state=await loadState();if(!activeRun&&state.status?.running){state.status={...state.status,running:false,error:true,finishedAt:new Date().toISOString(),message:'上次检查已中断，已保存进度，可以重新开始检查'};await chrome.storage.local.set({status:state.status});}return {...state,discoveryAvailable:true,setupGuide:true};}
     if(message.type==='readIdentity'||message.type==='checkMoodle')return checkSiteLogin(message,{tabs:chrome.tabs,readIdentity:tabId=>runFunction(tabId,message.type==='checkMoodle'?moodleAdapter:attendanceAdapter,'identity')},message.type==='checkMoodle'?'Moodle':'Attendance 签到系统');
     if(message.type==='identityField'){
@@ -356,6 +357,6 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     if(message.type==='health'){const native=await localService();try{return await native.call({op:'ping'});}finally{await native.close();}}
     throw new Error('未知请求');
   };
-  handle().then(respond,e=>respond({ok:false,error:userError(e,message.type==='checkEmail'?'Gmail':message.type==='checkMoodle'?'Moodle':message.type==='readIdentity'?'Attendance 签到系统':'助手')}));return true;
+  handle().then(respond,e=>respond({ok:false,error:userError(e,['checkEmail','listGmailAccounts'].includes(message.type)?'Gmail':message.type==='checkMoodle'?'Moodle':message.type==='readIdentity'?'Attendance 签到系统':'助手')}));return true;
 });
 void schedule();

@@ -58,25 +58,29 @@ jobs:
         shell: python
         run: |
           import json, os, pathlib, subprocess, tempfile, winreg, zipfile
-          installer = str(pathlib.Path('build/windows-ocr/Install Windows OCR.exe').resolve())
-          uninstaller = str(pathlib.Path('build/windows-ocr/Uninstall Windows OCR.exe').resolve())
+          installer = str(pathlib.Path('build/windows-ocr/English/Install Windows OCR.exe').resolve())
+          localized_installer = str(pathlib.Path('build/windows-ocr/中文/安装 Windows OCR.exe').resolve())
+          uninstaller = str(pathlib.Path('build/windows-ocr/English/Uninstall Windows OCR.exe').resolve())
           with zipfile.ZipFile('build/mamo-checkin-extension.zip') as archive:
               names = set(archive.namelist())
               assert 'manifest.json' in names and 'options.html' in names
               assert not any(name.startswith('extension/') for name in names)
           with zipfile.ZipFile('build/mamo-ocr-windows.zip') as archive:
               names = set(archive.namelist())
-              assert {'Install Windows OCR.exe', '安装 Windows OCR.cmd', 'Uninstall Windows OCR.exe', 'Uninstall Windows OCR.cmd', '卸载 Windows OCR.cmd', 'README.md', '说明.md'} <= names
+              assert {'English/Install Windows OCR.exe', '中文/安装 Windows OCR.exe', 'English/Uninstall Windows OCR.exe', '中文/卸载 Windows OCR.exe', 'English/README.md', '中文/说明.md'} <= names
           keyname = r'SOFTWARE\Google\Chrome\NativeMessagingHosts\com.attendanceassistant.vision'
           with tempfile.TemporaryDirectory(prefix='Mamo install 中文 ') as folder:
               try:
                   run = subprocess.run([installer], input=b'\n', capture_output=True, timeout=90, env=dict(os.environ, LOCALAPPDATA=folder))
                   assert run.returncode == 0, (run.stdout,run.stderr)
+                  localized = subprocess.run([localized_installer], input=b'\n', capture_output=True, timeout=90, env=dict(os.environ, LOCALAPPDATA=folder))
+                  localized_output = localized.stdout.decode('utf-8', errors='replace')
+                  assert localized.returncode == 0 and '安装成功' in localized_output, (localized.stdout, localized.stderr)
                   with winreg.OpenKey(winreg.HKEY_CURRENT_USER,keyname) as key:
                       manifest = json.loads(pathlib.Path(winreg.QueryValueEx(key,'')[0]).read_text(encoding='utf-8'))
                   assert manifest['allowed_origins']==['chrome-extension://nccgbccaamgcdcikjhljinefjbfcinfp/','chrome-extension://mneachaobiledakoicnkinfdpcjkbnmm/']
                   assert pathlib.Path(manifest['path']).exists() and manifest['path'].startswith(folder)
-                  removed = subprocess.run([uninstaller, '--language', 'en'], input=b'\n', capture_output=True, timeout=90, env=dict(os.environ, LOCALAPPDATA=folder))
+                  removed = subprocess.run([uninstaller], input=b'\n', capture_output=True, timeout=90, env=dict(os.environ, LOCALAPPDATA=folder))
                   assert removed.returncode == 0, (removed.stdout, removed.stderr)
                   assert not pathlib.Path(manifest['path']).exists()
                   try: winreg.OpenKey(winreg.HKEY_CURRENT_USER,keyname)

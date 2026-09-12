@@ -46,8 +46,16 @@ export async function writePackageDocs(outputDir,target){
  return docs;
 }
 
+export async function writeLanguagePackageDocs(outputDir,target){
+ const docs=await packageDocs(target),englishDir=path.join(outputDir,'English'),chineseDir=path.join(outputDir,'中文');
+ await mkdir(englishDir,{recursive:true});await mkdir(chineseDir,{recursive:true});
+ await writeFile(path.join(englishDir,'README.md'),docs.readme);await writeFile(path.join(chineseDir,'说明.md'),docs.chinese);
+ return docs;
+}
+
 if(process.argv[1]===fileURLToPath(import.meta.url)){
- const [platform,kind,outputDir]=process.argv.slice(2);
+ const [platform,kind,outputDir,layout]=process.argv.slice(2);
  if(!platform||!kind||!outputDir)throw new Error('Usage: node scripts/package-docs.mjs <mac|windows> ocr <output-dir>');
- await writePackageDocs(path.resolve(outputDir),{platform,kind});
+ const target={platform,kind};
+ await (layout==='split'?writeLanguagePackageDocs(path.resolve(outputDir),target):writePackageDocs(path.resolve(outputDir),target));
 }

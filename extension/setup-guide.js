@@ -6,8 +6,8 @@ import {schoolEmail,emailPrefix,configureEmailInput} from './school-email.js';
 
 const nativeHealthErrors=new Map([
  ['Install Tesseract OCR with English language data, then click Check service again.','请安装 Tesseract OCR，并保留 English 语言数据，然后点击“重新检测”。'],
- ['Bundled English model is missing. Run the latest Install Windows OCR.exe again.','缺少内置 English 模型，请重新运行最新版 Install Windows OCR.exe。'],
- ['Please run the latest Install Windows OCR.exe to install the corrected English model.','请重新运行最新版 Install Windows OCR.exe，安装修正后的 English 模型。'],
+ ['Bundled English model is missing. Run the latest Install Windows OCR.exe again.','缺少内置英文模型，请重新运行最新版安装 Windows OCR.exe。'],
+ ['Please run the latest Install Windows OCR.exe to install the corrected English model.','请重新运行最新版安装 Windows OCR.exe，安装修正后的英文模型。'],
  ['Allow the OCR executable','请在系统安全设置中允许识别程序，然后点击“重新检测”。']
 ]);
 function normalizeNativeHealthError(value,language=''){
@@ -26,7 +26,7 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
  if(isWindows){
   const section=box.querySelector('[data-setup="install"]');
   section.querySelector('h2').textContent='先安装 Windows 识别服务';
-  section.querySelector('.setup-instructions').innerHTML=`<li>第二步：打开解压后的 OCR 包。</li><li class="authorization-step"><span class="authorization-number">1</span><div><strong>安装 Tesseract OCR</strong><p><a href="https://github.com/tesseract-ocr/tesseract/releases/download/5.5.0/tesseract-ocr-w64-setup-5.5.0.20241111.exe" target="_blank" rel="noreferrer">下载 Tesseract Windows 安装程序 ↗</a></p><p>使用默认安装位置，保留 English 语言数据。</p></div></li><li class="authorization-step"><span class="authorization-number">2</span><div><strong>连接浏览器</strong><p>双击 安装 Windows OCR.cmd，等待安装成功。</p><p>无需安装 Python，也无需开启定时签到。</p></div></li><li>第三步：回到此页面，等待检测通过，自动进入下一步。</li>`;
+  section.querySelector('.setup-instructions').innerHTML=`<li>第二步：打开解压后的 OCR 包。</li><li class="authorization-step"><span class="authorization-number">1</span><div><strong>安装 Tesseract OCR</strong><p><a href="https://github.com/tesseract-ocr/tesseract/releases/download/5.5.0/tesseract-ocr-w64-setup-5.5.0.20241111.exe" target="_blank" rel="noreferrer">下载 Tesseract Windows 安装程序 ↗</a></p><p>使用默认安装位置，保留 English 语言数据。</p></div></li><li class="authorization-step"><span class="authorization-number">2</span><div><strong>连接浏览器</strong><p>双击 安装 Windows OCR.exe，等待安装成功。</p><p>无需安装 Python，也无需开启定时签到。</p></div></li><li>第三步：回到此页面，等待检测通过，自动进入下一步。</li>`;
   section.querySelector('.setup-install-divider').hidden=true;
   section.querySelector('details').innerHTML='<summary>Windows 阻止了安装程序？</summary><p>确认文件来自本项目 Release 后，在 SmartScreen 中选择“更多信息 → 仍要运行”。学校管理的电脑若不允许，请联系管理员。</p>';
  }
@@ -34,19 +34,66 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
  const importDetails=doc.createElement('details');importDetails.id='setup-import';importDetails.innerHTML='<summary>您有旧的配置？</summary><p>可以导入以前导出的个人配置，跳过重复填写。</p><button id="setup-import-button" type="button">显示导入配置</button>';
  importDetails.querySelector('button').onclick=()=>{importDetails.open=true;doc.getElementById('settings-file')?.click();};
  const resetButton=doc.createElement('button');resetButton.id='setup-reset';resetButton.type='button';resetButton.className='subtle danger-action';resetButton.textContent='清空所有配置与缓存';resetButton.onclick=()=>reset?.();const toolbar=doc.createElement('div');toolbar.className='setup-toolbar setup-toolbar-row';toolbar.append(importDetails,resetButton);box.prepend(toolbar);
- doc.querySelector('header').after(box);let enabled=true,healthy=false,blocked=false,failed=false,reloadRequired=false,healthError='',state={},identityEdit=false,courseDetectionStarted=false,healthTimer;
+ doc.querySelector('header').after(box);let enabled=true,healthy=false,blocked=false,failed=false,reloadRequired=false,healthError='',state={},identityEdit=false,identityStepReadStarted=false,identityEmailCheckStarted=false,identityEmailDiscoveryStarted=false,lastStep='',courseDetectionStarted=false,healthTimer;
  const $=id=>doc.getElementById(id);configureEmailInput($('setup-email'));const identityBindings={},identitySubmit=$('setup-identity').querySelector('button[type=submit]');const syncIdentitySubmit=()=>{identitySubmit.hidden=!(identityBindings.email?.verified&&identityBindings.attendance?.verified);};const scheduleIdentitySubmit=()=>doc.defaultView.setTimeout(syncIdentitySubmit,0);
- identityBindings.attendance=bindIdentityReader({input:$('setup-name'),button:$('setup-read-name'),status:$('setup-read-name-status'),request,doc,onChange:()=>{identityEdit=true;syncIdentitySubmit();},onVerified:scheduleIdentitySubmit});
+ identityBindings.attendance=bindIdentityReader({input:$('setup-name'),button:$('setup-read-name'),status:$('setup-read-name-status'),request,doc,onChange:()=>{if(!identityBindings.attendance?.running)identityEdit=true;syncIdentitySubmit();},onVerified:scheduleIdentitySubmit});
  identityBindings.email=installIdentityChecks({email:$('setup-email'),name:$('setup-name'),nameButton:$('setup-read-name'),nameStatus:$('setup-read-name-status'),request,doc,onChange:syncIdentitySubmit,onVerified:scheduleIdentitySubmit});syncIdentitySubmit();
+ const emailChooser=doc.createElement('dialog');emailChooser.id='setup-email-chooser';emailChooser.setAttribute('aria-labelledby','setup-email-chooser-title');emailChooser.innerHTML='<h2 id="setup-email-chooser-title">选择学校邮箱</h2><p>检测到多个已登录的学校邮箱，请选择一个继续。</p><form><fieldset><legend>学校邮箱</legend><div id="setup-email-choices"></div></fieldset><div class="setup-email-chooser-actions"><button type="button" data-cancel>取消</button><button type="submit">继续检测</button></div></form>';doc.body.append(emailChooser);
+ function chooseEmail(accounts){
+  const choices=emailChooser.querySelector('#setup-email-choices');choices.replaceChildren();
+  for(const [index,email] of accounts.entries()){
+   const label=doc.createElement('label');label.className='setup-email-choice';const input=doc.createElement('input');input.type='radio';input.name='setup-email-choice';input.value=email;input.checked=index===0;const text=doc.createElement('span');text.textContent=email;label.append(input,text);choices.append(label);
+  }
+  return new Promise(resolve=>{
+   let settled=false;
+   const finish=value=>{if(settled)return;settled=true;emailChooser.removeEventListener('cancel',onCancel);emailChooser.removeEventListener('close',onClose);emailChooser.querySelector('form').removeEventListener('submit',onSubmit);emailChooser.querySelector('[data-cancel]').removeEventListener('click',onCancel);if(emailChooser.close)emailChooser.close();else emailChooser.removeAttribute('open');resolve(value);};
+   const onSubmit=event=>{event.preventDefault();finish(choices.querySelector('input:checked')?.value||null);};
+   const onCancel=event=>{event.preventDefault();finish(null);};
+   const onClose=()=>finish(null);
+   emailChooser.querySelector('form').addEventListener('submit',onSubmit);emailChooser.querySelector('[data-cancel]').addEventListener('click',onCancel);emailChooser.addEventListener('cancel',onCancel);emailChooser.addEventListener('close',onClose);
+   if(emailChooser.showModal)emailChooser.showModal();else emailChooser.setAttribute('open','');
+  });
+ }
+ const startEmailVerification=email=>{$('setup-email').value=emailPrefix(email);identityBindings.email.reset();identityEmailCheckStarted=true;void identityBindings.email.start();};
+ async function discoverEmailAccounts(){
+  try{
+   const result=await request({type:'listGmailAccounts'}),accounts=[];
+   for(const value of result?.accounts||[]){try{const email=schoolEmail(value);if(!accounts.includes(email))accounts.push(email);}catch{}}
+   if(!accounts.length||identityEdit||$('setup-email').value.trim()||doc.body.dataset.setup!=='identity')return;
+   if(accounts.length===1){startEmailVerification(accounts[0]);return;}
+   $('setup-email-check-status').textContent='检测到多个已登录的学校邮箱，请选择一个。';
+   const selected=await chooseEmail(accounts);
+   if(selected&&!identityEdit&&!$('setup-email').value.trim()&&doc.body.dataset.setup==='identity')startEmailVerification(selected);
+  }catch{}
+ }
  function render(){
-  const cfg=state.settings||{},identity=Boolean(cfg.email&&cfg.name),complete=identity&&cfg.courses?.length&&cfg.courses.every(c=>cfg.senders?.[c]||cfg.moodleUrls?.[c]?.length);
+ const cfg=state.settings||{},identity=Boolean(cfg.email&&cfg.name),complete=identity&&cfg.courses?.length&&cfg.courses.every(c=>cfg.senders?.[c]||cfg.moodleUrls?.[c]?.length);
   const step=!healthy||reloadRequired?'install':!identity||identityEdit?'identity':!complete?'courses':'complete';
+  const enteredIdentity=step==='identity'&&lastStep!=='identity';
   if(step!=='courses')courseDetectionStarted=false;
+  if(step!=='identity'){identityStepReadStarted=false;identityEmailCheckStarted=false;identityEmailDiscoveryStarted=false;}
   doc.body.dataset.setup=enabled?step:'complete';box.hidden=!enabled||step==='complete';toolbar.hidden=step==='install';
   for(const section of box.querySelectorAll('[data-setup]'))section.hidden=section.dataset.setup!==step;
   [...box.querySelectorAll('.setup-steps li')].forEach((li,i)=>li.setAttribute('aria-current',i===['install','identity','courses'].indexOf(step)?'step':'false'));
   $('setup-reload').hidden=!reloadRequired;$('setup-check').hidden=reloadRequired;
-  if(!doc.activeElement?.id?.startsWith('setup-')&&identity&&!identityEdit){$('setup-email').value=emailPrefix(cfg.email);$('setup-name').value=cfg.name;}
+  if(!doc.activeElement?.id?.startsWith('setup-')&&!identityEdit){
+   if(cfg.email)$('setup-email').value=emailPrefix(cfg.email);
+   if(cfg.name)$('setup-name').value=cfg.name;
+  }
+  lastStep=step;
+  if(enteredIdentity&&!identityStepReadStarted&&!identityEdit&&!$('setup-name').value.trim()&&!identityBindings.attendance.verified&&!identityBindings.attendance.running){
+   identityStepReadStarted=true;
+   doc.defaultView.setTimeout(()=>{if(enabled&&doc.body.dataset.setup==='identity'&&!identityEdit&&!$('setup-name').value.trim()&&!identityBindings.attendance.verified&&!identityBindings.attendance.running)void identityBindings.attendance.start();},0);
+  }
+  let validEmail=false;try{schoolEmail($('setup-email').value);validEmail=true;}catch{}
+  if(enteredIdentity&&!identityEmailCheckStarted&&!identityEdit&&validEmail&&!identityBindings.email.verified&&!identityBindings.email.running){
+   identityEmailCheckStarted=true;
+   doc.defaultView.setTimeout(()=>{let ready=false;try{schoolEmail($('setup-email').value);ready=true;}catch{}if(enabled&&doc.body.dataset.setup==='identity'&&!identityEdit&&ready&&!identityBindings.email.verified&&!identityBindings.email.running)void identityBindings.email.start();},0);
+  }
+  if(enteredIdentity&&!identityEmailDiscoveryStarted&&!identityEdit&&!$('setup-email').value.trim()&&!validEmail){
+   identityEmailDiscoveryStarted=true;
+   doc.defaultView.setTimeout(()=>{if(enabled&&doc.body.dataset.setup==='identity'&&!identityEdit&&!$('setup-email').value.trim()&&!identityBindings.email.verified&&!identityBindings.email.running)void discoverEmailAccounts();},0);
+  }
   if(enabled&&step==='courses'&&!courseDetectionStarted){courseDetectionStarted=true;doc.defaultView.setTimeout(()=>{if(enabled&&doc.body.dataset.setup==='courses')detect?.();},0);}
  }
  $('setup-check').onclick=()=>checkHealth();$('setup-reload').onclick=()=>reload();

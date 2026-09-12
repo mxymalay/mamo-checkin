@@ -3,10 +3,14 @@ import argparse
 import os
 from pathlib import Path
 import shutil
+import sys
 import winreg
 
 
 HOST = 'com.attendanceassistant.vision'
+
+def bundled_language():
+    return 'zh' if Path(sys.executable).stem == '卸载 Windows OCR' else 'en'
 
 
 def uninstall(local_app_data):
@@ -44,7 +48,7 @@ def main(language):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--language', choices=('en', 'zh'), default='en')
+    parser.add_argument('--language', choices=('en', 'zh'), default=bundled_language())
     args = parser.parse_args()
     try:
         main(args.language)

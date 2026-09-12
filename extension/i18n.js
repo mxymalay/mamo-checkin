@@ -40,6 +40,12 @@ Moodle course_id|Moodle course_id
 重新登录并检测|Sign in and verify again
 登录并检测 Gmail 邮箱|Sign in and verify Gmail account
 登录并检测 Attendance 姓名|Sign in and verify Attendance name
+选择学校邮箱|Choose a school email
+检测到多个已登录的学校邮箱，请选择一个继续。|Multiple signed-in school emails were found. Choose one to continue.
+学校邮箱|School email
+取消|Cancel
+继续检测|Continue verification
+检测到多个已登录的学校邮箱，请选择一个。|Multiple signed-in school emails found. Choose one.
 正在检测 Gmail 登录账号…|Checking your Gmail account…
 正在检测登录状态…|Checking sign-in status…
 正在保存检测结果…|Saving verification result…
@@ -70,7 +76,7 @@ OCR 诊断日志|OCR diagnostic log
 日期、活动类型、组别和时间必须完整后才能确认|Date, activity type, group and time must be complete before confirmation
 只有需要核对的记录可以确认|Only records needing review can be confirmed
 该记录存在多个签到码候选，请重新检测后再确认|This record has multiple attendance-code candidates. Detect again before confirming.
-请使用最新的 Install Windows OCR.exe 安装改进后的 Windows 识别服务。|Run the latest Install Windows OCR.exe to install the improved Windows OCR service.
+请使用最新的安装 Windows OCR.exe 安装改进后的 Windows 识别服务。|Run the latest Install Windows OCR.exe to install the improved Windows OCR service.
 等待检测|Waiting to verify
 登录检测通过。|Sign-in verification passed.
 请在打开的网站完成登录，检测会自动继续。|Complete sign-in in the opened website. Verification will continue automatically.
@@ -97,7 +103,7 @@ Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm
 ，然后重新加载马莫签到助手。|, then reload Mamo Check-in.
 本地识别服务无法连接。请运行安装包中的安装程序，然后重新加载马莫签到助手。|Local recognition is unavailable. Run the installer in the package, then reload Mamo Check-in.
 本地识别服务无法连接。请运行安装包中的“安装 Mac 识别服务.command”，然后重新加载马莫签到助手。|Local recognition is unavailable. Run “Install Mac Recognition.command” from the package, then reload Mamo Check-in.
-本地识别服务无法连接。请运行安装包中的“安装 Windows OCR.cmd”，然后重新加载马莫签到助手。|Local recognition is unavailable. Run “Install Windows OCR.exe” from the package, then reload Mamo Check-in.
+本地识别服务无法连接。请运行安装包中的“安装 Windows OCR.exe”，然后重新加载马莫签到助手。|Local recognition is unavailable. Run “Install Windows OCR.exe” from the package, then reload Mamo Check-in.
 本地识别未返回有效结果|Local recognition returned no valid result
 本地识别连接已关闭|Local recognition connection closed
 本地识别响应超时，已停止本次连接；原图由本机服务保存。|Local recognition timed out. The connection was closed; the original image is saved locally.
@@ -112,7 +118,7 @@ Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm
 使用默认安装位置，保留 English 语言数据。|Keep the default installation folder and English language data.
 连接浏览器|Connect Chrome
 双击 Install Windows OCR.exe，等待安装成功。|Run Install Windows OCR.exe and wait for installation to finish.
-安装 Windows OCR.cmd|Install Windows OCR.exe
+安装 Windows OCR.exe|Install Windows OCR.exe
 无需安装 Python，也无需开启定时签到。|No Python installation is needed. Scheduled check-in is optional.
 Windows 阻止了安装程序？|Windows blocked the installer?
 确认文件来自本项目 Release 后，在 SmartScreen 中选择“更多信息 → 仍要运行”。学校管理的电脑若不允许，请联系管理员。|Verify the file came from this project, then choose More info → Run anyway in SmartScreen. For managed computers, contact your administrator if blocked.
@@ -466,8 +472,8 @@ Install Mac Recognition.command|Install Mac Recognition.command
 已检测到识别服务安装成功。请点击下方按钮刷新，继续填写身份。|Recognition service detected. Click below to reload and enter your details.
 识别服务已就绪。|Recognition service is ready.
 请安装 Tesseract OCR，并保留 English 语言数据，然后点击“重新检测”。|Install Tesseract OCR with the English language data, then click Check service again.
-缺少内置 English 模型，请重新运行最新版 Install Windows OCR.exe。|The bundled English model is missing. Run the latest Install Windows OCR.exe again.
-请重新运行最新版 Install Windows OCR.exe，安装修正后的 English 模型。|Run the latest Install Windows OCR.exe to install the corrected English model.
+缺少内置英文模型，请重新运行最新版安装 Windows OCR.exe。|The bundled English model is missing. Run the latest Install Windows OCR.exe again.
+请重新运行最新版安装 Windows OCR.exe，安装修正后的英文模型。|Run the latest Install Windows OCR.exe to install the corrected English model.
 请在系统安全设置中允许识别程序，然后点击“重新检测”。|Allow the recognition executable in your system security settings, then click Check service again.
 姓名|Name
 日期待核对|Date needs review

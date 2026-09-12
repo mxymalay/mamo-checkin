@@ -5,6 +5,18 @@ export async function checkEmailLogin(message,{tabs,readIdentity,selectAccount})
  try{return await checkEmailSession(message,{tabs,readIdentity,selectAccount});}
  catch(error){throw pageError(error,'Gmail');}
 }
+
+export async function listGmailAccounts({tabs,readIdentity}){
+ const accounts=new Set();
+ for(const tab of await tabs.query({url:'https://mail.google.com/*'})){
+  if(tab.status!=='complete')continue;
+  try{
+   const email=schoolEmail((await readIdentity(tab.id))?.email);
+   accounts.add(email);
+  }catch{}
+ }
+ return {accounts:[...accounts].sort()};
+}
 async function checkEmailSession(message,{tabs,readIdentity,selectAccount}){
  const email=schoolEmail(message.email);
  const resultFor=async tab=>{

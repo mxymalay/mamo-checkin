@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
-import {checkEmailLogin} from '../extension/email-check.js';
+import {checkEmailLogin,listGmailAccounts} from '../extension/email-check.js';
 import {bindEmailReader,installIdentityChecks} from '../extension/email-input.js';
 const email='abcd1234@student.monash.edu';
 test('closed login tab finds only an already verified replacement without opening or searching',async()=>{
@@ -26,6 +26,14 @@ test('login redirects remain pending and never execute an identity read on anoth
 test('wrong account explicitly reports current and requested mailboxes',async()=>{
  const result=await checkEmailLogin({email,tabId:3},{tabs:{get:async()=>({id:3,status:'complete',url:'https://mail.google.com/mail/u/0/'})},readIdentity:async()=>({email:'other@example.com'})});
  assert.equal(result.matched,false);assert.match(result.message,/other@example.com.*abcd1234/);
+});
+test('list Gmail accounts returns only valid school accounts from complete tabs',async()=>{
+ const reads=[];const result=await listGmailAccounts({tabs:{query:async()=>[
+  {id:1,status:'complete',url:'https://mail.google.com/mail/u/0/'},
+  {id:2,status:'complete',url:'https://mail.google.com/mail/u/2/'},
+  {id:3,status:'loading',url:'https://mail.google.com/mail/u/3/'}
+ ]},readIdentity:async id=>{reads.push(id);return {email:id===1?'EFGH5678@student.monash.edu':id===2?'abcd1234@student.monash.edu':'invalid@example.com'};}});
+ assert.deepEqual(result,{accounts:['abcd1234@student.monash.edu','efgh5678@student.monash.edu']});assert.deepEqual(reads,[1,2]);
 });
 test('email edits invalidate an in-flight successful check',async()=>{
  const dom=new JSDOM('<input value="abcd1234"><button></button><p></p>'),doc=dom.window.document;
