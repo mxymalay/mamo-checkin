@@ -34,7 +34,7 @@ jobs:
           import json, os, pathlib, struct, subprocess, tempfile
           from PIL import Image, ImageDraw, ImageFont
           import base64
-          exe = str(pathlib.Path('build/windows-ocr/host/mamo-host.exe').resolve())
+          exe = str(pathlib.Path('build/windows-ocr/English/host/mamo-host.exe').resolve())
           with tempfile.TemporaryDirectory(prefix='Mamo test ') as folder:
               env = dict(os.environ, ATTENDANCE_ARCHIVE_DIR=folder)
               image = Image.new('RGB',(1000,43),'#ffe0e0')
