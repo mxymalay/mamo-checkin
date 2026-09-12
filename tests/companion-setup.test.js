@@ -15,6 +15,6 @@ for(const isWindows of [true,false])test(`store installation links to helper onl
  installCompanionDownload(box,{doc,isWindows,extensionId:STORE_ID});
  const link=doc.querySelector('#download-companion');assert.ok(link.href.endsWith(`mamo-ocr-${isWindows?'windows':'mac'}.zip`));
  assert.equal(box.querySelector('h2').nextElementSibling,link);link.addEventListener('click',e=>e.preventDefault());link.click();
- assert.match(doc.querySelector('[role=status]').textContent,/下载失败/);assert.doesNotMatch(translate(link.textContent,'en'),/[\u3400-\u9fff]/);
+ assert.equal(doc.querySelector('.muted').textContent,'请下载后解压。随后进行以下步骤。');assert.equal(doc.querySelector('[role=status]').textContent,'请下载后解压，随后按下方步骤操作。');assert.doesNotMatch(translate(link.textContent,'en'),/[\u3400-\u9fff]/);
  dom.window.close();
 });
