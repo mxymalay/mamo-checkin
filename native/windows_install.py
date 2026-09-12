@@ -11,6 +11,14 @@ HOST = 'com.attendanceassistant.vision'
 EXTENSION = 'nccgbccaamgcdcikjhljinefjbfcinfp'
 STORE_EXTENSION = 'mneachaobiledakoicnkinfdpcjkbnmm'
 
+def configure_output():
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except AttributeError:
+            pass
+
+
 def bundled_language():
     return 'zh' if Path(sys.executable).stem == '安装 Windows OCR' else 'en'
 
@@ -43,6 +51,7 @@ def main(language='en'):
 
 
 if __name__ == '__main__':
+    configure_output()
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', choices=('en', 'zh'), default=bundled_language())

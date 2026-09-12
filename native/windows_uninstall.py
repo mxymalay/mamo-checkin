@@ -9,6 +9,14 @@ import winreg
 
 HOST = 'com.attendanceassistant.vision'
 
+def configure_output():
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except AttributeError:
+            pass
+
+
 def bundled_language():
     return 'zh' if Path(sys.executable).stem == '卸载 Windows OCR' else 'en'
 
@@ -47,6 +55,7 @@ def main(language):
 
 
 if __name__ == '__main__':
+    configure_output()
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', choices=('en', 'zh'), default=bundled_language())
     args = parser.parse_args()
