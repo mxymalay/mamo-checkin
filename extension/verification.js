@@ -15,16 +15,16 @@ export function bindVerification({button,status,prepare=()=>({}),check,onVerifie
  function clearTimers(){clock.clearTimeout(pollTimer);clock.clearInterval(tickTimer);clock.clearTimeout(endTimer);}
  function finish(value){generation++;clearTimers();running=false;saving=false;const resolve=resolveRun;resolveRun=null;render();resolve?.(value);}
  function stop(){finish(null);}
- function reset(){stop();verified=false;status.textContent='';render();}
+ function reset(){stop();verified=false;status.textContent='';delete status.dataset.state;render();}
  function markVerified(){verified=true;render();}
  function start(){
   stop();verified=false;let context;
-  try{context=prepare();}catch(error){status.textContent=error.message;render();return Promise.resolve(null);}
-  running=true;render();status.textContent='正在检测登录状态…';
+  try{context=prepare();}catch(error){status.textContent=error.message;status.dataset.state='error';render();return Promise.resolve(null);}
+  running=true;delete status.dataset.state;render();status.textContent='正在检测登录状态…';
   const ticket=generation,deadline=Date.now()+timeout;
   const tick=()=>{countdown.textContent=`检测中 · 剩余 ${Math.max(0,Math.ceil((deadline-Date.now())/1000))} 秒 · 请勿关闭浏览器页面`;};tick();tickTimer=clock.setInterval(tick,1000);
   const done=new Promise(resolve=>{resolveRun=resolve;});
-  endTimer=clock.setTimeout(()=>{if(ticket!==generation)return;status.textContent='登录检测超时，请完成登录后重新检测。';finish(null);},timeout);
+  endTimer=clock.setTimeout(()=>{if(ticket!==generation)return;status.textContent='登录检测超时，请完成登录后重新检测。';status.dataset.state='error';finish(null);},timeout);
   const read=async open=>{
    try{
     const result=await check(context,open);
@@ -32,11 +32,11 @@ export function bindVerification({button,status,prepare=()=>({}),check,onVerifie
     if(result?.verified){
      clearTimers();saving=true;status.textContent='正在保存检测结果…';render();
      await onVerified(result);if(ticket!==generation)return;
-     verified=true;status.textContent=typeof success==='function'?success(result):success;finish(result);return;
+     verified=true;status.dataset.state='success';status.textContent=typeof success==='function'?success(result):success;finish(result);return;
     }
-    status.textContent=result?.message||'请在打开的网站完成登录，检测会自动继续。';
+    delete status.dataset.state;status.textContent=result?.message||'请在打开的网站完成登录，检测会自动继续。';
     pollTimer=clock.setTimeout(()=>read(false),interval);
-   }catch(error){if(ticket!==generation)return;status.textContent=String(error.message||error).replace('页面已被关闭，无法执行签到','页面已被关闭，检测已停止。请重新登录并检测。');finish(null);}
+   }catch(error){if(ticket!==generation)return;status.dataset.state='error';status.textContent=String(error.message||error).replace('页面已被关闭，无法执行签到','页面已被关闭，检测已停止。请重新登录并检测。');finish(null);}
   };
   void read(true);return done;
  }

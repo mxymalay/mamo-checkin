@@ -1,23 +1,37 @@
-import {cp,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {zipSync} from 'fflate';
+import {zipSync,unzipSync} from 'fflate';
+import assert from 'node:assert/strict';
+
 const root=fileURLToPath(new URL('..',import.meta.url));
-const target=path.join(root,'build','extension');
-await rm(target,{recursive:true,force:true});await mkdir(target,{recursive:true});
-await cp(path.join(root,'extension'),target,{recursive:true});
-const vendor=path.join(target,'vendor');await mkdir(vendor,{recursive:true});
-for(const file of ['tesseract.min.js','worker.min.js'])await cp(path.join(root,'node_modules/tesseract.js/dist',file),path.join(vendor,file));
-const core=path.join(root,'node_modules/tesseract.js-core');
-for(const file of await readdir(core))if(/\.wasm(?:\.js)?$/.test(file))await cp(path.join(core,file),path.join(vendor,file));
-await cp(path.join(root,'node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz'),path.join(vendor,'eng.traineddata.gz'));
-for(const pkg of ['tesseract.js','tesseract.js-core'])await cp(path.join(root,'node_modules',pkg,pkg==='tesseract.js'?'LICENSE.md':'LICENSE'),path.join(vendor,pkg+'.LICENSE'));
-for(const file of ['tesseract.min.js.LICENSE.txt','worker.min.js.LICENSE.txt'])await cp(path.join(root,'node_modules/tesseract.js/dist',file),path.join(vendor,file));
-await writeFile(path.join(vendor,'SOURCES.txt'),'Tesseract.js 7.0.0: https://github.com/naptha/tesseract.js (Apache-2.0)\nTesseract.js-core: https://github.com/naptha/tesseract.js-core (Apache-2.0)\nEnglish trained data: https://github.com/naptha/tessdata (Apache-2.0)\nAll OCR scripts, WASM and English data are bundled; no CDN is used.\n');
+const build=path.join(root,'build');
+const target=path.join(build,'extension');
+const excluded=new Set(['local-service.js','offscreen.html','offscreen.js','ocr-controller.js','ocr-engine.js']);
 const files={};
-async function add(folder,prefix){for(const entry of await readdir(folder,{withFileTypes:true})){const name=path.join(folder,entry.name),relative=prefix+'/'+entry.name;if(entry.isDirectory())await add(name,relative);else files[relative]=new Uint8Array(await readFile(name));}}
-await add(target,'extension');
-files['README.md']=new Uint8Array(await readFile(path.join(root,'README.md')));
-const output=path.join(root,'build','签到助手-Windows-macOS.zip');
-await writeFile(output,zipSync(files,{level:6}));
-console.log('扩展目录：'+target);console.log('Windows / macOS 安装包：'+output);console.log('安装包大小：'+(new Uint8Array(await readFile(output)).length/1024/1024).toFixed(1)+' MB');
+
+async function collect(dir,prefix=''){
+ for(const entry of await readdir(dir,{withFileTypes:true})){
+  if(entry.name==='.DS_Store'||excluded.has(entry.name))continue;
+  const name=prefix+entry.name;
+  if(entry.isDirectory())await collect(path.join(dir,entry.name),name+'/');
+  else files[name]=new Uint8Array(await readFile(path.join(dir,entry.name)));
+ }
+}
+
+await collect(path.join(root,'extension'));
+const manifest=JSON.parse(new TextDecoder().decode(files['manifest.json']));
+assert.ok(manifest.key,'The GitHub extension package must keep its stable development key.');
+assert.equal(Object.hasOwn(manifest,'key'),true);
+assert.ok(!Object.keys(files).some(name=>name.startsWith('extension/')||/\.(exe|py|command)$/.test(name)));
+
+await rm(target,{recursive:true,force:true});await mkdir(target,{recursive:true});
+for(const [name,data] of Object.entries(files)){
+ const destination=path.join(target,...name.split('/'));await mkdir(path.dirname(destination),{recursive:true});await writeFile(destination,data);
+}
+const output=path.join(build,'mamo-checkin-extension.zip');
+const zip=zipSync(files,{level:6});const contents=unzipSync(zip);
+assert.ok(contents['manifest.json']);assert.ok(contents['options.html']);
+await mkdir(build,{recursive:true});await writeFile(output,zip);
+console.log('Chrome 扩展包：'+output);
+console.log('扩展目录：'+target);

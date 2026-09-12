@@ -1,27 +1,37 @@
-# Windows installation / Windows 安装
+# Windows installation
 
-Windows 10/11 x64 · Google Chrome. Review results against the school's attendance system; full live-account submission has not been validated in every environment.
+## English
 
-1. **Extract `mamo-checkin-windows.zip`** into a permanent folder.
-2. **[Install Tesseract OCR](https://github.com/tesseract-ocr/tesseract/releases/download/5.5.0/tesseract-ocr-w64-setup-5.5.0.20241111.exe)**. Keep the default installation folder and English language data.
-3. **Run `Install Windows OCR.exe` or `安装 Windows OCR.cmd`** from the extracted folder. No Python installation is needed. Wait for “Installed successfully”.
-4. **Load the extension**: open `chrome://extensions`, enable Developer mode, click Load unpacked, and select `extension`.
-5. **Follow the guide**: after recognition is ready click Refresh and continue, save your school identity, sign in to Attendance, detect courses, and choose Gmail / Moodle sources.
+Windows 10/11 x64 and Google Chrome are required. Download these two files from the [latest GitHub Release](https://github.com/mxymalay/mamo-checkin/releases/latest):
 
-If Windows SmartScreen blocks the helper, verify that you downloaded it from this repository, then select **More info → Run anyway**. On a managed computer, contact your administrator if this option is unavailable. Do not disable Windows Security.
+- [Chrome extension](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-checkin-extension.zip)
+- [Windows OCR helper](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-windows.zip)
 
-OCR runs locally. Low-confidence results require review. Scheduled check-in is optional; Chrome must stay running. Native runtime is installed under `%LOCALAPPDATA%\Mamo Check-in\native-runtime`; uninstalling the extension does not delete your archive.
+1. Extract the extension ZIP into a permanent folder.
+2. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the extracted extension folder whose root contains `manifest.json`.
+3. Install Tesseract OCR from the link in the extension guide. Keep the default installation folder and English language data.
+4. Extract `mamo-ocr-windows.zip`, then run `Install Windows OCR.exe`.
+5. Open the extension and follow the guide. Enter your school identity, sign in to Attendance, detect courses, choose Gmail or Moodle sources, and save.
 
----
+If SmartScreen blocks the helper, verify that it came from this project, then choose **More info > Run anyway**. Do not disable Windows Security. Return to the extension and wait for the recognition check to pass.
 
-Windows 10/11 x64 · Google Chrome。请以学校签到系统的最终状态为准；完整自动提交尚未覆盖所有实际账号环境。
+The OCR helper runs locally. Images and records remain on this computer. Low-confidence results stay available for review.
 
-1. **解压安装包**，放到固定文件夹。
-2. **安装上方链接的 Tesseract OCR**，保留默认路径和 English 语言数据。
-3. **双击 `Install Windows OCR.exe` 或 `安装 Windows OCR.cmd`**，等待安装成功，无需安装 Python。
-4. **打开 `chrome://extensions`**，开启开发者模式，点击“加载已解压的扩展程序”，选择 `extension` 文件夹。
-5. **按页面引导完成配置**：识别就绪后点击“刷新并继续”，保存学校身份，登录 Attendance、检测课程并选择邮件 / Moodle 来源。
+## 中文
 
-如被 SmartScreen 阻止，确认来自本仓库后选择 **更多信息 → 仍要运行**。学校管理的电脑若不允许，请联系管理员，不要关闭系统安全保护。
+# 马莫签到助手 Windows 安装指南
 
-配置完成后使用“设置”“课程来源与课表”“签到记录”三个分页。设置页的“登录并检测”验证通过后独立保存邮箱或姓名，其他设置另行保存。Moodle 可填写 course_id 或粘贴完整课程网址。只有点击“立即签到”才自动进入签到记录页。
+支持 **Windows 10/11 x64 和 Chrome**。请从[最新 GitHub Release](https://github.com/mxymalay/mamo-checkin/releases/latest)下载以下两个文件：
+
+- [Chrome 扩展包](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-checkin-extension.zip)
+- [Windows OCR 配套包](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-windows.zip)
+
+1. 解压扩展包，并将文件夹放在固定位置。
+2. 打开 `chrome://extensions`，开启开发者模式，点击“加载已解压的扩展程序”，选择根目录直接包含 `manifest.json` 的扩展文件夹。
+3. 按扩展引导中的链接安装 Tesseract OCR，保留默认路径和 English 语言数据。
+4. 解压 `mamo-ocr-windows.zip`，运行 `安装 Windows OCR.cmd`。
+5. 打开扩展，按引导填写学校身份，登录 Attendance，检测课程，选择邮件/Moodle 来源并保存。
+
+如果 SmartScreen 阻止配套程序，确认文件来自本项目后选择“更多信息 → 仍要运行”，不要关闭 Windows 安全保护。返回扩展等待识别服务检测通过。
+
+OCR 配套程序在本机运行，原图和记录保存在本机。置信度较低的结果会保留给用户核对。

@@ -18,7 +18,8 @@ test('verification stops its countdown before saving and marks success only afte
   await new Promise(resolve=>setTimeout(resolve,30));assert.doesNotMatch(status.textContent,/超时/);
   save();assert.deepEqual(await done,{verified:true,tabId:3});
   assert.equal(binding.activity.hidden,true);assert.equal(button.disabled,false);assert.equal(button.classList.contains('verified'),true);
-  assert.equal(button.textContent,'重新登录并检测');assert.equal(status.textContent,'登录检测通过。');
+  assert.equal(button.textContent,'重新登录并检测');assert.equal(status.textContent,'登录检测通过。');assert.equal(status.dataset.state,'success');
+  binding.reset();assert.equal(status.dataset.state,undefined);
  }finally{binding.stop();dom.window.close();}
 });
 

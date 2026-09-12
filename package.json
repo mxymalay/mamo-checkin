@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "build": "node scripts/build-mac.mjs",
+    "build": "node scripts/build-extension.mjs && node scripts/build-mac.mjs",
+    "build:extension": "node scripts/build-extension.mjs",
+    "build:store": "node scripts/build-webstore.mjs",
     "build:store-companion": "node scripts/build-mac-companion.mjs"
   },
   "devDependencies": {

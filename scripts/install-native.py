@@ -30,7 +30,7 @@ def install(bundle, home):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--bundle', type=Path, default=Path(__file__).resolve().parent)
+    parser.add_argument('--bundle', type=Path, default=Path(__file__).resolve().parent.parent)
     args = parser.parse_args()
     if sys.platform != 'darwin':
         raise SystemExit('本版本仅支持 macOS。')

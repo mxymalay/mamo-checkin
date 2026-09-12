@@ -1,4 +1,4 @@
-name: Windows package
+name: Windows extension and OCR packages
 on:
   workflow_dispatch:
   push:
@@ -34,7 +34,7 @@ jobs:
           import json, os, pathlib, struct, subprocess, tempfile
           from PIL import Image, ImageDraw, ImageFont
           import base64
-          exe = str(pathlib.Path('build/windows/host/mamo-host.exe').resolve())
+          exe = str(pathlib.Path('build/windows-ocr/host/mamo-host.exe').resolve())
           with tempfile.TemporaryDirectory(prefix='Mamo test ') as folder:
               env = dict(os.environ, ATTENDANCE_ARCHIVE_DIR=folder)
               image = Image.new('RGB',(1000,43),'#ffe0e0')
@@ -57,9 +57,12 @@ jobs:
       - name: Exercise installer and Chrome registration
         shell: python
         run: |
-          import json, os, pathlib, subprocess, tempfile, winreg
-          installer = str(pathlib.Path('build/windows/Install Windows OCR.exe').resolve())
-          assert pathlib.Path('build/windows/extension').exists()
+          import json, os, pathlib, subprocess, tempfile, winreg, zipfile
+          installer = str(pathlib.Path('build/windows-ocr/Install Windows OCR.exe').resolve())
+          with zipfile.ZipFile('build/mamo-checkin-extension.zip') as archive:
+              names = set(archive.namelist())
+              assert 'manifest.json' in names and 'options.html' in names
+              assert not any(name.startswith('extension/') for name in names)
           keyname = r'SOFTWARE\Google\Chrome\NativeMessagingHosts\com.attendanceassistant.vision'
           with tempfile.TemporaryDirectory(prefix='Mamo install 中文 ') as folder:
               try:
@@ -74,6 +77,7 @@ jobs:
                   except FileNotFoundError: pass
       - uses: actions/upload-artifact@v4
         with:
-          name: mamo-checkin-windows
+          name: mamo-checkin-windows-packages
           path: |
-            build/mamo-checkin-windows.zip
+            build/mamo-checkin-extension.zip
+            build/mamo-ocr-windows.zip

@@ -75,7 +75,15 @@ test('Moodle ISO timestamp and text rows create independent text-source records'
     messageId:'moodle-post-hash',course:'FIT5122',subject:'Week 6 attendance',sourceUrl:'https://learning.monash.edu/mod/forum/discuss.php?d=1',sourceType:'moodle',sentAt:'2026-09-02T19:31:00+08:00',textRows:['Applied Wednesday,2 Sep 01 6:00PM PNK7L'],images:[]
   }],{getImage:async()=>{throw new Error('unused');},ocr:async()=>{throw new Error('unused');},save:async()=>{}});
   assert.deepEqual(state.records.map(r=>[r.code,r.status,r.sourceType,r.imageId]),[['PNK7L','ready','moodle-text','text']]);
-  assert.equal(state.seenMessages['moodle-post-hash']!==undefined,true);
+ assert.equal(state.seenMessages['moodle-post-hash']!==undefined,true);
+});
+
+test('Moodle navigation words are not treated as attendance codes',async()=>{
+ const state={records:[],seenMessages:{},diagnostics:[]};
+ await processCollectedMessages(state,[{
+  messageId:'moodle-navigation',course:'FIT5120',subject:'Attendance forum',sourceUrl:'https://learning.monash.edu/mod/forum/view.php?id=1',sourceType:'moodle',sentAt:'2026-09-02T19:31:00+08:00',textRows:['Forum','Attendance resources'],images:[]
+ }],{getImage:async()=>{},ocr:async()=>{},save:async()=>{}});
+ assert.equal(state.records.length,0);
 });
 
 test('academic-year-only Moodle reference forces even complete text rows to review',async()=>{

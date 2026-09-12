@@ -26,7 +26,11 @@ export async function recordDiagnostic(state,details,saveDiagnostics=async()=>{}
   try{await saveDiagnostics();}catch{}
 }
 
-const codeCandidates=text=>[...new Set([...String(text).matchAll(/\b([A-Z0-9]{5})\b/ig)].map(match=>match[1].toUpperCase()))];
+const nonCodeWords=new Set(['about','activity','attendance','code','course','courses','discussion','discussions','forum','forums','home','login','moodle','page','pages','student','week','weeks']);
+const codeCandidates=text=>[...new Set([...String(text).matchAll(/\b([A-Z0-9]{5})\b/ig)].map(match=>match[1]))]
+ .filter(token=>/\d/.test(token)||token===token.toUpperCase())
+ .map(token=>token.toUpperCase())
+ .filter(token=>!nonCodeWords.has(token.toLowerCase()));
 const textSourceType=sourceType=>`${String(sourceType||'gmail').replace(/-(?:text|image)$/,'')}-text`;
 const addReason=(record,reason)=>({...record,status:'review',reason:[record.reason,reason].filter(Boolean).join('；')});
 function checkDateBasis(records,msg){

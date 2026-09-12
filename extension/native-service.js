@@ -1,7 +1,7 @@
-import {installerName,ocrEngine} from './platform.js';
+import {ocrEngine} from './platform.js';
 import {STORE_ID} from './companion-setup.js';
 const HOST='com.attendanceassistant.vision';
-const connectionError=detail=>new Error('本地识别服务无法连接。请运行安装包中的“'+installerName+'”，然后重新加载马莫签到助手。'+(detail?'（'+detail+'）':''));
+const connectionError=()=>new Error('本地识别服务无法连接。请运行安装包中的安装程序，然后重新加载马莫签到助手。');
 
 export async function localService({onProgress=async()=>{},timeoutMs=35000}={}){
   let port;

@@ -2,8 +2,9 @@ const entries=`
 本机识别服务版本不兼容。请使用本页下载按钮安装 OCR 配套程序，再重新检测。|The local OCR helper is incompatible. Install the companion using this page's download button, then check again.
 下载 Windows OCR 配套程序|Download Windows OCR helper
 下载 Mac OCR 配套程序|Download Mac OCR helper
+第一步：下载 Mac OCR 配套包|Step 1: Download the Mac OCR helper
+第一步：下载 Windows OCR 配套包|Step 1: Download the Windows OCR helper
 请下载后解压。随后进行以下步骤。|Download and extract it. Then follow the steps below.
-请下载后解压，随后按下方步骤操作。|Download and extract it, then follow the steps below.
 助手连接已失效。请关闭助手页面，从 Chrome 扩展图标重新打开后重试。|The assistant connection expired. Close this page and reopen it from the Chrome extension icon, then retry.
 读取权限不足。请在 Chrome 扩展管理中允许助手访问对应网站，然后重试。|cannot be read without site permission. Allow access in Chrome extension settings, then retry.
 页面在读取期间发生跳转。请等待页面加载完成后重试。|navigated while being read. Wait for the page to finish loading, then retry.
@@ -81,6 +82,7 @@ Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm
 邮箱已修改，请重新检测。|Email changed. Verify again.
 登录并确认学校身份|Sign in and confirm your identity
 登录并读取姓名|Sign in and read name
+重新登录并读取姓名|Sign in and read name again
 自动读取登录后的姓名，也可手动修改|Read your signed-in name automatically, or edit it manually
 正在读取 Attendance 姓名…|Reading your Attendance name…
 已读取 Attendance 姓名，请确认后保存。|Attendance name retrieved. Confirm it before saving.
@@ -93,6 +95,9 @@ Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm
 识别服务未就绪，请完成安装引导。|Recognition service is not ready. Complete the installation guide.
 本地识别服务无法连接。请运行安装包中的|Cannot connect to local recognition. Run the installer in the download:
 ，然后重新加载马莫签到助手。|, then reload Mamo Check-in.
+本地识别服务无法连接。请运行安装包中的安装程序，然后重新加载马莫签到助手。|Local recognition is unavailable. Run the installer in the package, then reload Mamo Check-in.
+本地识别服务无法连接。请运行安装包中的“安装 Mac 识别服务.command”，然后重新加载马莫签到助手。|Local recognition is unavailable. Run “Install Mac Recognition.command” from the package, then reload Mamo Check-in.
+本地识别服务无法连接。请运行安装包中的“安装 Windows OCR.cmd”，然后重新加载马莫签到助手。|Local recognition is unavailable. Run “Install Windows OCR.exe” from the package, then reload Mamo Check-in.
 本地识别未返回有效结果|Local recognition returned no valid result
 本地识别连接已关闭|Local recognition connection closed
 本地识别响应超时，已停止本次连接；原图由本机服务保存。|Local recognition timed out. The connection was closed; the original image is saved locally.
@@ -107,6 +112,7 @@ Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm
 使用默认安装位置，保留 English 语言数据。|Keep the default installation folder and English language data.
 连接浏览器|Connect Chrome
 双击 Install Windows OCR.exe，等待安装成功。|Run Install Windows OCR.exe and wait for installation to finish.
+安装 Windows OCR.cmd|Install Windows OCR.exe
 无需安装 Python，也无需开启定时签到。|No Python installation is needed. Scheduled check-in is optional.
 Windows 阻止了安装程序？|Windows blocked the installer?
 确认文件来自本项目 Release 后，在 SmartScreen 中选择“更多信息 → 仍要运行”。学校管理的电脑若不允许，请联系管理员。|Verify the file came from this project, then choose More info → Run anyway in SmartScreen. For managed computers, contact your administrator if blocked.
@@ -345,6 +351,7 @@ Mac 原生图片识别|Mac text recognition
 已签到|Checked in
 已过期|Expired
 需要核对|Review required
+资料不完整|Incomplete details
 核对提交结果|Verifying submission
 结果待确认|Confirmation pending
 重试复制|Retry copy
@@ -400,10 +407,12 @@ Mac 原生图片识别|Mac text recognition
 填写身份|Enter your details
 登录并配置课程|Sign in and configure courses
 先安装 Mac 识别服务|Install Mac recognition service
-完成这一步后，才能识别签到图片。|Install the service to read attendance code images.
 打开下载并解压的安装包。|Open the downloaded and extracted package.
+打开解压后的 OCR 包。|Open the extracted OCR package.
+第二步：打开解压后的 OCR 包。|Step 2: Open the extracted OCR package.
 双击|Double-click
 Install Mac Recognition.command|Install Mac Recognition.command
+安装 Mac 识别服务.command|Install Mac Recognition.command
 按终端提示安装。|Follow the terminal instructions.
 如果再次提示|If macOS also blocks
 被阻止，请再到|, go to
@@ -412,6 +421,14 @@ Install Mac Recognition.command|Install Mac Recognition.command
 允许这个识别程序。安装命令和识别程序可能需要分别允许。|to allow it. The installer and recognition executable may each need approval.
 回到此页面，等待检测通过，再点击|Return here, wait for verification, then click
 刷新并继续|Reload and continue
+回到此页面，等待检测通过，自动进入下一步。|Return here and wait for verification; the next step opens automatically.
+第三步：回到此页面，等待检测通过，自动进入下一步。|Step 3: Return here and wait for verification; the next step opens automatically.
+上一步|Previous step
+下一步|Next step
+安装步骤|Installation steps
+第1步|Step 1
+第2步|Step 2
+第3步|Step 3
 已在系统设置允许，重新检测|Allowed in System Settings — check again
 我已安装，立即检测|Installed — check now
 安装成功 · 刷新并继续|Installed — reload and continue
@@ -419,12 +436,21 @@ Install Mac Recognition.command|Install Mac Recognition.command
 确认文件来自本项目 Release 后，先尝试打开一次，再进入|After verifying the download is from this project's Release, try opening it once, then go to
 按提示确认。只允许这个文件，不需要关闭系统安全保护。|Follow the prompts. Allow this file only; keep system security enabled.
 查看 Apple 操作说明|View Apple's instructions
-下载安装包|Download installer
+再次下载安装包|Download the installer again
+等待检测识别服务…|Waiting for the recognition service check…
+正在确认本机识别服务。|Checking whether the local recognition service is available.
 填写你的学校身份|Enter your school account details
 用于核对登录账号，避免在错误账号下签到。|Used to verify the signed-in account and avoid checking in as someone else.
 与学校系统完全一致|Exactly as shown on the attendance website
+登录后自动检测并自动填写|Detect and fill automatically after sign-in
 保存身份 · 下一步|Save details and continue
 登录学校网站，再检测课程|Sign in, then detect your courses
+课程配置|Course setup
+正在检测课程，请稍候。|Detecting courses. Please wait.
+正在自动读取课程，请保持签到系统登录；检测期间请勿关闭浏览器页面。|Reading courses automatically. Keep Attendance signed in and the browser page open while detection runs.
+已检测到课程，请在下方完善课程来源和课表。|Courses detected. Complete the sources and timetable below.
+未检测到课程，请检查签到系统登录状态后重试，或手动添加课程。|No courses found. Check your Attendance sign-in and retry, or add a course manually.
+需要修改姓名或邮箱？|Need to change your name or email?
 请在当前 Chrome 配置文件登录签到系统。点击检测后会生成课表，再为每门课选择邮件或 Moodle 来源。|Sign in to the attendance system in this Chrome profile. Detect your timetable, then choose email or Moodle sources for each course.
 打开签到系统并登录|Open attendance system and sign in
 登录学校 Gmail|Sign in to school Gmail
@@ -504,6 +530,7 @@ export function translate(text,lang=language){
  if(exactTranslations.has(text))return exactTranslations.get(text);
  let result=String(text);
  const patterns=[
+  [/^已检测到 (\d+) 门课程。请在下方完善课程来源和课表。$/g,(_,count)=>`${count} course${Number(count)===1?'':'s'} detected. Complete the sources and timetable below.`],
   [/^(.*?) 课表检查失败：(.+?) 需要登录。请打开 \2，完成学校账号登录及验证；请勿关闭浏览器页面，再返回助手重试。本轮尚未完成该网站的检查。$/g,(_,prefix,site)=>`${prefix} timetable check failed: ${site} requires sign-in. Open ${site}, complete school sign-in and verification; keep the browser page open, then return to Assistant and retry. This site's check is not complete.`],
   [/^(.+?) 需要登录。请打开 \1，完成学校账号登录及验证；请勿关闭浏览器页面，再返回助手重试。本轮尚未完成该网站的检查。$/g,(_,site)=>`${site} requires sign-in. Open ${site}, complete school sign-in and verification; keep the browser page open, then return to Assistant and retry. This site's check is not complete.`],
   [/^有 (\d+) 场等待签到码，暂未找到；可能尚未发布或当前来源未检索到，可稍后重试$/g,(_,count)=>`${count} session${Number(count)===1?'':'s'} ${Number(count)===1?'is':'are'} waiting for codes. They may not be published yet or were not found in the selected sources. Retry later.`],
@@ -536,11 +563,15 @@ export function translate(text,lang=language){
   [/跳过超过 7 天的旧内容/g,'Skipping content older than 7 days'],
   [/该课程所需场次已找到，跳过剩余图片/g,'Required sessions found; skipping remaining images'],
   [/页面已被关闭，无法执行签到/g,'page was closed; unable to check in'],
-  [/网站登录未完成，签到码来源尚未检查完整。请先登录，再重试。/g,'Sign-in is incomplete; code sources have not all been checked. Sign in and retry.']
+  [/网站登录未完成，签到码来源尚未检查完整。请先登录，再重试。/g,'Sign-in is incomplete; code sources have not all been checked. Sign in and retry.'],
+  [/^重新登录并读取姓名$/g,'Sign in and read name again'],
+  [/^重新登录并检测$/g,'Sign in and verify again'],
+  [/^暂未检测到，(\d+) 秒后自动检查$/g,'Not detected yet. Checking again in $1 seconds.'],
+  [/^检测成功$/g,'Check succeeded']
  ];
  for(const [pattern,replacement] of patterns)result=result.replace(pattern,replacement);
  for(const [zh,en] of sortedEntries)result=result.split(zh).join(en);
- return result.replace(/每周\s*(\d+)\s*场/g,'$1 sessions per week').replace(/(\d+)\s*场/g,'$1 sessions').replace(/(\d+)\s*秒前更新/g,'Updated $1 seconds ago').replace(/最多\s*(\d+)\s*秒/g,'up to $1 seconds');
+ return result.replace(/每周\s*(\d+)\s*场/g,'$1 sessions per week').replace(/(\d+)\s*场/g,'$1 sessions').replace(/(\d+)\s*秒前更新/g,'Updated $1 seconds ago').replace(/最多\s*(\d+)\s*秒/g,'up to $1 seconds').replace(/，\s*/g,', ').replace(/。\s*/g,'. ').replace(/；\s*/g,'; ').replace(/：\s*/g,': ').replace(/！/g,'!').replace(/？/g,'?').replace(/[“”]/g,'"').replace(/[（）]/g,match=>match==='（'?'(' : ')');
 }
 export function installLanguageUI(doc=document){
  const picker=doc.createElement('select');picker.id='language';picker.setAttribute('aria-label','Language / 语言');picker.innerHTML='<option value="auto">Language / 语言</option><option value="en">English</option><option value="zh">中文</option>';const header=doc.querySelector('header'),tools=doc.createElement('div');tools.className='header-tools';const actions=header.querySelector('.header-actions');if(actions)tools.append(actions);tools.append(picker);header.append(tools);

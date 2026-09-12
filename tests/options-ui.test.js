@@ -191,6 +191,7 @@ test('record sources use compact links and keep archive paths collapsed',async()
   assert.equal(source.querySelector('.archive-path-toggle').getAttribute('aria-expanded'),'false');
   assert.equal(source.querySelector('.archive-path-value').hidden,true);
   assert.match(source.querySelector('.archive-path-value').textContent,/image\.png/);
+  const tableWrap=document.querySelector('.table-wrap');tableWrap.scrollLeft=42;source.querySelector('.archive-path-toggle').click();assert.equal(tableWrap.scrollLeft,42);assert.equal(source.querySelector('.archive-path-value').hidden,false);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
@@ -400,6 +401,17 @@ test('low-confidence records offer explicit confirmation before retrying',async(
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
+test('incomplete review records do not offer confirmation without a date',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{enabled:false,courses:['FIT5120']},records:[{id:'incomplete',course:'FIT5120',date:null,time:null,type:null,group:null,code:'FORUM',status:'review',reason:'正文含签到码但缺少完整日期、活动类型、组别或时间'}]};
+ const env=installDom(async p=>p.type==='health'?{ok:true,binaryReady:true}:state);
+ try{
+  await import(`../extension/options.js?incomplete-review=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.querySelector('.review-confirm'),null);
+  assert.match(document.querySelector('#records').textContent,/资料不完整/);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
 test('source selection reveals matching fields and saves only enabled sources',async()=>{
  const originalSetInterval=globalThis.setInterval,saved=[];
  const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1']}},records:[]};
@@ -549,7 +561,7 @@ test('verified email and name save independently without persisting unrelated dr
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
-test('setup gates course discovery until service installation and offers reload on recovery',async()=>{
+test('setup gates course discovery until service installation and advances on recovery',async()=>{
  const originalSetInterval=globalThis.setInterval;let ready=false,discoveries=0;
  const env=installDom(async p=>{if(p.type==='redetect')discoveries++;return p.type==='health'?{ok:true,binaryReady:ready}:{settings:{courses:[]},records:[],setupGuide:true,discoveryAvailable:true};});
  try{
@@ -557,7 +569,7 @@ test('setup gates course discovery until service installation and offers reload 
   assert.equal(document.body.dataset.setup,'install');assert.equal(discoveries,0);
   assert.ok(env.intervals.some(i=>i.ms===5000));
   ready=true;document.getElementById('setup-check').click();await new Promise(r=>setTimeout(r,0));
-  assert.equal(document.getElementById('setup-reload').hidden,false);assert.equal(document.body.dataset.setup,'install');assert.equal(discoveries,0);
+  assert.equal(document.getElementById('setup-reload')!==null,true);assert.equal(document.getElementById('setup-reload').hidden,true);assert.equal(document.body.dataset.setup,'identity');assert.equal(discoveries,0);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 test('unchanged form input does not block check but a real edit does',async()=>{

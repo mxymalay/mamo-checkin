@@ -8,7 +8,7 @@ test('Windows guide shows its own installation flow and English translation',asy
  const doc=new JSDOM('<body><header></header></body>').window.document;
  createSetupGuide({doc,request(){},refresh(){},detect(){},checkHealth(){},reload(){}});
  const section=doc.querySelector('[data-setup="install"]');
- assert.match(section.textContent,/Install Windows OCR.exe/);
- assert.doesNotMatch(section.textContent,/macOS|安装Mac/);
+ assert.match(translate(section.textContent,'en'),/Install Windows OCR\.exe/);
+ assert.doesNotMatch(section.textContent,/macOS|Install Windows OCR\.exe/);
  assert.equal(translate(section.querySelector('h2').textContent,'en'),'Install the Windows recognition service first');
 });
