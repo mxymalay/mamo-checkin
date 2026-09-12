@@ -28,9 +28,9 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
   section.querySelector('details').innerHTML='<summary>Windows 阻止了安装程序？</summary><p>确认文件来自本项目 Release 后，在 SmartScreen 中选择“更多信息 → 仍要运行”。学校管理的电脑若不允许，请联系管理员。</p>';
  }
  installCompanionDownload(box,{doc,isWindows});
- const importDetails=doc.createElement('details');importDetails.id='setup-import';importDetails.innerHTML='<summary>您有旧的配置？</summary><p>可以导入以前导出的个人配置，跳过重复填写。</p><button id="setup-import-button" type="button">显示导入配置</button>';box.prepend(importDetails);
+ const importDetails=doc.createElement('details');importDetails.id='setup-import';importDetails.innerHTML='<summary>您有旧的配置？</summary><p>可以导入以前导出的个人配置，跳过重复填写。</p><button id="setup-import-button" type="button">显示导入配置</button>';
  importDetails.querySelector('button').onclick=()=>{importDetails.open=true;doc.getElementById('settings-file')?.click();};
- const resetButton=doc.createElement('button');resetButton.id='setup-reset';resetButton.type='button';resetButton.className='subtle danger-action';resetButton.textContent='清空所有配置与缓存';resetButton.onclick=()=>reset?.();const toolbar=doc.createElement('div');toolbar.className='setup-toolbar';toolbar.append(resetButton);box.prepend(toolbar);
+ const resetButton=doc.createElement('button');resetButton.id='setup-reset';resetButton.type='button';resetButton.className='subtle danger-action';resetButton.textContent='清空所有配置与缓存';resetButton.onclick=()=>reset?.();const toolbar=doc.createElement('div');toolbar.className='setup-toolbar setup-toolbar-row';toolbar.append(importDetails,resetButton);box.prepend(toolbar);
  doc.querySelector('header').after(box);let enabled=true,healthy=false,blocked=false,failed=false,reloadRequired=false,state={},identityEdit=false;
  const $=id=>doc.getElementById(id);configureEmailInput($('setup-email'));
  bindIdentityReader({input:$('setup-name'),button:$('setup-read-name'),status:$('setup-read-name-status'),request,doc,onChange:()=>{identityEdit=true;}});

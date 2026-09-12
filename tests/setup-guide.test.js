@@ -4,6 +4,16 @@ import {JSDOM} from 'jsdom';
 import {createSetupGuide} from '../extension/setup-guide.js';
 import {normalizeIdentity} from '../extension/settings.js';
 function make(){const dom=new JSDOM('<body><header></header></body>');let reloads=0,detects=0;const calls=[];const guide=createSetupGuide({doc:dom.window.document,request:async p=>{calls.push(p);},refresh:async()=>{},detect:()=>detects++,checkHealth:()=>{},reload:()=>reloads++});return {dom,guide,calls,get reloads(){return reloads;},get detects(){return detects;}};}
+test('setup import and reset share the row above the separator',()=>{
+ const e=make(),doc=e.dom.window.document;e.guide.update({setupGuide:true,settings:{}});
+ const toolbar=doc.querySelector('.setup-toolbar-row');
+ assert.ok(toolbar);
+ assert.equal(toolbar.firstElementChild.id,'setup-import');
+ assert.equal(toolbar.lastElementChild.id,'setup-reset');
+ assert.equal(doc.querySelector('#setup-import').parentElement,toolbar);
+ assert.equal(doc.querySelector('#setup-reset').parentElement,toolbar);
+ e.dom.window.close();
+});
 test('missing service gates the whole workflow and recovery explicitly requires reload',()=>{
  const e=make(),doc=e.dom.window.document;e.guide.update({setupGuide:true,settings:{}});
  assert.equal(doc.body.dataset.setup,'install');e.guide.health(null,'not installed');assert.equal(e.guide.needsHealth(),true);
