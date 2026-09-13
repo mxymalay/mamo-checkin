@@ -25,7 +25,7 @@ import {checkSiteLogin} from './site-check.js';
 const UNITS='https://attendance.monash.edu.my/student/Units.aspx';
 let activeRun=null,activeDetection=null;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const emailCheckAdapters={tabs:chrome.tabs,readIdentity:tabId=>runFunction(tabId,gmailAdapter,'identity'),selectAccount:async(tabId,email)=>{const results=await chrome.scripting.executeScript({target:{tabId},func:selectGoogleAccount,args:[email]});return results[0]?.result||{selected:false};}};
+const emailCheckAdapters={tabs:chrome.tabs,readIdentity:tabId=>runFunction(tabId,gmailAdapter,'identity'),create:url=>chrome.tabs.create({url,active:false}),selectAccount:async(tabId,email)=>{const results=await chrome.scripting.executeScript({target:{tabId},func:selectGoogleAccount,args:[email]});return results[0]?.result||{selected:false};}};
 
 async function loadState(){const s=await chrome.storage.local.get(['settings','records','seenMessages','seenThreads','moodleProgress','nextCourse','diagnostics','status','ownedTabIds']);return {...s,settings:{...DEFAULTS,...s.settings},records:s.records||[],seenMessages:s.seenMessages||{},seenThreads:s.seenThreads||{},moodleProgress:s.moodleProgress||{},diagnostics:s.diagnostics||[],ownedTabIds:s.ownedTabIds||[]};}
 async function schedule(){const s=await loadState();await reconcileScanAlarm(s.settings,chrome.alarms);}
@@ -306,7 +306,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('')))return false;
   const handle=async()=>{
     if(message.type==='checkEmail')return checkEmailLogin(message,emailCheckAdapters);
-    if(message.type==='listGmailAccounts')return listGmailAccounts(emailCheckAdapters);
+    if(message.type==='listGmailAccounts')return listGmailAccounts(emailCheckAdapters,message);
     if(message.type==='status'){const state=await loadState();if(!activeRun&&state.status?.running){state.status={...state.status,running:false,error:true,finishedAt:new Date().toISOString(),message:'上次检查已中断，已保存进度，可以重新开始检查'};await chrome.storage.local.set({status:state.status});}return {...state,discoveryAvailable:true,setupGuide:true};}
     if(message.type==='readIdentity'||message.type==='checkMoodle')return checkSiteLogin(message,{tabs:chrome.tabs,readIdentity:tabId=>runFunction(tabId,message.type==='checkMoodle'?moodleAdapter:attendanceAdapter,'identity')},message.type==='checkMoodle'?'Moodle':'Attendance 签到系统');
     if(message.type==='identityField'){

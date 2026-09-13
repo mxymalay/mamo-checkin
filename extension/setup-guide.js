@@ -34,7 +34,7 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
  const importDetails=doc.createElement('details');importDetails.id='setup-import';importDetails.innerHTML='<summary>您有旧的配置？</summary><p>可以导入以前导出的个人配置，跳过重复填写。</p><button id="setup-import-button" type="button">显示导入配置</button>';
  importDetails.querySelector('button').onclick=()=>{importDetails.open=true;doc.getElementById('settings-file')?.click();};
  const resetButton=doc.createElement('button');resetButton.id='setup-reset';resetButton.type='button';resetButton.className='subtle danger-action';resetButton.textContent='清空所有配置与缓存';resetButton.onclick=()=>reset?.();const toolbar=doc.createElement('div');toolbar.className='setup-toolbar setup-toolbar-row';toolbar.append(importDetails,resetButton);box.prepend(toolbar);
- doc.querySelector('header').after(box);let enabled=true,healthy=false,blocked=false,failed=false,reloadRequired=false,healthError='',state={},identityEdit=false,identityStepReadStarted=false,identityEmailCheckStarted=false,identityEmailDiscoveryStarted=false,lastStep='',courseDetectionStarted=false,healthTimer;
+ doc.querySelector('header').after(box);let enabled=true,healthy=false,blocked=false,failed=false,reloadRequired=false,healthError='',state={},identityEdit=false,identityStepReadStarted=false,identityEmailCheckStarted=false,identityEmailDiscoveryStarted=false,identityEmailDiscoveryPending=false,identityEmailDiscoveryCancelled=false,identityEmailDiscoveryTimer=null,identityEmailDiscoveryTabId=null,lastStep='',courseDetectionStarted=false,healthTimer;
  const $=id=>doc.getElementById(id);configureEmailInput($('setup-email'));const identityBindings={},identitySubmit=$('setup-identity').querySelector('button[type=submit]');const syncIdentitySubmit=()=>{identitySubmit.hidden=!(identityBindings.email?.verified&&identityBindings.attendance?.verified);};const scheduleIdentitySubmit=()=>doc.defaultView.setTimeout(syncIdentitySubmit,0);
  identityBindings.attendance=bindIdentityReader({input:$('setup-name'),button:$('setup-read-name'),status:$('setup-read-name-status'),request,doc,onChange:()=>{if(!identityBindings.attendance?.running)identityEdit=true;syncIdentitySubmit();},onVerified:scheduleIdentitySubmit});
  identityBindings.email=installIdentityChecks({email:$('setup-email'),name:$('setup-name'),nameButton:$('setup-read-name'),nameStatus:$('setup-read-name-status'),request,doc,onChange:syncIdentitySubmit,onVerified:scheduleIdentitySubmit});syncIdentitySubmit();
@@ -54,24 +54,32 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
    if(emailChooser.showModal)emailChooser.showModal();else emailChooser.setAttribute('open','');
   });
  }
- const startEmailVerification=email=>{$('setup-email').value=emailPrefix(email);identityBindings.email.reset();identityEmailCheckStarted=true;void identityBindings.email.start();};
+ const canDiscoverEmail=()=>enabled&&doc.body.dataset.setup==='identity'&&!identityEdit&&!$('setup-email').value.trim()&&!identityBindings.email.verified&&!identityBindings.email.running&&!identityEmailDiscoveryCancelled;
+ const clearEmailDiscoveryTimer=()=>{if(identityEmailDiscoveryTimer!==null){doc.defaultView.clearTimeout(identityEmailDiscoveryTimer);identityEmailDiscoveryTimer=null;}};
+ const scheduleEmailDiscovery=delay=>{clearEmailDiscoveryTimer();if(!canDiscoverEmail())return;identityEmailDiscoveryTimer=doc.defaultView.setTimeout(()=>{identityEmailDiscoveryTimer=null;void discoverEmailAccounts();},delay);};
+ const startEmailVerification=email=>{$('setup-email').value=emailPrefix(email);identityEmailDiscoveryCancelled=true;clearEmailDiscoveryTimer();identityBindings.email.reset();identityEmailCheckStarted=true;void identityBindings.email.start();};
  async function discoverEmailAccounts(){
+  if(identityEmailDiscoveryPending||!canDiscoverEmail())return;
+  identityEmailDiscoveryPending=true;
   try{
-   const result=await request({type:'listGmailAccounts'}),accounts=[];
+   $('setup-email-check-status').textContent='正在打开 Gmail 并查找已登录的学校邮箱…';
+   const result=await request({type:'listGmailAccounts',open:true,...(identityEmailDiscoveryTabId!=null?{tabId:identityEmailDiscoveryTabId}:{})});identityEmailDiscoveryTabId=result?.tabId??identityEmailDiscoveryTabId;const accounts=[];
    for(const value of result?.accounts||[]){try{const email=schoolEmail(value);if(!accounts.includes(email))accounts.push(email);}catch{}}
-   if(!accounts.length||identityEdit||$('setup-email').value.trim()||doc.body.dataset.setup!=='identity')return;
+   if(!canDiscoverEmail())return;
+   if(!accounts.length){$('setup-email-check-status').textContent=result?.tabId?'请在打开的 Gmail 标签页完成登录，正在等待账号…':'未找到已登录的学校邮箱，正在重试…';return;}
    if(accounts.length===1){startEmailVerification(accounts[0]);return;}
    $('setup-email-check-status').textContent='检测到多个已登录的学校邮箱，请选择一个。';
    const selected=await chooseEmail(accounts);
-   if(selected&&!identityEdit&&!$('setup-email').value.trim()&&doc.body.dataset.setup==='identity')startEmailVerification(selected);
-  }catch{}
+   if(selected&&canDiscoverEmail())startEmailVerification(selected);else identityEmailDiscoveryCancelled=true;
+  }catch{if(canDiscoverEmail())$('setup-email-check-status').textContent='暂未找到已登录的学校邮箱，正在重试…';}
+  finally{identityEmailDiscoveryPending=false;if(canDiscoverEmail())scheduleEmailDiscovery(2000);}
  }
  function render(){
  const cfg=state.settings||{},identity=Boolean(cfg.email&&cfg.name),complete=identity&&cfg.courses?.length&&cfg.courses.every(c=>cfg.senders?.[c]||cfg.moodleUrls?.[c]?.length);
   const step=!healthy||reloadRequired?'install':!identity||identityEdit?'identity':!complete?'courses':'complete';
   const enteredIdentity=step==='identity'&&lastStep!=='identity';
   if(step!=='courses')courseDetectionStarted=false;
-  if(step!=='identity'){identityStepReadStarted=false;identityEmailCheckStarted=false;identityEmailDiscoveryStarted=false;}
+  if(step!=='identity'){identityStepReadStarted=false;identityEmailCheckStarted=false;identityEmailDiscoveryStarted=false;identityEmailDiscoveryCancelled=false;identityEmailDiscoveryTabId=null;clearEmailDiscoveryTimer();}
   doc.body.dataset.setup=enabled?step:'complete';box.hidden=!enabled||step==='complete';toolbar.hidden=step==='install';
   for(const section of box.querySelectorAll('[data-setup]'))section.hidden=section.dataset.setup!==step;
   [...box.querySelectorAll('.setup-steps li')].forEach((li,i)=>li.setAttribute('aria-current',i===['install','identity','courses'].indexOf(step)?'step':'false'));
@@ -92,7 +100,7 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
   }
   if(enteredIdentity&&!identityEmailDiscoveryStarted&&!identityEdit&&!$('setup-email').value.trim()&&!validEmail){
    identityEmailDiscoveryStarted=true;
-   doc.defaultView.setTimeout(()=>{if(enabled&&doc.body.dataset.setup==='identity'&&!identityEdit&&!$('setup-email').value.trim()&&!identityBindings.email.verified&&!identityBindings.email.running)void discoverEmailAccounts();},0);
+   scheduleEmailDiscovery(0);
   }
   if(enabled&&step==='courses'&&!courseDetectionStarted){courseDetectionStarted=true;doc.defaultView.setTimeout(()=>{if(enabled&&doc.body.dataset.setup==='courses')detect?.();},0);}
  }

@@ -15,6 +15,16 @@ test('Chinese and English account labels identify the current mailbox',()=>{
   assert.equal(gmailAdapter('identity',{},doc).email,email);
  }
 });
+test('Gmail account identity also accepts account emails on common profile attributes',()=>{
+ for(const markup of [
+  `<img alt="${email}" src="profile.png">`,
+  `<div data-tooltip="Google Account: Student (${email})"></div>`,
+  `<span title="Google Account: Student (${email})"></span>`
+ ]){
+  const doc=new JSDOM(markup,{url:'https://mail.google.com/mail/u/2/'}).window.document;
+  assert.equal(gmailAdapter('identity',{},doc).email,email);
+ }
+});
 test('hidden, message-body, and ambiguous account labels cannot authorize mail access',()=>{
  for(const body of [`<main><button aria-label="Google Account: (${email})"></button></main>`,`<button hidden aria-label="Google Account: (${email})"></button>`,`<button aria-label="Google Account: (${email})"></button><button aria-label="Google Account: (other@example.com)"></button>`]){
   const doc=new JSDOM(body,{url:'https://mail.google.com/mail/u/0/'}).window.document;

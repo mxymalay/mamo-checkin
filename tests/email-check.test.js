@@ -35,6 +35,10 @@ test('list Gmail accounts returns only valid school accounts from complete tabs'
  ]},readIdentity:async id=>{reads.push(id);return {email:id===1?'EFGH5678@student.monash.edu':id===2?'abcd1234@student.monash.edu':'invalid@example.com'};}});
  assert.deepEqual(result,{accounts:['abcd1234@student.monash.edu','efgh5678@student.monash.edu']});assert.deepEqual(reads,[1,2]);
 });
+test('automatic Gmail discovery opens a background tab when no Gmail page exists',async()=>{
+ const created=[];const result=await listGmailAccounts({tabs:{query:async()=>[],create:async()=>{throw Error('adapter create should be used');}},readIdentity:async()=>({}) ,create:async url=>{created.push(url);return {id:8,status:'loading',url};}},{open:true});
+ assert.deepEqual(result,{accounts:[],tabId:8});assert.deepEqual(created,['https://mail.google.com/']);
+});
 test('email edits invalidate an in-flight successful check',async()=>{
  const dom=new JSDOM('<input value="abcd1234"><button></button><p></p>'),doc=dom.window.document;
  let resolve;const calls=[];

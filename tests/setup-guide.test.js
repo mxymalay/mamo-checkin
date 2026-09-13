@@ -103,10 +103,22 @@ test('entering identity asks which signed-in school Gmail to use when two are fo
  },refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});
  guide.update({setupGuide:true,settings:{}});guide.health({binaryReady:true});
  await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(calls.find(payload=>payload.type==='listGmailAccounts').open,true);
  const chooser=doc.getElementById('setup-email-chooser');assert.equal(chooser.open,true);assert.deepEqual([...chooser.querySelectorAll('input[type=radio]')].map(input=>input.value),['abcd1234@student.monash.edu','efgh5678@student.monash.edu']);
  const radios=chooser.querySelectorAll('input[type=radio]');radios[1].checked=true;chooser.querySelector('form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
  await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(chooser.open,false);assert.equal(doc.getElementById('setup-email').value,'efgh5678');assert.equal(calls.filter(payload=>payload.type==='checkEmail').length,1);
+ dom.window.close();
+});
+test('identity email discovery retries while Gmail is still unavailable',async()=>{
+ const dom=new JSDOM('<body><header></header></body>'),doc=dom.window.document,calls=[];let attempts=0;
+ const guide=createSetupGuide({doc,request:async payload=>{calls.push(payload);if(payload.type==='listGmailAccounts'&&++attempts===2)return {accounts:['abcd1234@student.monash.edu']};return {};},refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});
+ guide.update({setupGuide:true,settings:{}});guide.health({binaryReady:true});
+ await new Promise(resolve=>setTimeout(resolve,20));
+ assert.equal(calls.filter(payload=>payload.type==='listGmailAccounts').length,1);
+ await new Promise(resolve=>setTimeout(resolve,2050));
+ assert.equal(calls.filter(payload=>payload.type==='listGmailAccounts').length,2);
+ assert.equal(doc.getElementById('setup-email').value,'abcd1234');
  dom.window.close();
 });
 test('identity save stays hidden until email and Attendance checks both pass',async()=>{

@@ -2,11 +2,12 @@
 export function gmailAdapter(command,args={},doc=document) {
   if(doc.location.hostname==='accounts.google.com'||doc.querySelector('form input[name="identifier"],form input[type="password"],#okta-sign-in'))throw new Error('[LOGIN_REQUIRED] Gmail 需要登录，请完成学校账号登录及验证后重试');
   const text=el=>(el?.innerText||el?.textContent||'').replace(/\s+/g,' ').trim();
-  const accounts=Array.from(doc.querySelectorAll('a[aria-label],button[aria-label],[role="button"][aria-label]')).filter(el=>{
-    for(let p=el;p;p=p.parentElement)if(p.hidden||p.getAttribute('aria-hidden')==='true'||doc.defaultView.getComputedStyle(p).display==='none'||doc.defaultView.getComputedStyle(p).visibility==='hidden')return false;
-    return !el.closest('main,[role="main"],[role="dialog"]')&&/^Google\s*(?:Account|帐号|账号|帐户|账户|帳號|帳戶)\s*[:：]/i.test(el.getAttribute('aria-label'));
-  });
-  const emails=[...new Set(accounts.flatMap(el=>el.getAttribute('aria-label').match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(s=>s.toLowerCase()))];
+  const accounts=Array.from(doc.querySelectorAll('[aria-label],[data-tooltip],[title],img[alt]')).filter(el=>{
+   for(let p=el;p;p=p.parentElement)if(p.hidden||p.getAttribute('aria-hidden')==='true'||doc.defaultView.getComputedStyle(p).display==='none'||doc.defaultView.getComputedStyle(p).visibility==='hidden')return false;
+   const labels=[el.getAttribute('aria-label'),el.getAttribute('data-tooltip'),el.getAttribute('title'),el.getAttribute('alt')].filter(Boolean).join(' ');
+   return !el.closest('main,[role="main"],[role="dialog"]')&&(/Google\s*(?:Account|帐号|账号|帐户|账户|帳號|帳戶)\s*[:：]/i.test(labels)||/@student\.monash\.edu\b/i.test(labels));
+ });
+  const emails=[...new Set(accounts.flatMap(el=>[el.getAttribute('aria-label'),el.getAttribute('data-tooltip'),el.getAttribute('title'),el.getAttribute('alt')].filter(Boolean).flatMap(label=>label.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[])).map(s=>s.toLowerCase()))];
   const email=emails.length===1?emails[0]:null;
   if(!email)throw new Error('[LOGIN_REQUIRED] Gmail 当前登录账号无法唯一确认，请打开目标邮箱后重试；未读取邮件');
   if(command==='identity')return {email,url:doc.location.href};

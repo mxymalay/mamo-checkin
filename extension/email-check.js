@@ -6,16 +6,25 @@ export async function checkEmailLogin(message,{tabs,readIdentity,selectAccount})
  catch(error){throw pageError(error,'Gmail');}
 }
 
-export async function listGmailAccounts({tabs,readIdentity}){
+export async function listGmailAccounts({tabs,readIdentity,create},message={}){
  const accounts=new Set();
- for(const tab of await tabs.query({url:'https://mail.google.com/*'})){
-  if(tab.status!=='complete')continue;
+ const candidates=[];
+ const addCandidate=tab=>{if(tab?.id!=null&&!candidates.some(item=>item.id===tab.id))candidates.push(tab);};
+ if(Number.isInteger(message.tabId))try{addCandidate(await tabs.get(message.tabId));}catch{}
+ for(const tab of await tabs.query({url:'https://mail.google.com/*'}))addCandidate(tab);
+ let pendingTabId;
+ for(const tab of candidates){
+  if(tab.status!=='complete'){pendingTabId??=tab.id;continue;}
   try{
    const email=schoolEmail((await readIdentity(tab.id))?.email);
    accounts.add(email);
-  }catch{}
+  }catch{pendingTabId??=tab.id;}
  }
- return {accounts:[...accounts].sort()};
+ if(!accounts.size&&message.open&&create&&!Number.isInteger(message.tabId)){
+  const tab=await create('https://mail.google.com/');
+  pendingTabId=tab?.id??tab;
+ }
+ return {accounts:[...accounts].sort(),...(!accounts.size&&Number.isInteger(pendingTabId)?{tabId:pendingTabId}:{})};
 }
 async function checkEmailSession(message,{tabs,readIdentity,selectAccount}){
  const email=schoolEmail(message.email);
