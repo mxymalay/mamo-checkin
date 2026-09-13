@@ -10,8 +10,8 @@ export function bindVerification({button,status,prepare=()=>({}),check,onVerifie
  const activity=doc.createElement('span');activity.className='verification-activity';activity.hidden=true;
  const spinner=doc.createElement('span');spinner.className='verification-spinner';spinner.setAttribute('aria-hidden','true');
  const countdown=doc.createElement('span');countdown.className='verification-countdown';activity.append(spinner,countdown);button.after(activity);
- let generation=0,pollTimer,tickTimer,endTimer,resolveRun,running=false,verified=false,saving=false;
- function render(){button.disabled=running;button.classList.toggle('verified',verified);button.textContent=verified?verifiedText:idleText;button.setAttribute('aria-busy',String(running));activity.hidden=!running||saving;}
+ let generation=0,pollTimer,tickTimer,endTimer,resolveRun,running=false,verified=false,saving=false,locked=false;
+ function render(){button.disabled=running||locked;button.classList.toggle('verified',verified);button.textContent=verified?verifiedText:idleText;button.setAttribute('aria-busy',String(running));activity.hidden=!running||saving;}
  function clearTimers(){clock.clearTimeout(pollTimer);clock.clearInterval(tickTimer);clock.clearTimeout(endTimer);}
  function finish(value){generation++;clearTimers();running=false;saving=false;const resolve=resolveRun;resolveRun=null;render();resolve?.(value);}
  function stop(){finish(null);}
@@ -40,8 +40,8 @@ export function bindVerification({button,status,prepare=()=>({}),check,onVerifie
   };
   void read(true);return done;
  }
- button.onclick=()=>{if(!running)void start();};clock.addEventListener('pagehide',stop,{once:true});render();
- return {start,stop,reset,markVerified,get running(){return running;},get verified(){return verified;},activity};
+ button.onclick=()=>{if(!running&&!locked)void start();};clock.addEventListener('pagehide',stop,{once:true});render();
+ return {start,stop,reset,markVerified,setLocked(value){locked=Boolean(value);render();},get running(){return running;},get verified(){return verified;},activity};
 }
 
 export function loginRequest(site,settings,initialContext={}){

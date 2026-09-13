@@ -81,6 +81,21 @@ test('entering the identity step automatically tries Attendance name detection o
  assert.equal(calls.filter(payload=>payload.type==='readIdentity').length,1);
  dom.window.close();
 });
+test('automatic identity detection disables the other actions until it finishes',async()=>{
+ const dom=new JSDOM('<body><header></header></body>'),doc=dom.window.document;let resolveName;
+ const guide=createSetupGuide({doc,request:async payload=>{
+  if(payload.type==='readIdentity')return new Promise(resolve=>{resolveName=resolve;});
+  if(payload.type==='listGmailAccounts')return {accounts:[]};
+  return {};
+ },refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});
+ guide.update({setupGuide:true,settings:{}});guide.health({binaryReady:true});await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(doc.getElementById('setup-read-name').disabled,true);
+ assert.equal(doc.getElementById('setup-email-check').disabled,true);
+ assert.equal(doc.querySelector('#setup-identity button[type=submit]').disabled,true);
+ resolveName({name:'Example Student'});await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(doc.getElementById('setup-read-name').disabled,false);assert.equal(doc.getElementById('setup-email-check').disabled,false);
+ guide.update({setupGuide:true,settings:{email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'}}});dom.window.close();
+});
 test('entering identity with a saved email also verifies Gmail once',async()=>{
  const dom=new JSDOM('<body><header></header></body>'),doc=dom.window.document,calls=[];
  const guide=createSetupGuide({doc,request:async payload=>{calls.push(payload);return payload.type==='checkEmail'?{matched:true,email:payload.email}:{};},refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});
