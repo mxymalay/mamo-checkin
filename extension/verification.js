@@ -44,8 +44,8 @@ export function bindVerification({button,status,prepare=()=>({}),check,onVerifie
  return {start,stop,reset,markVerified,get running(){return running;},get verified(){return verified;},activity};
 }
 
-export function loginRequest(site,settings){
- const context={};
+export function loginRequest(site,settings,initialContext={}){
+ const context={...initialContext};
  return async(request,open)=>{
   const payload=site==='gmail'?{type:'checkEmail',email:settings.email}:site==='moodle'?{type:'checkMoodle',name:settings.name}:{type:'readIdentity'};
   const result=await request({...payload,...context,open});

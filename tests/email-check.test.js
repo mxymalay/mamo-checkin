@@ -39,6 +39,15 @@ test('automatic Gmail discovery opens a background tab when no Gmail page exists
  const created=[];const result=await listGmailAccounts({tabs:{query:async()=>[],create:async()=>{throw Error('adapter create should be used');}},readIdentity:async()=>({}) ,create:async url=>{created.push(url);return {id:8,status:'loading',url};}},{open:true});
  assert.deepEqual(result,{accounts:[],tabId:8});assert.deepEqual(created,['https://mail.google.com/']);
 });
+test('background Gmail discovery moves only its tab to the account list after a personal account',async()=>{
+ const updates=[];let reads=0;
+ const tabs={query:async()=>[],get:async()=>({id:8,status:'complete',url:reads<1?'https://mail.google.com/mail/u/0/':'https://accounts.google.com/v3/signin/accountchooser'})};
+ const result=await listGmailAccounts({tabs,readIdentity:async()=>{reads++;return {email:'personal@example.com'};},readGoogleAccounts:async()=>({accounts:['personal@example.com','ABCD1234@student.monash.edu']}),update:async(id,url)=>updates.push({id,url})},{open:true,tabId:8});
+ assert.deepEqual(result,{accounts:[],tabId:8});
+ assert.equal(updates.length,1);assert.equal(updates[0].id,8);assert.equal(new URL(updates[0].url).hostname,'accounts.google.com');
+ const listed=await listGmailAccounts({tabs:{...tabs,get:async()=>({id:8,status:'complete',url:'https://accounts.google.com/v3/signin/accountchooser'})},readIdentity:async()=>{throw Error('must not read Gmail identity on chooser');},readGoogleAccounts:async()=>({accounts:['personal@example.com','ABCD1234@student.monash.edu']})},{open:true,tabId:8});
+ assert.deepEqual(listed,{accounts:['abcd1234@student.monash.edu'],tabId:8});
+});
 test('email edits invalidate an in-flight successful check',async()=>{
  const dom=new JSDOM('<input value="abcd1234"><button></button><p></p>'),doc=dom.window.document;
  let resolve;const calls=[];

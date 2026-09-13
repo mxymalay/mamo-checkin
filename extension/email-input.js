@@ -1,8 +1,10 @@
 import {schoolEmail} from './school-email.js';
 import {bindVerification,loginRequest} from './verification.js';
-export function bindEmailReader({input,button,status,request,onVerified,onChange=()=>{},doc=document}){
- const binding=bindVerification({button,status,doc,prepare:()=>loginRequest('gmail',{email:schoolEmail(input.value)}),check:(read,open)=>read(request,open),onVerified:async result=>onVerified?.(result.email),success:onVerified?'Gmail 邮箱检测通过，已保存。':'Gmail 邮箱检测通过，请确认后保存。'});
+export function bindEmailReader({input,button,status,request,onVerified,onChange=()=>{},initialTabId=null,doc=document}){
+ let verificationTabId=initialTabId;
+ const binding=bindVerification({button,status,doc,prepare:()=>loginRequest('gmail',{email:schoolEmail(input.value)},Number.isInteger(verificationTabId)?{tabId:verificationTabId}:{}),check:(read,open)=>read(request,open),onVerified:async result=>onVerified?.(result.email),success:onVerified?'Gmail 邮箱检测通过，已保存。':'Gmail 邮箱检测通过，请确认后保存。'});
  input.addEventListener('input',()=>{binding.reset();onChange();status.textContent='邮箱已修改，请重新检测。';});
+ binding.setTabId=tabId=>{verificationTabId=Number.isInteger(tabId)?tabId:null;};
  return binding;
 }
 

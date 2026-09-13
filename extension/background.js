@@ -19,13 +19,13 @@ import {getImage} from './image-download.js';
 import {LOGIN_REQUIRED,readAuthenticatedPage,isClosedPageError,pageError} from './login-state.js';
 import {openVerifiedGmail} from './gmail-session.js';
 import {checkEmailLogin,listGmailAccounts} from './email-check.js';
-import {selectGoogleAccount} from './google-account.js';
+import {listGoogleAccounts,selectGoogleAccount} from './google-account.js';
 import {checkSiteLogin} from './site-check.js';
 
 const UNITS='https://attendance.monash.edu.my/student/Units.aspx';
 let activeRun=null,activeDetection=null;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const emailCheckAdapters={tabs:chrome.tabs,readIdentity:tabId=>runFunction(tabId,gmailAdapter,'identity'),create:url=>chrome.tabs.create({url,active:false}),selectAccount:async(tabId,email)=>{const results=await chrome.scripting.executeScript({target:{tabId},func:selectGoogleAccount,args:[email]});return results[0]?.result||{selected:false};}};
+const emailCheckAdapters={tabs:chrome.tabs,readIdentity:tabId=>runFunction(tabId,gmailAdapter,'identity'),readGoogleAccounts:async tabId=>{const results=await chrome.scripting.executeScript({target:{tabId},func:listGoogleAccounts,args:[]});return results[0]?.result||{accounts:[]};},create:url=>chrome.tabs.create({url,active:false}),update:(tabId,url)=>chrome.tabs.update(tabId,{url}),selectAccount:async(tabId,email)=>{const results=await chrome.scripting.executeScript({target:{tabId},func:selectGoogleAccount,args:[email]});return results[0]?.result||{selected:false};}};
 
 async function loadState(){const s=await chrome.storage.local.get(['settings','records','seenMessages','seenThreads','moodleProgress','nextCourse','diagnostics','status','ownedTabIds']);return {...s,settings:{...DEFAULTS,...s.settings},records:s.records||[],seenMessages:s.seenMessages||{},seenThreads:s.seenThreads||{},moodleProgress:s.moodleProgress||{},diagnostics:s.diagnostics||[],ownedTabIds:s.ownedTabIds||[]};}
 async function schedule(){const s=await loadState();await reconcileScanAlarm(s.settings,chrome.alarms);}

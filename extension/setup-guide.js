@@ -57,7 +57,7 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
  const canDiscoverEmail=()=>enabled&&doc.body.dataset.setup==='identity'&&!identityEdit&&!$('setup-email').value.trim()&&!identityBindings.email.verified&&!identityBindings.email.running&&!identityEmailDiscoveryCancelled;
  const clearEmailDiscoveryTimer=()=>{if(identityEmailDiscoveryTimer!==null){doc.defaultView.clearTimeout(identityEmailDiscoveryTimer);identityEmailDiscoveryTimer=null;}};
  const scheduleEmailDiscovery=delay=>{clearEmailDiscoveryTimer();if(!canDiscoverEmail())return;identityEmailDiscoveryTimer=doc.defaultView.setTimeout(()=>{identityEmailDiscoveryTimer=null;void discoverEmailAccounts();},delay);};
- const startEmailVerification=email=>{$('setup-email').value=emailPrefix(email);identityEmailDiscoveryCancelled=true;clearEmailDiscoveryTimer();identityBindings.email.reset();identityEmailCheckStarted=true;void identityBindings.email.start();};
+ const startEmailVerification=(email,tabId=identityEmailDiscoveryTabId)=>{$('setup-email').value=emailPrefix(email);identityEmailDiscoveryCancelled=true;clearEmailDiscoveryTimer();identityBindings.email.setTabId?.(tabId);identityBindings.email.reset();identityEmailCheckStarted=true;void identityBindings.email.start();};
  async function discoverEmailAccounts(){
   if(identityEmailDiscoveryPending||!canDiscoverEmail())return;
   identityEmailDiscoveryPending=true;
@@ -67,10 +67,10 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
    for(const value of result?.accounts||[]){try{const email=schoolEmail(value);if(!accounts.includes(email))accounts.push(email);}catch{}}
    if(!canDiscoverEmail())return;
    if(!accounts.length){$('setup-email-check-status').textContent=result?.tabId?'请在打开的 Gmail 标签页完成登录，正在等待账号…':'未找到已登录的学校邮箱，正在重试…';return;}
-   if(accounts.length===1){startEmailVerification(accounts[0]);return;}
+   if(accounts.length===1){startEmailVerification(accounts[0],identityEmailDiscoveryTabId);return;}
    $('setup-email-check-status').textContent='检测到多个已登录的学校邮箱，请选择一个。';
    const selected=await chooseEmail(accounts);
-   if(selected&&canDiscoverEmail())startEmailVerification(selected);else identityEmailDiscoveryCancelled=true;
+   if(selected&&canDiscoverEmail())startEmailVerification(selected,identityEmailDiscoveryTabId);else identityEmailDiscoveryCancelled=true;
   }catch{if(canDiscoverEmail())$('setup-email-check-status').textContent='暂未找到已登录的学校邮箱，正在重试…';}
   finally{identityEmailDiscoveryPending=false;if(canDiscoverEmail())scheduleEmailDiscovery(2000);}
  }
