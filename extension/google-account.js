@@ -1,5 +1,5 @@
 export function googleAccountChooser(email=''){
- const url=new URL('https://accounts.google.com/v3/signin/accountchooser');
+ const url=new URL('https://accounts.google.com/AccountChooser');
  url.searchParams.set('service','mail');url.searchParams.set('continue',email?`https://mail.google.com/mail/?authuser=${encodeURIComponent(email)}`:'https://mail.google.com/mail/');
  return url.href;
 }

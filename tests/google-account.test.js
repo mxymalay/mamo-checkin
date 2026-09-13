@@ -1,13 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
-import {listGoogleAccounts,selectGoogleAccount} from '../extension/google-account.js';
+import {googleAccountChooser,listGoogleAccounts,selectGoogleAccount} from '../extension/google-account.js';
 import {checkEmailLogin} from '../extension/email-check.js';
 import {openVerifiedGmail} from '../extension/gmail-session.js';
 const email='abcd1234@student.monash.edu';
 test('account list returns visible email identifiers only',()=>{
  const dom=new JSDOM(`<div data-identifier="personal@example.com"></div><div data-identifier="${email}"></div><div hidden data-identifier="hidden@student.monash.edu"></div><div data-identifier="not-an-email"></div>`,{url:'https://accounts.google.com/v3/signin/accountchooser'});
  assert.deepEqual(listGoogleAccounts(dom.window.document),{accounts:['personal@example.com',email]});dom.window.close();
+});
+test('account chooser uses the Google-compatible entry point',()=>{
+ const url=new URL(googleAccountChooser());
+ assert.equal(url.pathname,'/AccountChooser');assert.equal(url.searchParams.get('service'),'mail');
 });
 test('chooser activates only the exact requested account',()=>{
  const dom=new JSDOM(`<div role="link" data-identifier="other@example.com"></div><div role="link" data-identifier="${email}"></div>`,{url:'https://accounts.google.com/v3/signin/accountchooser'}),clicked=[];
