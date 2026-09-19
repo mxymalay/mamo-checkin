@@ -11,7 +11,7 @@ export async function localService({onProgress=async()=>{}}={}){
   await exclusive(async()=>{await ensure();clients++;});
   const report=async(message,extra={})=>{try{await onProgress({message,...extra});}catch{}};
   const callOffscreen=async payload=>{
-    let timer;const timeout=payload.op==='ocr'?50000:5000;
+    let timer;const timeout=payload.op==='ocr'?50000:45000;
     try{
       const result=await Promise.race([chrome.runtime.sendMessage({target:'ocr-offscreen',...payload}).catch(cause=>{const error=new Error('识别服务连接中断：'+(cause?.message||String(cause)));error.resetRequired=true;throw error;}),new Promise((_,reject)=>{timer=setTimeout(()=>{const error=new Error(`${payload.op==='ocr'?'图片识别':'识别服务状态查询'}响应超时（${timeout/1000} 秒）`);error.resetRequired=true;reject(error);},timeout);})]);
       if(!result?.ok){const error=new Error(result?.error||'图片识别服务没有响应');error.resetRequired=Boolean(result?.resetRequired);throw error;}return result;

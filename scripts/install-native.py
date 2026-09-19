@@ -6,8 +6,10 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import struct
 import subprocess
 import sys
+import time
 
 def install(bundle, home, language='zh'):
     extension_id = 'nccgbccaamgcdcikjhljinefjbfcinfp'
@@ -39,20 +41,34 @@ if __name__ == '__main__':
         raise SystemExit('This installer supports macOS only.' if args.language == 'en' else '本版本仅支持 macOS。')
     launcher, target, extension_id = install(args.bundle.resolve(), Path.home(), args.language)
     # Test exactly the installed launcher and framed protocol, without operating Chrome.
+    # macOS inspects a newly written binary once before its first execution; that first
+    # self-test can take about half a minute even though every later run is instant.
     body = b'{"op":"ping"}'
-    import struct
-    response = subprocess.run([str(launcher)], input=struct.pack('<I',len(body))+body, capture_output=True, timeout=10, check=True).stdout
-    size = struct.unpack('<I',response[:4])[0]
-    health = json.loads(response[4:4+size])
-    if not health.get('ok') or not health.get('binaryReady'):
-        if args.language == 'en':
-            print('The recognition service was installed, but attendance-ocr did not pass its startup self-test.')
-            print('Open System Settings → Privacy & Security → Open Anyway and allow attendance-ocr.')
-            print('Recognition executable: ' + health.get('binaryPath', ''))
+    english = args.language == 'en'
+    print('Running the self-test; macOS may take about half a minute the first time it inspects a new program...'
+          if english else '正在进行自检；macOS 首次检查新程序可能需要约半分钟，请稍候……')
+    health = None
+    for attempt in (1, 2):
+        try:
+            response = subprocess.run([str(launcher)], input=struct.pack('<I', len(body)) + body, capture_output=True, timeout=75, check=True).stdout
+            size = struct.unpack('<I', response[:4])[0]
+            health = json.loads(response[4:4 + size])
+        except subprocess.TimeoutExpired:
+            health = None
+        if health and health.get('ok') and health.get('binaryReady'):
+            break
+        if attempt == 1:
+            print('首次自检尚未完成，自动重试一次……' if not english else 'Self-test not finished yet; retrying once...')
+            time.sleep(5)
+    if not health or not health.get('ok') or not health.get('binaryReady'):
+        if english:
+            print('The recognition service was installed, but attendance-ocr still did not pass its startup self-test.')
+            print('Run this installer once more; the first inspection of a new program can take about half a minute. If macOS actually reports attendance-ocr as blocked, allow it under System Settings → Privacy & Security → Open Anyway and retry.')
+            print('Recognition executable: ' + str((health or {}).get('binaryPath', '')))
             raise SystemExit('Return to Mamo Check-in and choose “Allowed in System Settings — check again”. Do not skip this step.')
-        print('识别服务文件已安装，但 attendance-ocr 启动自检尚未通过。')
-        print('请到 系统设置 → 隐私与安全性 → 仍要打开，允许 attendance-ocr。')
-        print('识别程序位置：' + health.get('binaryPath', ''))
+        print('识别服务文件已安装，但 attendance-ocr 自检仍未通过。')
+        print('请重新运行本安装命令再试一次；macOS 首次检查新程序可能需要约半分钟。若 macOS 确实提示 attendance-ocr 被阻止，请到 系统设置 → 隐私与安全性 → 仍要打开 允许后重试。')
+        print('识别程序位置：' + str((health or {}).get('binaryPath', '')))
         raise SystemExit('完成后回到助手页面，点击“已在系统设置允许，重新检测”。不要跳过这一步。')
     if args.language == 'en':
         print('Mac native recognition service installed; self-test passed.')

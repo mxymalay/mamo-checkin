@@ -139,12 +139,12 @@ Moodle 签到码来源|Moodle attendance code source
 签到码从 Moodle 界面读取。|Attendance codes are read from the Moodle interface.
 
 安装命令授权|Allow the installer
-attendance-ocr 授权|Allow attendance-ocr
+attendance-ocr 自检|attendance-ocr self-check
 如被阻止：系统设置 → 隐私与安全性 → 仍要打开。|If blocked: System Settings → Privacy & Security → Open Anyway.
-第一步允许后，识别程序还需要单独授权。|After allowing the installer, the recognition executable needs separate approval.
-被阻止，请再次前往|is blocked, go again to
-允许后回到这里重新检测。|After allowing it, return here and check again.
-如果|If
+安装脚本会自动完成自检；macOS 首次检查新程序可能需要约半分钟，请耐心等待。|The installer script completes the self-check automatically; macOS may take about half a minute the first time it inspects a new program, so wait patiently.
+被阻止时，才前往|is blocked, open
+ 允许它，然后回到这里重新检测。| and allow it, then return here and check again.
+只有当 macOS 明确提示|Only when macOS explicitly reports
 
 正在检查识别服务…|Checking OCR…
 请确认课程配置|Review course configuration

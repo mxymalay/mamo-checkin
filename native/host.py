@@ -410,7 +410,9 @@ def handle_request(request):
         ready = False
         health_error = ""
         try:
-            probe = subprocess.run([str(OCR_BINARY), "--self-test"], capture_output=True, timeout=6, check=False)
+            # macOS inspects a newly written binary once before its first execution
+            # (~25s observed); that first probe is slow and every later one is instant.
+            probe = subprocess.run([str(OCR_BINARY), "--self-test"], capture_output=True, timeout=40, check=False)
             payload = json.loads(probe.stdout.decode("utf-8")) if probe.returncode == 0 else None
             ready = isinstance(payload, dict) and payload.get("ok") is True
         except (OSError, ValueError, subprocess.TimeoutExpired):

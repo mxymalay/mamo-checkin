@@ -8,7 +8,7 @@ This package installs the local OCR helper required for both the GitHub extensio
 
 1. Extract `mamo-ocr-mac.zip`. Do not run a file from inside the archive.
 2. Open the `English` folder and run `Install Mac Recognition.command`. macOS must have Python 3 available; install Apple's command-line tools if prompted.
-3. If macOS blocks the installer or `attendance-ocr`, verify the source, then use **System Settings > Privacy & Security > Open Anyway** for that file. Do not disable system security.
+3. The first self-check can take about half a minute while macOS inspects the new helper once; every later check is instant. Only if macOS actually reports the installer or `attendance-ocr` as blocked, verify the source, then use **System Settings > Privacy & Security > Open Anyway** for that file. Do not disable system security.
 4. Return to the extension and wait for the recognition check to pass.
 5. To remove the helper later, run `English/Uninstall Mac Recognition.command`. It removes only the local OCR helper and Chrome registration.
 
@@ -30,7 +30,7 @@ Downloads must come from the [latest GitHub release](https://github.com/mxymalay
 
 1. 解压 `mamo-ocr-mac.zip`，不要直接运行压缩包内的文件。
 2. 打开 `中文` 文件夹，运行 `安装 Mac 识别服务.command`。需要系统可用的 Python 3；若提示安装 Apple 命令行工具，请先完成安装。
-3. 安装命令或 `attendance-ocr` 被拦截时，确认文件来源后到“系统设置 → 隐私与安全性 → 仍要打开”允许对应文件，不要关闭系统安全保护。
+3. 首次自检时 macOS 会对新程序做一次性检查，可能需要约半分钟，属正常现象。只有当 macOS 确实提示安装命令或 `attendance-ocr` 被拦截时，才确认文件来源后到“系统设置 → 隐私与安全性 → 仍要打开”允许对应文件；不要关闭系统安全保护。
 4. 返回扩展，等待识别服务检测通过。
 5. 以后如需清除配套程序，运行 `中文/卸载 Mac 识别服务.command`。只清除本机 OCR 服务和 Chrome 注册，不会删除扩展配置、课程或签到记录。
 

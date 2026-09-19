@@ -3,7 +3,7 @@ import {STORE_ID} from './companion-setup.js';
 const HOST='com.attendanceassistant.vision';
 const connectionError=()=>new Error('本地识别服务无法连接。请运行安装包中的安装程序，然后重新加载马莫签到助手。');
 
-export async function localService({onProgress=async()=>{},timeoutMs=35000}={}){
+export async function localService({onProgress=async()=>{},timeoutMs=60000}={}){
   let port;
   try{port=chrome.runtime.connectNative(HOST);}catch(error){throw connectionError(error.message);}
   let pending=null,closed=false,queue=Promise.resolve(),failure=null;
@@ -24,14 +24,14 @@ export async function localService({onProgress=async()=>{},timeoutMs=35000}={}){
     try{
       return await new Promise((resolve,reject)=>{
         pending={resolve,reject};
-        timer=setTimeout(()=>{failure=new Error('本地识别响应超时，已停止本次连接；原图由本机服务保存。');closed=true;reject(failure);port.disconnect();},payload.op==='ocr'?timeoutMs:Math.min(timeoutMs,10000));
+        timer=setTimeout(()=>{failure=new Error('本地识别响应超时，已停止本次连接；原图由本机服务保存。');closed=true;reject(failure);port.disconnect();},payload.op==='ocr'?timeoutMs:Math.min(timeoutMs,45000));
         try{port.postMessage(payload);}catch(error){reject(connectionError(error.message));}
       });
     }finally{clearTimeout(timer);pending=null;}
   };
   return {call(payload){
     const job=queue.catch(()=>{}).then(async()=>{
-      if(payload.op==='ocr')await report({message:'正在使用本地识别（最多 30 秒）',service:{busy:true,stage:ocrEngine}});
+      if(payload.op==='ocr')await report({message:'正在使用本地识别（最多 60 秒）',service:{busy:true,stage:ocrEngine}});
       const started=Date.now();
       let result;
       try{result=await request(payload);}catch(error){if(payload.op==='ocr')await report({message:'图片识别失败：'+error.message,service:{busy:false,binaryReady:false,stage:'识别失败'}});throw error;}
