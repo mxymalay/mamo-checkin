@@ -13,7 +13,13 @@ export function normalizeIdentity(existing,update,hasRecords=false){
  if(!name)throw new Error('请填写学校系统显示的姓名');
  // Email is optional at setup: it is only needed once a course uses a Gmail
  // sender. An empty update never clears a previously saved address.
- const email=update.email?schoolEmail(update.email):String(existing.email||'');
+ let email='';
+ if(update.email)email=schoolEmail(update.email);
+ else if(existing.email){
+  // Older builds stored only the school-email prefix. Migrate that value
+  // during identity setup; an invalid stale value must not block name setup.
+  try{email=schoolEmail(existing.email);}catch{email='';}
+ }
  if(email&&!/^[^\s@]+@[^\s@]+$/.test(email))throw new Error('请填写有效的学校邮箱');
  if(hasRecords&&(name!==existing.name||(email&&existing.email&&email!==existing.email)))throw new Error('已有签到记录，请使用独立的 Chrome 配置文件切换账号');
  return {email,name};

@@ -104,6 +104,13 @@ test('identity setup asks only for the Attendance name, never the email',()=>{
  assert.equal(doc.getElementById('setup-read-name').hidden,true);
  e.dom.window.close();
 });
+test('identity setup submits only the Attendance name',async()=>{
+ const e=make(),doc=e.dom.window.document;e.guide.update({setupGuide:true,settings:{}});e.guide.health({binaryReady:true});
+ doc.getElementById('setup-name').value='Example Student';
+ doc.getElementById('setup-identity').dispatchEvent(new e.dom.window.Event('submit',{cancelable:true}));await new Promise(resolve=>setTimeout(resolve,0));
+ assert.deepEqual(e.calls,[{type:'identity',name:'Example Student'}]);
+ e.dom.window.close();
+});
 test('entering the identity step automatically tries Attendance name detection once',async()=>{
  const dom=new JSDOM('<body><header></header></body>'),doc=dom.window.document,calls=[];
  const guide=createSetupGuide({doc,request:async payload=>{calls.push(payload);return payload.type==='readIdentity'?{name:'Example Student'}:{};},refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});
@@ -149,5 +156,5 @@ test('identity form saves the name only and leaves any stored email untouched',a
  const e=make(),doc=e.dom.window.document;e.guide.update({setupGuide:true,settings:{}});e.guide.health({binaryReady:true});
  doc.getElementById('setup-name').value='Example Student';
  doc.getElementById('setup-identity').dispatchEvent(new e.dom.window.Event('submit',{cancelable:true}));await new Promise(r=>setTimeout(r,0));
- assert.equal(e.calls.length,1);assert.equal(e.calls[0].type,'identity');assert.equal(e.calls[0].name,'Example Student');assert.equal(e.calls[0].email,'');e.dom.window.close();
+ assert.equal(e.calls.length,1);assert.equal(e.calls[0].type,'identity');assert.equal(e.calls[0].name,'Example Student');assert.equal(Object.hasOwn(e.calls[0],'email'),false);e.dom.window.close();
 });

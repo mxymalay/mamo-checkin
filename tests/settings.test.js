@@ -72,6 +72,8 @@ test('moodle-only and ed-only setups save without a school email',()=>{
 test('identity keeps a stored email when the setup form no longer collects it',()=>{
  assert.deepEqual(normalizeIdentity({email:'abcd1234@student.monash.edu',name:'Old Name'},{email:'',name:'Example Student'}),{email:'abcd1234@student.monash.edu',name:'Example Student'});
  assert.deepEqual(normalizeIdentity({},{email:'',name:'Example Student'}),{email:'',name:'Example Student'});
+ assert.deepEqual(normalizeIdentity({email:'abcd1234',name:'Old Name'},{name:'Example Student'}),{email:'abcd1234@student.monash.edu',name:'Example Student'});
+ assert.deepEqual(normalizeIdentity({email:'stale-value',name:'Old Name'},{name:'Example Student'}),{email:'',name:'Example Student'});
  assert.throws(()=>normalizeIdentity({},{email:'',name:''}),/姓名/);
  assert.throws(()=>normalizeIdentity({email:'abcd1234@student.monash.edu',name:'Old Name'},{email:'',name:'Other Name'},true),/记录/);
 });
