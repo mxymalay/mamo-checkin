@@ -4,7 +4,7 @@
 
 **The Chrome Web Store edition is live: [install Mamo Check-in](https://chromewebstore.google.com/detail/mamo-check-in/mneachaobiledakoicnkinfdpcjkbnmm) and follow the in-extension guide.**
 
-Both platforms use built-in browser OCR by default. Mac users can optionally install the Apple Vision helper from the OCR package in the setup guide for higher accuracy.
+Both platforms can use built-in browser OCR. Mac users can optionally install the Apple Vision helper from the OCR package in the setup guide for higher accuracy.
 
 | Item | Download |
 | --- | --- |
@@ -39,7 +39,7 @@ In Attendance records, use **Download log** for recent run events and up to 500 
 
 **商店版已上线：[直接安装马莫签到助手（Mamo Check-in）](https://chromewebstore.google.com/detail/mamo-check-in/mneachaobiledakoicnkinfdpcjkbnmm)，然后按扩展内引导继续。**
 
-两个平台默认都使用浏览器内置 OCR。Mac 用户可按安装引导下载 OCR 配套包，选择安装识别效果更好的 Apple Vision。
+两个平台均可使用浏览器内置 OCR。Mac 用户可按安装引导下载 OCR 配套包，选择安装识别效果更好的 Apple Vision。
 
 | 项目 | 下载 |
 | --- | --- |
@@ -79,4 +79,4 @@ npm run build
 npm run build:store
 ```
 
-两个平台默认使用浏览器内置 OCR；Mac OCR 配套包需要 Xcode 命令行工具，只有 Mac 用户希望使用 Apple Vision 时才需要下载。
+两个平台均可使用浏览器内置 OCR；Mac OCR 配套包需要 Xcode 命令行工具，只有 Mac 用户希望使用 Apple Vision 时才需要下载。

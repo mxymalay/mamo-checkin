@@ -20,7 +20,7 @@ const entries=`
 正在签到；使用浏览器内置识别图片|Checking in; recognizing images with the built-in browser OCR
 浏览器内置识别无独立日志文件|The built-in browser OCR keeps no separate log file.
 当前使用浏览器内置识别引擎，全程在本机完成、无需安装；Mac 可按引导下载配套程序使用 Apple Vision 提升识别效果。|Using the built-in browser OCR engine: fully on-device, nothing to install. Mac users can follow the guide to install the companion for higher-accuracy Apple Vision recognition.
-两个平台默认使用浏览器内置识别；Mac 可选装 Apple Vision 配套程序。|Both platforms use built-in browser OCR by default; Mac users can optionally install the Apple Vision companion.
+两个平台均可使用浏览器内置识别；Mac 可选装 Apple Vision 配套程序。|Both platforms can use built-in browser OCR; Mac users can optionally install the Apple Vision companion.
 本机识别服务版本不兼容。请使用本页下载按钮安装 OCR 配套程序，再重新检测。|The local OCR helper is incompatible. Install the companion using this page's download button, then check again.
 改用本机识别（安装配套程序）|Use Mac OCR helper
 已恢复本机识别优先；请在上方引导第 1 步安装配套程序。|On-device OCR is preferred again. Install the companion in step 1 of the guide above.
