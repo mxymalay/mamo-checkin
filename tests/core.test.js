@@ -8,6 +8,10 @@ test('separate image rows retain their own date, group and code',()=>{
   const rows=parseImageRows([observation('Studio Tuesday,1 Sep 01-P1 6:00PM T9KUG',.7),observation(row,.2)],meta);
   assert.deepEqual(rows.map(r=>[r.date,r.group,r.code,r.time]),[['2026-09-01','01-P1','T9KUG','18:00'],['2026-09-04','01-P2','ZQSB3','18:00']]);
 });
+test('group parsing repairs common OCR letter substitutions',()=>{
+  const parsed=parseImageRows([observation('Workshop Monday, 31 Aug O1 6:00PM CK28J')],meta)[0];
+  assert.equal(parsed.group,'01');
+});
 test('split OCR columns are joined by geometry, not OCR output order',()=>{
  const cells=['8RAJ8','Friday,4 Sep','Seminar','5:00PM','01'].map((text,i)=>({...observation(text),x:[.93,.36,0,.69,.54][i],width:.05}));
  assert.equal(parseImageRows(cells,meta)[0].code,'8RAJ8');
@@ -41,7 +45,8 @@ test('duplicate OCR characters in the right code column are collapsed to five ch
  const cells=['Seminar','Friday,4 Sep','01','5:00PM','F59Vv7'].map((text,index)=>({...observation(text,.7,index===4?.66:1),x:[0,.3,.55,.7,.9][index],width:.08}));
  const parsed=parseImageRows(cells,meta)[0];
  assert.equal(parsed.code,'F59V7');
- assert.equal(parsed.status,'review');
+ // The collapsed candidate is attempted; the portal decides whether it is right.
+ assert.equal(parsed.status,'ready');
 });
 test('Windows consensus code replaces a low-confidence raw token without code-specific rules',()=>{
  const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','F59Vv7'].map((text,index)=>({...observation(text,.7,index===4?.65:1),x:[0,.3,.55,.7,.9][index],width:.08,...(index===4&&{verifiedText:'F59V7',codeVerified:true,verificationVotes:8})}));
@@ -50,12 +55,14 @@ test('Windows consensus code replaces a low-confidence raw token without code-sp
  assert.equal(parsed.codeVerified,true);
  assert.equal(parsed.status,'ready');
 });
-test('verified code crop allows low raw confidence but an explicit disagreement blocks',()=>{
- const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','ZQSB3'].map((text,index)=>({...observation(text,.7,index===4?.55:1),x:[0,.3,.55,.7,.9][index],width:.08,...(index===4&&{codeVerified:true})}));
+test('verified code crop allows low raw confidence and a disagreement defers to the portal',()=>{
+ const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','ZQSB3'].map((text,index)=>({...observation(text,1,index===4?.55:1),x:[0,.3,.55,.7,.9][index],width:.08,...(index===4&&{codeVerified:true})}));
  const verified=parseImageRows(cells,meta)[0];
  assert.equal(verified.confidence,.55);assert.equal(verified.codeVerified,true);assert.equal(verified.status,'ready');assert.equal(eligible(verified,Date.parse('2026-09-04T19:00:00+08:00')),true);
- const disagreed=parseImageRows(cells.map(cell=>cell.text==='ZQSB3'?{...cell,confidence:1,codeVerified:false}:cell),meta)[0];
- assert.equal(disagreed.codeVerified,false);assert.equal(disagreed.status,'review');assert.match(disagreed.reason,/复核结果不一致/);
+ const disagreed=parseImageRows(cells.map(cell=>cell.text==='ZQSB3'?{...cell,confidence:1,codeVerified:false,codeSecondText:'ZQ5B3'}:cell),meta)[0];
+ assert.equal(disagreed.codeVerified,false);assert.equal(disagreed.codeSecondText,'ZQ5B3');
+ assert.equal(disagreed.status,'ready');assert.equal(disagreed.reason,'');
+ assert.equal(eligible(disagreed,Date.parse('2026-09-04T19:00:00+08:00')),true);
 });
 test('verified code cannot excuse an unverified low-confidence structural field',()=>{
  const cells=['Studio','Friday,4 Sep','01-P2','6:00PM','ZQSB3'].map((text,index)=>({
@@ -65,7 +72,9 @@ test('verified code cannot excuse an unverified low-confidence structural field'
  const unsafe=parseImageRows(cells,meta)[0];
  assert.equal(unsafe.status,'review');
  assert.match(unsafe.reason,/识别置信度不足/);
- assert.equal(eligible({...unsafe,status:'ready'},Date.parse('2026-09-04T19:00:00+08:00')),false,'eligible must independently enforce saved evidence');
+ // The portal arbitrates: even a forced-ready record with weak fields is
+ // attempted, because a wrong code is rejected by the website itself.
+ assert.equal(eligible({...unsafe,status:'ready'},Date.parse('2026-09-04T19:00:00+08:00')),true);
 
  const verified=parseImageRows(cells.map(cell=>cell.text==='01-P2'?{...cell,fieldVerified:true}:cell),meta)[0];
  assert.equal(verified.status,'ready');

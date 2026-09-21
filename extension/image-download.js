@@ -8,7 +8,7 @@ async function readImage(url,timeoutMs,maxBytes,requirePage=false,deadline=0){
   const fail=(message,kind='validation')=>{const error=new Error(message);error.kind=kind;throw error;};
   const allowed=value=>{
     let u;try{u=new URL(value);}catch{fail('图片网址无效','source');}
-    if(u.protocol!=='https:'||u.port||u.username||u.password||!(u.hostname==='mail.google.com'||u.hostname==='learning.monash.edu'||u.hostname.endsWith('.googleusercontent.com')))fail('图片来源不在许可范围','source');
+    if(u.protocol!=='https:'||u.port||u.username||u.password||!(u.hostname==='mail.google.com'||u.hostname==='learning.monash.edu'||u.hostname==='edstem.org'||u.hostname.endsWith('.googleusercontent.com')||u.hostname.endsWith('.edusercontent.com')))fail('图片来源不在许可范围','source');
     u.hash='';return u;
   };
   try{
@@ -24,7 +24,12 @@ async function readImage(url,timeoutMs,maxBytes,requirePage=false,deadline=0){
     if(timeoutMs<=0)fail('图片读取超时（总计最多 20 秒），请稍后重试','timeout');
     controller=new AbortController();
     timer=setTimeout(()=>controller.abort(),timeoutMs);
-    const response=await fetch(initial.href,{credentials:'include',redirect:'follow',signal:controller.signal});
+    // Credentials per host: Gmail's image proxy needs its session cookie, while
+    // Moodle's pluginfile redirects to a signed CDN URL — same-origin keeps the
+    // initial request credentialed and the CDN redirect leg uncredentialed, so
+    // the CDN's wildcard ACAO response is accepted instead of CORS-blocked.
+    const credentials=initial.hostname==='mail.google.com'?'include':'same-origin';
+    const response=await fetch(initial.href,{credentials,redirect:'follow',signal:controller.signal});
     try{allowed(response.url);}catch{fail('图片跳转到未获许可的网站，可能需要重新登录 Gmail 或 Moodle','source');}
     if(!response.ok)fail(`图片下载失败（HTTP ${response.status}），请检查原页面登录和网络状态`,'http');
     const mimeType=(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
@@ -62,7 +67,7 @@ export async function getImage(url,tabId){
     const direct=await readImage(url,Math.max(0,deadline-Date.now()),MAX_IMAGE_BYTES,false,deadline);
     if(direct.ok)return {imageBase64:direct.imageBase64,mimeType:direct.mimeType};
     let initial;try{initial=new URL(url);}catch{throw new Error(direct.error);}
-    const pageHost=initial.hostname==='mail.google.com'||initial.hostname==='learning.monash.edu';
+    const pageHost=initial.hostname==='mail.google.com'||initial.hostname==='learning.monash.edu'||initial.hostname==='edstem.org'||initial.hostname==='attendance.monash.edu.my';
     const canFallback=pageHost&&Number.isInteger(tabId)&&tabId>=0&&globalThis.chrome?.scripting?.executeScript&&Date.now()<deadline&&!['source','size','timeout'].includes(direct.kind);
     if(!canFallback)throw new Error(direct.error);
     let results;

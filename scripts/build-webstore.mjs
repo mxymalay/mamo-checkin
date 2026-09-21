@@ -5,14 +5,25 @@ import {zipSync,unzipSync} from 'fflate';
 import assert from 'node:assert/strict';
 
 const root=fileURLToPath(new URL('..',import.meta.url));
-const excluded=new Set(['local-service.js','offscreen.html','offscreen.js','ocr-controller.js','ocr-engine.js']);
 const files={};
+
+const VENDOR=[
+ ['vendor/tesseract.min.js','node_modules/tesseract.js/dist/tesseract.min.js'],
+ ['vendor/worker.min.js','node_modules/tesseract.js/dist/worker.min.js'],
+ ['vendor/tesseract-core-simd-lstm.wasm.js','node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js'],
+ ['vendor/tesseract-core-simd-lstm.wasm','node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm'],
+ ['vendor/eng.traineddata.gz','node_modules/@tesseract.js-data/eng/4.0.0/eng.traineddata.gz']
+];
+async function collectVendor(files){
+ for(const [name,rel] of VENDOR)files[name]=new Uint8Array(await readFile(path.join(root,rel)));
+}
+
 async function collect(dir,prefix=''){
  for(const entry of await readdir(dir,{withFileTypes:true})){
   if(entry.name==='.DS_Store')continue;
   const name=prefix+entry.name;
   if(entry.isDirectory())await collect(path.join(dir,entry.name),name+'/');
-  else if(!excluded.has(name))files[name]=new Uint8Array(await readFile(path.join(dir,entry.name)));
+  else files[name]=new Uint8Array(await readFile(path.join(dir,entry.name)));
  }
 }
 await collect(path.join(root,'extension'));
@@ -27,6 +38,7 @@ for(const [locale,description] of Object.entries(descriptions)){
  assert.ok(description.length<=132);data.appDescription.message=description;
  files[name]=new TextEncoder().encode(JSON.stringify(data,null,2)+'\n');
 }
+await collectVendor(files);
 const zip=zipSync(files,{level:6}),contents=unzipSync(zip);
 assert.ok(contents['manifest.json']);assert.ok(contents['user-error.js']);
 assert.equal(Object.hasOwn(JSON.parse(new TextDecoder().decode(contents['manifest.json'])),'key'),false);

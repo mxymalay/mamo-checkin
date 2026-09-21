@@ -29,9 +29,9 @@ test('each message keeps its own timestamp and excludes quoted pictures',()=>{
  const messages=gmailAdapter('messages',config,doc).messages;
  assert.equal(messages.length,1); assert.equal(messages[0].sentAtText,'2 Sept 2026, 19:31');
  assert.deepEqual(messages[0].images,['https://mail.google.com/current.png']);
- assert.equal(gmailAdapter('messages',{...config,expectedSubject:'FIT5120 - Week 7 Summary'},doc).loading,true);
- assert.equal(gmailAdapter('messages',{...config,expectedSubject:'[FIT5122_S2_2026_TUT01] Attendance Code',expectedLastMessageId:'later'},doc).loading,true);
- assert.equal(gmailAdapter('messages',{...config,expectedSubject:'[FIT5122_S2_2026_TUT01] Attendance Code',expectedLastMessageId:'new'},doc).messages.length,1);
+ assert.equal(gmailAdapter('messages',{...config,expectedSubject:'FIT5120 - Week 7 Summary',expectedLastMessageId:'missing'},doc).loading,true);
+ assert.equal(gmailAdapter('messages',{...config,expectedLastMessageId:'later'},doc).loading,true);
+ assert.equal(gmailAdapter('messages',{...config,expectedLastMessageId:'new'},doc).messages.length,1);
 });
 test('Gmail timestamp fallback reads localized aria labels and datetime controls',()=>{
  const doc=dom(`<button aria-label="Google Account: Person (abcd1234@student.monash.edu)"></button><main role="main"><h2>FIT5122 Attendance Code</h2><div data-legacy-message-id="fallback"><span email="teacher@example.edu"></span><time datetime="2026-09-04 22:08"></time><div class="a3s">Attendance code</div></div></main>`);

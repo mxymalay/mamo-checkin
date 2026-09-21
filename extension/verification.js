@@ -5,7 +5,7 @@ export function configuredLoginSites(settings={}){
  return [...(courses.some(c=>settings.senders?.[c])?['gmail']:[]),...(courses.some(c=>settings.moodleUrls?.[c]?.length)?['moodle']:[]),'attendance'];
 }
 
-export function bindVerification({button,status,prepare=()=>({}),check,onVerified=async()=>{},success='登录检测通过。',idleText='登录并检测',verifiedText='重新登录并检测',doc=button.ownerDocument,timeout=LOGIN_WAIT_MS,interval=3000}){
+export function bindVerification({button,status,prepare=()=>({}),check,onVerified=async()=>{},onError=()=>{},success='登录检测通过。',idleText='登录并检测',verifiedText='重新登录并检测',doc=button.ownerDocument,timeout=LOGIN_WAIT_MS,interval=3000}){
  const clock=doc.defaultView;
  const activity=doc.createElement('span');activity.className='verification-activity';activity.hidden=true;
  const spinner=doc.createElement('span');spinner.className='verification-spinner';spinner.setAttribute('aria-hidden','true');
@@ -36,7 +36,7 @@ export function bindVerification({button,status,prepare=()=>({}),check,onVerifie
     }
     delete status.dataset.state;status.textContent=result?.message||'请在打开的网站完成登录，检测会自动继续。';
     pollTimer=clock.setTimeout(()=>read(false),interval);
-   }catch(error){if(ticket!==generation)return;status.dataset.state='error';status.textContent=String(error.message||error).replace('页面已被关闭，无法执行签到','页面已被关闭，检测已停止。请重新登录并检测。');finish(null);}
+   }catch(error){if(ticket!==generation)return;status.dataset.state='error';status.textContent=String(error.message||error).replace('页面已被关闭，无法执行签到','页面已被关闭，检测已停止。请重新登录并检测。');onError(error);finish(null);}
   };
   void read(true);return done;
  }

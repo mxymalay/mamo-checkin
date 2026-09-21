@@ -1,5 +1,5 @@
 // Control/status operations never wait behind an image job.
-export function createOcrController({createWorker,recognize,timeoutMs=45000}){
+export function createOcrController({createWorker,recognize,timeoutMs=120000}){
   let worker=null,workerPromise=null,queue=Promise.resolve(),generation=0;
   let status={binaryReady:false,busy:false,stage:'识别图片时自动启动',updatedAt:new Date().toISOString()};
   const update=patch=>{status={...status,...patch,updatedAt:new Date().toISOString()};};

@@ -80,20 +80,18 @@ test('two simultaneous clients share offscreen and only the last close releases 
   }finally{await healthClient.close();await runClient.close();}
 }));
 
-test('same image bytes reuse both archived download and verified OCR observations',async()=>withChrome(async fixture=>{
+test('same image bytes reuse verified OCR observations without any file downloads',async()=>withChrome(async fixture=>{
   const localService=await loadService(),service=await localService();
   const request={op:'ocr',imageBase64:btoa('image-bytes'),mimeType:'image/png',meta:{course:'FIT5120'}};
   try{
     const first=await service.call(request),second=await service.call(request);
     assert.equal(first.imageId,'2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c');
     assert.equal(second.imageId,first.imageId);
-    assert.equal(second.imagePath,first.imagePath);
-    assert.deepEqual(fixture.events.downloadOptions.map(item=>item.filename),[
-      '签到助手/images/2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c.png'
-    ]);
+    assert.equal(first.imagePath,undefined);
+    assert.equal(fixture.events.downloadOptions.length,0);
     assert.equal(fixture.events.messages.filter(message=>message.op==='ocr').length,1);
     assert.equal(second.cached,true);
-    assert.equal(fixture.events.messages.filter(message=>message.op==='blob').length,1);
+    assert.equal(fixture.events.messages.filter(message=>message.op==='blob').length,0);
   }finally{await service.close();}
 }));
 
@@ -144,30 +142,13 @@ test('a delayed monitor ping cannot report stale OCR progress after the image fi
   }finally{releasePing?.({ok:true});releaseOcr?.();await service.close();}
 }));
 
-test('unchanged record snapshots skip downloads while changed records replace the archive',async()=>withChrome(async fixture=>{
+test('the records.json archive is a silent no-op in browser mode',async()=>withChrome(async fixture=>{
   const localService=await loadService(),service=await localService();
   try{
-    await service.call({op:'archive',records:[{id:'one',status:'ready'}]});
-    await service.call({op:'archive',records:[{id:'one',status:'ready'}]});
-    await service.call({op:'archive',records:[{id:'one',status:'submitted'}]});
-    assert.deepEqual(fixture.events.downloadOptions.map(item=>item.filename),['签到助手/records.json','签到助手/records.json']);
-    assert.equal(fixture.events.messages.filter(message=>message.op==='blob'&&message.mimeType==='application/json').length,2);
-    assert.equal(typeof fixture.values.get('archiveDigest'),'string');
-  }finally{await service.close();}
-}));
-
-test('interrupted archive download rejects and never commits its digest',async()=>withChrome(async fixture=>{
-  const localService=await loadService(),service=await localService();
-  const request={op:'archive',records:[{id:'one',status:'ready'}]};
-  fixture.queueDownloadState({state:'interrupted',error:'NETWORK_FAILED'});
-  try{
-    await assert.rejects(service.call(request),/本地文件保存失败：NETWORK_FAILED/);
-    assert.equal(fixture.values.has('archiveDigest'),false);
-
-    fixture.queueDownloadState({state:'complete'});
-    const retried=await service.call(request);
-    assert.equal(retried.ok,true);
-    assert.equal(fixture.events.downloadOptions.length,2);
-    assert.equal(typeof fixture.values.get('archiveDigest'),'string');
+    const first=await service.call({op:'archive',records:[{id:'one',status:'ready'}]});
+    const second=await service.call({op:'archive',records:[{id:'one',status:'submitted'}]});
+    assert.equal(first.ok,true);assert.equal(second.ok,true);
+    assert.equal(fixture.events.downloadOptions.length,0);
+    assert.equal(fixture.events.messages.filter(message=>message.op==='blob').length,0);
   }finally{await service.close();}
 }));

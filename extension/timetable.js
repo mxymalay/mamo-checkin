@@ -42,7 +42,29 @@ export function courseNeedsSource(state,course,now=Date.now()){
  const slots=expectedSessions(state.settings,course,now);
  return slots===null||slots.some(slot=>!covered(state,slot,now));
 }
+export function missingSessions(state,course,now=Date.now()){
+ return (expectedSessions(state.settings,course,now)||[]).filter(slot=>!covered(state,slot,now)).map(slot=>{
+  const monday=date=>{const d=new Date(date+'T12:00:00Z');return d.getTime()-((d.getUTCDay()+6)%7)*DAY;};
+  const weekHints=state.records.filter(r=>r.course===course&&r.date&&monday(r.date)===monday(slot.date)).map(r=>Number(String(r.subject||'').match(/\bweek\s*(\d{1,2})\b/i)?.[1])).filter(Boolean);
+  const weeks=[...new Set(weekHints)];
+  return {...slot,...(weeks.length===1?{week:weeks[0]}:{})};
+ });
+}
 export function recordInSchedule(settings,record,now=Date.now()){
  const slots=expectedSessions(settings,record.course,now);
  return slots===null||slots.some(slot=>matchesSession(slot,record));
+}
+// Search Gmail around the actual session dates instead of a blanket newer_than:
+// units publish Week N codes days in advance and some post them a few days late,
+// so the mail for a session inside the 7-day window can sit outside it.
+export function gmailDateBounds(settings,now=Date.now()){
+ const dates=new Set();
+ for(const course of settings.courses||[]){
+  const slots=expectedSessions(settings,course,now);
+  if(Array.isArray(slots))for(const slot of slots)if(/^\d{4}-\d{2}-\d{2}$/.test(slot.date||''))dates.add(slot.date);
+ }
+ if(!dates.size)return '';
+ const sorted=[...dates].sort();
+ const shift=(iso,days)=>{const d=new Date(Date.parse(iso+'T12:00:00Z')+days*86400000);return `${d.getUTCFullYear()}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${String(d.getUTCDate()).padStart(2,'0')}`;};
+ return `after:${shift(sorted[0],-8)} before:${shift(sorted[sorted.length-1],4)}`;
 }

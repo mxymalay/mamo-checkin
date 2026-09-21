@@ -48,7 +48,7 @@ export function moodleAdapter(command,args={},doc=document){
     const range=post?null:weekWindow(root)||pageWindow;
     if(args.sinceDate&&range?.to<args.sinceDate){skipped++;continue;}
     const context=hasAttendance(text(root));
-    const candidates=[...root.querySelectorAll('img')].filter(img=>visible(img)&&!img.closest('blockquote,.userpicture,.activityiconcontainer')&&!/avatar|logo|icon|emoji/i.test(`${img.className} ${img.alt}`));
+    const candidates=[...root.querySelectorAll('img')].filter(img=>visible(img)&&!img.closest('blockquote,.userpicture,.activityiconcontainer')&&!/avatar|logo|icon|emoji|favicon|badge|ytimg|teaching[-_ ]award/i.test(`${img.className} ${img.alt}`));
     // A short, wide image can be the whole attendance table, with no caption.
     const images=candidates.filter(img=>!img.naturalWidth||(img.naturalWidth>=60&&img.naturalHeight>=20&&img.naturalHeight<=4000&&(context||(img.naturalWidth/img.naturalHeight>=3&&img.naturalHeight<=350)))).map(img=>img.currentSrc||img.getAttribute('src')||img.getAttribute('data-src')).filter(Boolean).map(value=>new URL(value,doc.location.href).href).filter(url=>url.startsWith('https://learning.monash.edu/'));
     const textRows=rows(root);

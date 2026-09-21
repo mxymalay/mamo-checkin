@@ -1,4 +1,4 @@
-import {mergeRecords,parseImageRows,parseMailDate} from './core.js';
+import {mergeRecords,parseImageRows,parseMailDate,plausibleCode} from './core.js';
 import {messageOutsideWindow,outsideAttendanceWindow} from './recent-window.js';
 import {parseMoodleTableRow} from './moodle-table.js';
 
@@ -30,7 +30,7 @@ const nonCodeWords=new Set(['about','activity','attendance','code','course','cou
 const codeCandidates=text=>[...new Set([...String(text).matchAll(/\b([A-Z0-9]{5})\b/ig)].map(match=>match[1]))]
  .filter(token=>/\d/.test(token)||token===token.toUpperCase())
  .map(token=>token.toUpperCase())
- .filter(token=>!nonCodeWords.has(token.toLowerCase()));
+ .filter(token=>!nonCodeWords.has(token.toLowerCase())&&plausibleCode(token));
 const textSourceType=sourceType=>`${String(sourceType||'gmail').replace(/-(?:text|image)$/,'')}-text`;
 const addReason=(record,reason)=>({...record,status:'review',reason:[record.reason,reason].filter(Boolean).join('；')});
 function checkDateBasis(records,msg){

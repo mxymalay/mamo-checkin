@@ -5,6 +5,16 @@ import {JSDOM} from 'jsdom';
 
 const html=await readFile(new URL('../extension/options.html',import.meta.url),'utf8');
 const manifest=JSON.parse(await readFile(new URL('../extension/manifest.json',import.meta.url),'utf8'));
+test('recognition actions wrap and do not constrain translated text to a fixed height',async()=>{
+ const css=await readFile(new URL('../extension/style.css',import.meta.url),'utf8');
+ const dom=new JSDOM('<html lang="en"><head></head><body><div class="settings-columns"><div class="recognition-actions"><button id="check-health">Check OCR service</button><button id="prefer-companion">Use Mac OCR helper</button></div></div></body></html>');
+ try{
+  const style=dom.window.document.createElement('style');style.textContent=css;dom.window.document.head.append(style);
+  const computed=dom.window.getComputedStyle(dom.window.document.getElementById('prefer-companion'));
+  assert.equal(computed.whiteSpace,'normal');assert.equal(computed.height,'auto');assert.equal(computed.minWidth,'0');
+  assert.equal(dom.window.getComputedStyle(dom.window.document.querySelector('.recognition-actions')).flexWrap,'wrap');
+ }finally{dom.window.close();}
+});
 
 async function waitForScan(){
  const deadline=Date.now()+2000;
@@ -37,6 +47,28 @@ function cleanDom(originalSetInterval){
 }
 
 const baseState={settings:{enabled:true,courses:[]},records:[]};
+test('search card saves through real validation without changing unfinished course drafts',async()=>{
+ const {DEFAULTS,normalizeSettings}=await import('../extension/settings.js');
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{...DEFAULTS,name:'Student',email:'abcd1234@student.monash.edu',courses:['FIT5120'],senders:{FIT5120:'unfinished'}},records:[]};
+ const env=installDom(async p=>{
+  if(p.type==='health')return {ok:true,binaryReady:true};
+  if(p.type==='settings'){state.settings=normalizeSettings(state.settings,p.settings,false,p.scope);return {ok:true};}
+  return state;
+ });
+ try{
+  await import(`../extension/options.js?card-isolation=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const sender=document.querySelector('[data-field="sender"]');sender.value='still unfinished';sender.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
+  document.getElementById('year').value='2027';document.getElementById('mail-query').value='lecture';
+  document.getElementById('save-general').click();await new Promise(r=>setTimeout(r,20));
+  assert.equal(state.settings.academicYear,2027);assert.equal(state.settings.mailQuery,'lecture');
+  assert.equal(state.settings.senders.FIT5120,'unfinished');assert.equal(sender.value,'still unfinished');
+  assert.equal(document.querySelector('[data-field="sender"]'),sender);
+  assert.equal(document.getElementById('notice').dataset.tone,'success');
+  document.getElementById('enabled').checked=true;document.getElementById('save-automation').click();await new Promise(r=>setTimeout(r,20));
+  assert.equal(state.settings.enabled,true);assert.equal(sender.value,'still unfinished');
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
 
 test('completion keeps course prose without duplicate session rows and surfaces login requirements',async()=>{
  const originalSetInterval=globalThis.setInterval;
@@ -262,6 +294,20 @@ test('recognition settings expose the attended-session test switch and tooltip',
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
+test('developer mode reveals the attended-session switch and the 30-second interval',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]},schedules:{ABC1234:[]},ignoreCompleted:false,devMode:false},records:[]};
+ const env=installDom(async p=>p.type==='health'?{ok:true,binaryReady:true}:state);
+ try{
+  await import(`../extension/options.js?devmode=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.querySelector('.ignore-completed-toggle').hidden,true);
+  assert.equal(document.querySelector('#interval option[value="0.5"]').hidden,true);
+  const dev=document.getElementById('dev-mode');dev.checked=true;dev.dispatchEvent(new env.dom.window.Event('change'));
+  assert.equal(document.querySelector('.ignore-completed-toggle').hidden,false);
+  assert.equal(document.querySelector('#interval option[value="0.5"]').hidden,false);
+  await new Promise(r=>setTimeout(r,0));
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
 test('finished run replaces the pending scan notice',async()=>{
  const originalSetInterval=globalThis.setInterval;
  const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]},schedules:{ABC1234:[]}},records:[],status:{finishedAt:'2026-09-07T00:00:00Z'}};
@@ -278,7 +324,7 @@ test('finished run replaces the pending scan notice',async()=>{
 });
 test('interval choices are exactly one, three, five and seven days',()=>{
  const dom=new JSDOM(html);
- assert.deepEqual([...dom.window.document.querySelectorAll('#interval option')].map(o=>o.value),['1440','4320','7200','10080']);
+ assert.deepEqual([...dom.window.document.querySelectorAll('#interval option')].map(o=>o.value),['1440','0.5','4320','7200','10080']);
  assert.equal(dom.window.document.getElementById('interval').value,'1440');dom.window.close();
 });
 
@@ -331,11 +377,68 @@ test('Moodle-only configuration hides and disables Gmail fields but restores the
   const mode=document.querySelector('[data-field="source-mode"]');mode.value='email';mode.dispatchEvent(new env.dom.window.Event('change'));
   assert.equal(email.disabled,false);assert.equal(email.required,true);assert.equal(email.closest('label').hidden,false);assert.equal(document.getElementById('moodle-login').hidden,true);
   assert.equal(document.getElementById('email-moodle-divider').hidden,true);
-  mode.value='both';mode.dispatchEvent(new env.dom.window.Event('change'));
+  mode.value='email-moodle';mode.dispatchEvent(new env.dom.window.Event('change'));
   assert.equal(document.getElementById('email-moodle-divider').hidden,false);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
+test('selecting an email source during the guide reveals the hidden school email field',async()=>{
+ const originalSetInterval=globalThis.setInterval,saved=[];
+ const state={setupGuide:true,settings:{email:'',name:'Example Student',courses:[]},records:[]};
+ const env=installDom(async p=>{
+  if(p.type==='health')return {ok:true,binaryReady:true};
+  if(p.type==='redetect')return {ok:true,courses:['FIT5120'],schedules:{}};
+  if(p.type==='settings'){saved.push(p.settings);state.settings={...state.settings,...p.settings};return {ok:true};}
+  return state;
+ });
+ try{
+  await import(`../extension/options.js?guide-email=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.body.dataset.setup,'courses');
+  assert.equal(document.getElementById('email').closest('label').hidden,true);
+  const rule=document.querySelector('.course-rule'),mode=rule.querySelector('[data-field="source-mode"]');
+  mode.value='email';mode.dispatchEvent(new env.dom.window.Event('change'));
+  assert.equal(document.body.classList.contains('guide-needs-email'),true);
+  assert.equal(document.getElementById('email').closest('label').hidden,false);
+  assert.equal(document.getElementById('name').closest('label').hidden,true);
+  assert.equal(document.getElementById('read-name').hidden,true);
+
+  mode.value='moodle';mode.dispatchEvent(new env.dom.window.Event('change'));
+  assert.equal(document.body.classList.contains('guide-needs-email'),false);
+  assert.equal(document.getElementById('email').closest('label').hidden,true);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+for(const source of ['email','moodle'])test(`saving initial ${source} courses restores exclusive tabs without reload`,async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={setupGuide:true,settings:{email:'',name:'Example Student',courses:[]},records:[]};
+ const env=installDom(async p=>{
+  if(p.type==='health')return {ok:true,binaryReady:true};
+  if(p.type==='redetect')return {ok:true,courses:['FIT5120'],schedules:{}};
+  if(p.type==='settings'){state.settings={...state.settings,...p.settings};return {ok:true};}
+  return state;
+ });
+ try{
+  await import(`../extension/options.js?guide-save-${source}=${Date.now()}`);await new Promise(r=>setTimeout(r,20));
+  const rule=document.querySelector('.course-rule'),mode=rule.querySelector('[data-field="source-mode"]');
+  mode.value=source;mode.dispatchEvent(new env.dom.window.Event('change'));
+  if(source==='email'){document.getElementById('email').value='abcd1234';rule.querySelector('[data-field="sender"]').value='teacher@example.edu';}
+  else rule.querySelector('[data-field="urls"]').value='https://learning.monash.edu/course/view.php?id=123';
+  document.getElementById('settings').dispatchEvent(new env.dom.window.Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(r=>setTimeout(r,20));
+  assert.equal(document.body.dataset.setup,'complete');
+  const columns=document.querySelector('#settings>.columns');
+  assert.equal(columns.style.display,'','guide display override must be removed');
+  assert.equal(columns.style.gridTemplateColumns,'');
+  assert.equal(document.querySelector('.settings-side').style.display,'');
+  for(const page of ['courses','settings','records','courses']){
+   document.getElementById('tab-'+page).click();
+   await env.intervals.find(i=>i.ms===2000).fn();
+   const visible=[...document.querySelectorAll('[role=tabpanel]')].filter(p=>!p.hidden);
+   assert.equal(visible.length,1);
+   assert.equal(visible[0].getAttribute('aria-labelledby'),'tab-'+page);
+   assert.equal(document.getElementById('notice').dataset.tone,'success');
+  }
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
 test('failed initial check never starts scanning and restores the main action',async()=>{
  const originalSetInterval=globalThis.setInterval;let scans=0;
  const state={settings:{email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'}},records:[]};
@@ -419,7 +522,7 @@ test('source selection reveals matching fields and saves only enabled sources',a
  try{
   await import(`../extension/options.js?source-choice=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   const rule=document.querySelector('.course-rule'),mode=rule.querySelector('[data-field="source-mode"]');
-  assert.equal(mode.value,'both');assert.equal(rule.querySelector('.mail-fields').hidden,false);assert.equal(rule.querySelector('.moodle-fields').hidden,false);
+  assert.equal(mode.value,'email-moodle');assert.equal(rule.querySelector('.mail-fields').hidden,false);assert.equal(rule.querySelector('.moodle-fields').hidden,false);
   mode.value='email';mode.dispatchEvent(new env.dom.window.Event('change'));
   assert.equal(rule.querySelector('.moodle-fields').hidden,true);assert.equal(rule.querySelector('[data-field="urls"]').disabled,true);
   mode.value='moodle';mode.dispatchEvent(new env.dom.window.Event('change'));

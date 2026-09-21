@@ -1,5 +1,30 @@
 const entries=`
+当前使用浏览器内置识别引擎，全程在本机完成、无需安装；如需更高识别精度，可安装 Mac OCR 配套程序。|Using built-in browser OCR, entirely on this computer. No installation needed. The optional Mac OCR helper may improve recognition.
+浏览器扩展存储（无本机归档）|Browser extension storage (no local file archive)
+开发者模式|Developer mode
+学期记录导出|Semester history export
+开始日期|Start date
+结束日期|End date
+包含按当前课表推算的场次|Include sessions projected from the current timetable
+推算场次不代表实际上课或签到。网站记录仅包含助手实际读取过的场次。|Projected sessions do not confirm classes or attendance. Website records include only sessions actually observed by the assistant.
+导出学期 CSV|Export semester CSV
+请选择有效的起止日期，范围不超过一年。|Choose a valid date range of no more than one year.
+所选日期范围内没有记录。|No records in the selected date range.
+学期记录已导出。|Semester history exported.
+正在读取 Moodle 页面内容（最多等待 45 秒）|Reading Moodle content (up to 45 seconds)
+正在读取 Ed 页面内容（最多等待 45 秒）|Reading Ed content (up to 45 seconds)
+页面内容没有及时加载，请确认登录状态后重试|Page content did not load in time. Check your sign-in and retry.
+就绪（浏览器内置识别，可选装配套程序提升精度）|Ready (built-in browser OCR; install the companion for higher accuracy)
+未检测到本机识别服务，将使用浏览器内置识别；可安装配套程序提升识别质量。|No local OCR helper detected; the built-in browser OCR will be used. Install the companion for higher accuracy.
+未检测到可用的本机识别服务，改用浏览器内置识别|No usable local OCR helper detected; switching to the built-in browser OCR.
+正在签到；使用浏览器内置识别图片|Checking in; recognizing images with the built-in browser OCR
+浏览器内置识别无独立日志文件|The built-in browser OCR keeps no separate log file.
+当前使用浏览器内置识别引擎，全程在本机完成、无需安装；如需更高识别精度，可安装对应系统的 OCR 配套程序。|Using the built-in browser OCR engine: fully on-device, nothing to install. Install the platform OCR companion for higher accuracy.
+Mac 可安装配套程序使用 Apple Vision；Windows 直接使用浏览器内置识别，均在本机完成。|Mac can optionally install the companion for Apple Vision; Windows uses the built-in browser OCR. All recognition stays on-device.
 本机识别服务版本不兼容。请使用本页下载按钮安装 OCR 配套程序，再重新检测。|The local OCR helper is incompatible. Install the companion using this page's download button, then check again.
+改用本机识别（安装配套程序）|Use Mac OCR helper
+已恢复本机识别优先；请在上方引导第 1 步安装配套程序。|On-device OCR is preferred again. Install the companion in step 1 of the guide above.
+不想麻烦？先尝试下内置识别。|Prefer to keep it simple? Try the built-in recognition first.
 下载 Windows OCR 配套程序|Download Windows OCR helper
 下载 Mac OCR 配套程序|Download Mac OCR helper
 第一步：下载 Mac OCR 配套包|Step 1: Download the Mac OCR helper
@@ -91,10 +116,9 @@ Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm
 请在新标签页登录填写的 Gmail 邮箱，登录后会自动检测。|Sign in to the entered Gmail account in the new tab. Verification will continue automatically.
 尚未确认目标邮箱，请登录后重新检测。|Target account not confirmed. Sign in and verify again.
 邮箱已修改，请重新检测。|Email changed. Verify again.
-登录并确认学校身份|Sign in and confirm your identity
+确认你的身份|Confirm your identity
 登录并读取姓名|Sign in and read name
 重新登录并读取姓名|Sign in and read name again
-自动读取登录后的姓名，也可手动修改|Read your signed-in name automatically, or edit it manually
 正在读取 Attendance 姓名…|Reading your Attendance name…
 已读取 Attendance 姓名，请确认后保存。|Attendance name retrieved. Confirm it before saving.
 请在新标签页登录 Attendance；登录后会自动读取姓名，返回此页确认即可。|Sign in to Attendance in the new tab. Your name will be filled automatically; return here to confirm it.
@@ -128,7 +152,6 @@ Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm
 Windows 阻止了安装程序？|Windows blocked the installer?
 确认文件来自本项目 Release 后，在 SmartScreen 中选择“更多信息 → 仍要运行”。学校管理的电脑若不允许，请联系管理员。|Verify the file came from this project, then choose More info → Run anyway in SmartScreen. For managed computers, contact your administrator if blocked.
 本地图片识别|Local image recognition
-Mac 使用 Apple Vision；Windows 使用 Tesseract，均在本机识别。|Mac uses Apple Vision; Windows uses Tesseract. Both run locally.
 首次安装请按安装引导运行对应系统的识别服务安装程序。|Follow the installation guide for your operating system.
 正在写入本地归档|Saving the local archive
 本地识别|Local recognition
@@ -196,7 +219,7 @@ attendance-ocr 自检|attendance-ocr self-check
 正在打开 Gmail 最近 7 天的邮件（页面最多等待 25 秒）|Opening Gmail messages from the last 7 days (up to 25 seconds)
 场等待签到码，暂未找到；可能尚未发布或当前来源未检索到，可稍后重试|sessions are waiting for codes. They may not be published yet or found in the selected sources. Retry later.
 填写签到页面最上方显示的姓名，与页面保持一致，用于核对登录身份。|Enter the name shown at the top of the attendance page to verify your identity.
-请先在第 2 步填写并保存学校邮箱和姓名，再登录签到系统检测课程|Save your student email and name in step 2, then sign in and detect courses.
+请先在第 2 步填写并保存姓名，再登录签到系统检测课程|Save your name in step 2, then sign in and detect courses.
 最近 7 天未发现课程，请确认签到页面已登录，或手动添加课程。|No courses found in the last 7 days. Verify your sign-in or add courses manually.
 检测完成，但你正在编辑配置。请先保存，再重新检测以免覆盖改动。|Detection finished while you were editing. Save your changes before detecting again.
 用于课程页面的年份参考；年份无法可靠确定的签到码不会自动提交。|Reference year for course pages. Codes with an uncertain year are not submitted automatically.
@@ -297,7 +320,8 @@ attendance-ocr 自检|attendance-ocr self-check
 签到链接日期不匹配|Attendance link date mismatch
 请输入|Enter
 请填写有效课程年份|Enter a valid academic year
-请填写邮箱和姓名|Enter email and name
+课程使用邮件来源时，请在学校身份中填写学校邮箱|A course uses the email source; enter your school email in the school identity card
+请填写学校系统显示的姓名|Enter your name as shown in the school system
 发件人邮箱无效|Invalid sender email
 网址无效|Invalid URL
 课程代码重复|Duplicate course code
@@ -327,7 +351,32 @@ attendance-ocr 自检|attendance-ocr self-check
 检查间隔|Check-in interval
 课程年份|Academic year
 邮件检索关键词|Email search keywords
-识别与保存|Recognition and storage
+更多设置|More settings
+自动运行中|Auto-run on
+已暂停|Paused
+先完成初始设置：填写姓名并配置课程。|Finish setup first: enter your name and configure courses.
+打开设置完成配置|Open settings to finish setup
+正在签到…|Checking in…
+上次检查未完成，请重试|The last check did not finish; please retry
+尚未检查；点击下方按钮立即签到。|Not checked yet; click the button below to check in now.
+暂无课程；点击“更多设置”添加。|No courses yet; click “More settings” to add one.
+图片网络请求未完成，请检查网络连接及原页面登录状态|The image request did not complete. Check the network and your sign-in state on the source page.
+本轮签到流程已完成|The check-in round is complete.
+正在签到：核对最近 7 天的课程|Checking in: reviewing the last 7 days of sessions
+尚未检查|Not checked yet
+查看来源|View sources
+查看运行日志|View run log
+
+选择签到码来源，只显示并使用对应配置，可多选。多选时先查邮件，再查 Moodle，最后查 Ed。|Pick the code sources for this course; multiple choices allowed. Emails are checked first, then Moodle, then Ed.
+填写 Moodle 课程、Week 栏目或公告网址，每行一个。三种来源都填时先查 Gmail，再从 Moodle 补齐缺少的场次，最后查 Ed。|Enter Moodle course, week-section or announcement URLs, one per line. With all three sources, Gmail is checked first, then Moodle, then Ed.
+填写 Ed course_id 或课程网址，例如 37233；粘贴带 discussion 等子地址的网址也可以，会自动提取。注意 Ed 的 course_id 与 Moodle 的不同，不要互填。|Enter the Ed course_id or course URL, e.g. 37233; URLs with discussion or other sub-paths are extracted automatically. Ed course_ids differ from Moodle course_ids — do not swap them.
+只填写 4 个英文字母加 4 个数字，后缀固定为 @student.monash.edu。学校邮箱只用于核对签到系统登录身份。每门课的邮件来源请在 邮件发件人邮箱中配置。|Only 4 letters plus 4 digits, with the fixed @student.monash.edu suffix. The school email only verifies your sign-in identity; configure each course's email source in the sender field.
+马莫签到助手|Mamo Check-in
+Windows 使用浏览器内置识别，全程在本机完成。|Windows uses the built-in browser OCR, fully on-device.
+Mac 使用 Apple Vision 在本机识别。|Mac uses Apple Vision on-device.
+识别方案|Recognition method
+保存路径|Save locations
+高级设置|Advanced
 原图与记录保存在|Images and records are saved to
 检查识别服务|Check OCR service
 Mac 原生图片识别|Mac text recognition
@@ -451,17 +500,19 @@ Install Mac Recognition.command|Install Mac Recognition.command
 等待检测识别服务…|Waiting for the recognition service check…
 正在确认本机识别服务。|Checking whether the local recognition service is available.
 填写你的学校身份|Enter your school account details
-用于核对登录账号，避免在错误账号下签到。|Used to verify the signed-in account and avoid checking in as someone else.
 与学校系统完全一致|Exactly as shown on the attendance website
 登录后自动检测并自动填写|Detect and fill automatically after sign-in
-保存身份 · 下一步|Save details and continue
+确认，继续|Confirm and continue
+重新检测姓名|Check your name again
+学校姓名|School name
+登录 Attendance 后自动填写|Filled automatically after signing in to Attendance
 登录学校网站，再检测课程|Sign in, then detect your courses
 课程配置|Course setup
 正在检测课程，请稍候。|Detecting courses. Please wait.
 正在自动读取课程，请保持签到系统登录；检测期间请勿关闭浏览器页面。|Reading courses automatically. Keep Attendance signed in and the browser page open while detection runs.
 已检测到课程，请在下方完善课程来源和课表。|Courses detected. Complete the sources and timetable below.
 未检测到课程，请检查签到系统登录状态后重试，或手动添加课程。|No courses found. Check your Attendance sign-in and retry, or add a course manually.
-需要修改姓名或邮箱？|Need to change your name or email?
+需要修改姓名？|Need to change your name?
 请在当前 Chrome 配置文件登录签到系统。点击检测后会生成课表，再为每门课选择邮件或 Moodle 来源。|Sign in to the attendance system in this Chrome profile. Detect your timetable, then choose email or Moodle sources for each course.
 打开签到系统并登录|Open attendance system and sign in
 登录学校 Gmail|Sign in to school Gmail
@@ -531,11 +582,30 @@ Install Mac Recognition.command|Install Mac Recognition.command
 确定清空助手的姓名、邮箱、课程、签到记录和浏览器内缓存吗？此操作不可撤销，自动运行会停止。|Clear your name, email, courses, attendance records and app cache? This cannot be undone. Scheduled runs will stop.
 重新检测最近 7 天的课程和课表？检测结果会填入编辑区，保存后替换原课表。|Detect courses from the last 7 days again? Review and save the results to replace your timetable.
 是否检测课程信息？确认后将打开已登录的签到页面，读取最近 7 天的课程并生成可编辑课表。此步骤不会提交签到。|Detect courses now? The signed-in attendance page will open to read the last 7 days and create an editable timetable. This does not submit attendance.
+未开始|Not started
+本周|This week
+上周|Last week
+已提前找到签到码，开课后自动提交|Code found early; it is submitted automatically after class starts
+开课前暂不搜索签到码|No code is searched before class starts
+完整运行日志|Full run log
+下载日志|Download log
+运行日志已导出。|Run log exported.
+查看 Ed|Open Ed
+Ed course_id|Ed course_id
+例如 37233，也可粘贴完整课程网址|e.g. 37233, or paste the full course URL
+打开 Ed 查看课程网址|Open Ed to find the course URL
+打开 Ed 后进入对应课程，网址中 au/courses/ 后面的数字就是 Ed course_id；粘贴带 discussion 等子地址的课程网址也会自动提取。|Open your course in Ed. The number after au/courses/ in the URL is the Ed course_id; URLs with discussion or other sub-paths are extracted automatically.
+注意 Ed 的 course_id 和 Moodle 的不一样，不要互填。|Note: Ed course_ids differ from Moodle course_ids — do not swap them.
+打开 Ed 课程，网址 au/courses/ 后面的数字就是 Ed course_id；填数字或粘贴完整网址都可以。注意 Ed 的 course_id 和 Moodle 的不一样，不要互填。|Open your Ed course. The number after au/courses/ in the URL is the Ed course_id; enter the number or paste the full URL. Ed course_ids differ from Moodle course_ids — do not swap them.
+邮件和 Ed|Email and Ed
+Moodle 和 Ed|Moodle and Ed
+邮件、Moodle 和 Ed|Email, Moodle and Ed
 `.trim().split('\n').map(line=>line.split('|')).filter(([source,target])=>source&&target);
 const sortedEntries=[...entries].sort((a,b)=>b[0].length-a[0].length);
 const exactTranslations=new Map(entries);
 let language='en';
 export function detectLanguage(value){return /^zh(?:-|$)/i.test(value||'')?'zh':'en';}
+export function setLanguage(value){language=value==='zh'?'zh':'en';}
 export function translate(text,lang=language){
  if(lang==='zh')return text;
  if(exactTranslations.has(text))return exactTranslations.get(text);
@@ -563,6 +633,10 @@ export function translate(text,lang=language){
   [/Gmail 账号已确认，正在搜索最近 7 天的邮件/g,'Gmail account verified; searching the last 7 days'],
   [/检查邮件会话 (\d+)\/(\d+)（最多等待 (\d+) 秒）/g,'Checking email thread $1/$2 (up to $3 seconds)'],
   [/已读取 Moodle (.*?)（([\d.]+) 秒）/g,'Read Moodle $1 ($2 seconds)'],
+  [/正在加载 Ed 页面（最多等待 (\d+) 秒）/g,'Loading Ed page (up to $1 seconds)'],
+  [/已读取 Ed 课程页面（(.*?)）/g,'Read Ed course page ($1)'],
+  [/检查 Ed 讨论帖 (\d+)\/(\d+)/g,'Checking Ed thread $1/$2'],
+  [/本轮 Ed 检查达到时间上限，其余课程下轮继续/g,"Ed checks reached this round's time limit; remaining courses continue next round"],
   [/自动读取到 (\d+) 场近期待签到课程/g,'Detected $1 recent pending sessions'],
   [/已保存 (\d+) 条文字记录/g,'Saved $1 text records'],
   [/正在下载第 (\d+)\/(\d+) 张图片（最多 (\d+) 秒）/g,'Downloading image $1/$2 (up to $3 seconds)'],
@@ -578,6 +652,16 @@ export function translate(text,lang=language){
   [/^重新登录并读取姓名$/g,'Sign in and read name again'],
   [/^重新登录并检测$/g,'Sign in and verify again'],
   [/^暂未检测到，(\d+) 秒后自动检查$/g,'Not detected yet. Checking again in $1 seconds.'],
+  [/^签到成功 (\d+) 场$/g,(_,n)=>`${n} session${Number(n)===1?'':'s'} checked in`],
+  [/^(\d+) 场等待签到码$/g,(_,n)=>`${n} waiting for codes`],
+  [/^(\d+) 场已过期$/g,(_,n)=>`${n} expired`],
+  [/^(\d+) 场待核对$/g,(_,n)=>`${n} to review`],
+  [/^本轮已确认 (\d+) 场签到成功。$/g,(_,n)=>`Confirmed ${n} check-in${Number(n)===1?'':'s'} this round.`],
+  [/^等待 Attendance 登录/g,'Waiting for Attendance sign-in'],
+  [/^签到未全部完成：/g,'Not all sessions are checked in: '],
+  [/^(\d+) 项处理失败：/g,(_,n)=>`${n} item${Number(n)===1?'':'s'} failed: `],
+  [/^有 (\d+) 场等待签到码/g,'$1 sessions are waiting for codes'],
+  [/^后台未返回结果，请从扩展图标重新打开$/g,'The background did not respond; reopen the popup shortly.'],
   [/^检测成功$/g,'Check succeeded']
  ];
  for(const [pattern,replacement] of patterns)result=result.replace(pattern,replacement);

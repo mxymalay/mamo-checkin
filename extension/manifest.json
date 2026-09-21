@@ -10,20 +10,24 @@
     "storage",
     "scripting",
     "nativeMessaging",
-    "downloads"
+    "notifications",
+    "offscreen"
   ],
   "host_permissions": [
     "https://accounts.google.com/*",
     "https://mail.google.com/*",
     "https://*.googleusercontent.com/*",
     "https://attendance.monash.edu.my/*",
-    "https://learning.monash.edu/*"
+    "https://learning.monash.edu/*",
+    "https://edstem.org/*",
+    "https://*.edusercontent.com/*"
   ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
+    "default_popup": "popup.html",
     "default_title": "__MSG_appName__",
     "default_icon": {
       "16": "icons/icon-16.png",

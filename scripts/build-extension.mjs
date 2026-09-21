@@ -7,12 +7,23 @@ import assert from 'node:assert/strict';
 const root=fileURLToPath(new URL('..',import.meta.url));
 const build=path.join(root,'build');
 const target=path.join(build,'extension');
-const excluded=new Set(['local-service.js','offscreen.html','offscreen.js','ocr-controller.js','ocr-engine.js']);
 const files={};
+
+const VENDOR=[
+ ['vendor/tesseract.min.js','node_modules/tesseract.js/dist/tesseract.min.js'],
+ ['vendor/worker.min.js','node_modules/tesseract.js/dist/worker.min.js'],
+ ['vendor/tesseract-core-simd-lstm.wasm.js','node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js'],
+ ['vendor/tesseract-core-simd-lstm.wasm','node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm'],
+ ['vendor/eng.traineddata.gz','node_modules/@tesseract.js-data/eng/4.0.0/eng.traineddata.gz']
+];
+async function collectVendor(files){
+ for(const [name,rel] of VENDOR)files[name]=new Uint8Array(await readFile(path.join(root,rel)));
+}
+
 
 async function collect(dir,prefix=''){
  for(const entry of await readdir(dir,{withFileTypes:true})){
-  if(entry.name==='.DS_Store'||excluded.has(entry.name))continue;
+  if(entry.name==='.DS_Store')continue;
   const name=prefix+entry.name;
   if(entry.isDirectory())await collect(path.join(dir,entry.name),name+'/');
   else files[name]=new Uint8Array(await readFile(path.join(dir,entry.name)));
@@ -25,10 +36,12 @@ assert.ok(manifest.key,'The GitHub extension package must keep its stable develo
 assert.equal(Object.hasOwn(manifest,'key'),true);
 assert.ok(!Object.keys(files).some(name=>name.startsWith('extension/')||/\.(exe|py|command)$/.test(name)));
 
+await collectVendor(files);
 await rm(target,{recursive:true,force:true});await mkdir(target,{recursive:true});
 for(const [name,data] of Object.entries(files)){
  const destination=path.join(target,...name.split('/'));await mkdir(path.dirname(destination),{recursive:true});await writeFile(destination,data);
 }
+
 const output=path.join(build,'mamo-checkin-extension.zip');
 const zip=zipSync(files,{level:6});const contents=unzipSync(zip);
 assert.ok(contents['manifest.json']);assert.ok(contents['options.html']);

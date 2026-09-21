@@ -7,6 +7,11 @@ const canonicalType=text=>{
   return value.toLowerCase().replace(/\b[a-z]/g,s=>s.toUpperCase());
 };
 const normalizeCode=text=>String(text).toUpperCase().replace(/[^A-Z0-9]/g,'');
+const normalizeGroup=text=>String(text).toUpperCase().replace(/O/g,'0').replace(/[IL]/g,'1');
+// Attendance codes always contain a letter; pure digits are times/dates, and
+// FIT3/ECE2-style fragments are truncated course codes — never codes.
+const IMPLAUSIBLE_CODE=/^(?:FIT|ECE|ENG|MMA|TRC)\d$|^\d{3,4}(?:AM|PM)$/;
+export const plausibleCode=text=>{const value=String(text).toUpperCase();return /^[A-Z0-9]{5}$/.test(value)&&/[A-Z]/.test(value)&&!IMPLAUSIBLE_CODE.test(value);};
 function codeVariants(text){
   const normalized=normalizeCode(text),variants=[];
   if(/^[A-Z0-9]{5}$/.test(normalized))variants.push(normalized);
@@ -29,7 +34,7 @@ function positionalCodeCandidates(cells){
       result.push(...codeVariants(value));
     }
   }
-  return [...new Set(result)];
+  return [...new Set(result)].filter(plausibleCode);
 }
 export const recordKey = r => [r.course,r.date,r.type,r.group,r.time].join('|');
 export function parseMailDate(text) {
@@ -99,9 +104,9 @@ export function parseImageRows(observations,meta) {
     const rawText=orderedCells.map(cellText).join(' ').replace(/[–—]/g,'-');
     const types=[...rawText.matchAll(/(?:^|\b[A-Z0-9]{5}\s+)([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(?=\b(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b)/ig)];
     if(!types.length) continue;
-    const groups=[...rawText.matchAll(/\b(\d{2}(?:-P\d+)?)\s+(?=\d{1,2}\s*[:.]\s*\d{2}\s*(?:am|pm)\b)/ig)];
+    const groups=[...rawText.matchAll(/\b([0-9OIL]{2}(?:-P[0-9OIL]+)?)\s+(?=\d{1,2}\s*[:.]\s*\d{2}\s*(?:am|pm)\b)/ig)];
     const times=[...rawText.matchAll(/\b(\d{1,2})\s*[:.]\s*(\d{2})\s*(am|pm)\b/ig)];
-    const inlineCodes=[...rawText.matchAll(/\b([A-Z0-9]{5})\b/ig)].map(match=>match[1].toUpperCase());
+    const inlineCodes=[...rawText.matchAll(/\b([A-Z0-9]{5})\b/ig)].map(match=>match[1].toUpperCase()).filter(plausibleCode);
     const codes=inlineCodes.length?inlineCodes:positionalCodeCandidates(line.cells);
     const dates=[...rawText.matchAll(/\b(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\s*[,.]?\s*(\d{1,2})\s*[A-Za-z]{3,9}\b/ig)];
     const ambiguous=[];
@@ -109,22 +114,26 @@ export function parseImageRows(observations,meta) {
     if(dates.length>1) ambiguous.push('日期');
     if(groups.length>1) ambiguous.push('组别');
     if(times.length>1) ambiguous.push('时间');
-    if(codes.length>1) ambiguous.push('签到码');
     const type=types.length===1?canonicalType(types[0][1]):null;
-    const group=groups.length===1?groups[0][1].toUpperCase():null;
-    const code=codes.length===1?codes[0]:null;
+    const group=groups.length===1?normalizeGroup(groups[0][1]):null;
     const time=times.length===1?parseTime(times[0][0]):null;
     const {date=null,error}=dates.length===1?rowDate(rawText,meta.sentAt):{error:dates.length?'同一行包含多个日期':'缺少可靠的日期或邮件年份'};
     const confidence=Math.min(...line.cells.map(c=>Number(c.confidence)||0));
-    const codeCell=code&&orderedCells.find(c=>codeVariants(cellText(c)).includes(code)||normalizeCode(cellText(c))===code);
+    // Every plausible reading — full-text, position-based, and the engine's own
+    // second pass — becomes a candidate. The portal validates each one.
+    const codeCandidates=[...new Set([...codes])];
+    let codeCell=codeCandidates.length?orderedCells.find(c=>codeCandidates.some(code=>codeVariants(cellText(c)).includes(code)||normalizeCode(cellText(c))===code)):undefined;
+    if(!codeCell)codeCell=orderedCells.find(c=>typeof c.codeSecondText==='string'&&plausibleCode(c.codeSecondText));
+    if(codeCell?.codeSecondText&&plausibleCode(codeCell.codeSecondText))codeCandidates.push(codeCell.codeSecondText.toUpperCase());
+    for(const cell of orderedCells)for(const alternative of cell.codeAlternatives||[])if(plausibleCode(alternative)&&!codeCandidates.includes(alternative))codeCandidates.push(alternative);
+    const code=codeCandidates[0]||null;
     const codeVerified=codeCell?.codeVerified===true;
     const verificationFailed=codeCell?.codeVerified===false;
     const codeConfidence=Number(codeCell?.confidence??confidence)||0;
-    const codeReliable=!verificationFailed&&(codeConfidence>=.96||codeVerified);
-    const fieldVerification=orderedCells.filter(cell=>cell!==codeCell).map(cell=>({text:cellText(cell),confidence:Number(cell.confidence)||0,fieldVerified:cell.fieldVerified===true}));
-    const fieldsReliable=fieldVerification.every(field=>field.confidence>=.96||field.fieldVerified);
-    const reasons=[error,ambiguous.length&&`同一行包含多个${ambiguous.join('、')}`,!group&&'组别不完整',!time&&'上课时间不完整',!code&&'签到码不是 5 位字母数字',verificationFailed&&'签到码两次识别复核结果不一致',code&&!codeReliable&&!verificationFailed&&'签到码识别置信度不足',!fieldsReliable&&'活动类型、日期、时间或组别识别置信度不足'].filter(Boolean);
-    const r={...meta,type,group,code,time,date,confidence,codeConfidence,codeVerified,codeVerificationFailed:verificationFailed,fieldVerification,rawText,status:reasons.length?'review':'ready',reason:reasons.join('；')};
+    const fieldVerification=orderedCells.filter(cell=>cell!==codeCell&&!cell.codeFragment&&!codeCandidates.includes(normalizeCode(cellText(cell)))).map(cell=>({text:cellText(cell),confidence:Number(cell.confidence)||0,fieldVerified:cell.fieldVerified===true}));
+    const fieldsReliable=fieldVerification.every(field=>field.confidence>=.96||field.fieldVerified===true);
+    const reasons=[error,ambiguous.length&&`同一行包含多个${ambiguous.join('、')}`,!group&&'组别不完整',!time&&'上课时间不完整',!codeCandidates.length&&'签到码不是 5 位字母数字',!fieldsReliable&&'活动类型、日期、时间或组别识别置信度不足'].filter(Boolean);
+    const r={...meta,type,group,code,time,date,confidence,codeConfidence,codeVerified,codeVerificationFailed:verificationFailed,codeSecondText:codeCell?.codeSecondText,codeCandidates:codeCandidates.length>1?codeCandidates:undefined,fieldVerification,rawText,status:reasons.length?'review':'ready',reason:reasons.join('；')};
     r.id=date&&group&&time?recordKey(r):`${meta.messageId}|${meta.imageId}|row-${index}`;
     result.push(r);
   }
@@ -156,16 +165,18 @@ function recordSources(record){
   for(const key of ['sourceUrl','messageId','imagePath'])if(record[key]!=null)own[key]=record[key];
   return [...(Array.isArray(record.sources)?record.sources:[]),...(Object.keys(own).length?[own]:[])];
 }
+export function eligible(r,now=Date.now()) {
+  // Confidence and crop agreement are advisory: the portal validates the code
+  // itself, so any ready record with a plausible code gets attempted.
+  const start=Date.parse(`${r.date}T${r.time}:00+08:00`);
+  return r.status==='ready' && /^[A-Z0-9]{5}$/.test(r.code||'') && Number.isFinite(start) && start<=now && now-start<=7*86400000;
+}
 function reliableEvidence(record){
   if(record.manualConfirmed===true)return true;
   const fields=Array.isArray(record.fieldVerification)?record.fieldVerification:null;
   const fieldsReliable=fields?fields.length>0&&fields.every(field=>Number(field.confidence)>=.96||field.fieldVerified===true):Number(record.confidence)>=.96;
   const codeConfidence=Number(record.codeConfidence??record.confidence)||0;
   return fieldsReliable&&!record.codeVerificationFailed&&(codeConfidence>=.96||record.codeVerified===true);
-}
-export function eligible(r,now=Date.now()) {
-  const start=Date.parse(`${r.date}T${r.time}:00+08:00`);
-  return r.status==='ready' && reliableEvidence(r) && /^[A-Z0-9]{5}$/.test(r.code||'') && Number.isFinite(start) && start<=now && now-start<=7*86400000;
 }
 export function matchActivity(record,activity) {
   return ['course','date','type','group','time'].every(k=>record[k] && record[k]===activity?.[k]);

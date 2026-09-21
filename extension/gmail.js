@@ -22,6 +22,22 @@ export function gmailAdapter(command,args={},doc=document) {
   };
   if(command==='list') {
     if(!main.querySelector('[role="grid"]') && !/No messages matched/.test(text(main))) return {loading:true};
+    // Gmail's default search ranking is "most relevant", which buries the newest
+    // Week N announcement. Best-effort flip to "most recent", at most once per
+    // page load; the caller's poll re-reads the settled list afterwards. Non-
+    // English UIs never match the label and are left untouched.
+    if(!doc.documentElement.dataset.mamoRankedFlipped && /most\s+relevant/i.test(text(main)) && !/most\s+recent/i.test(text(main))) {
+      doc.documentElement.dataset.mamoRankedFlipped='1';
+      try{
+        const dropdown=[...doc.querySelectorAll("[role='button'],button,[aria-haspopup='menu']")].find(node=>/most\s+relevant/i.test(text(node)));
+        if(dropdown){
+          dropdown.click();
+          const recent=[...doc.querySelectorAll("[role='menuitem'],[role='menuitemradio'],[role='option']")].find(node=>/most\s+recent/i.test(text(node)));
+          if(recent){recent.click();return {loading:true};}
+          dropdown.click();
+        }
+      }catch{}
+    }
     const threads=[];
     for(const row of main.querySelectorAll('[role="row"]')) {
       if(!visible(row)) continue;
@@ -47,9 +63,11 @@ export function gmailAdapter(command,args={},doc=document) {
     return {expanded:Boolean(button)};
   }
   if(command==='messages') {
+    // The thread list truncates long subjects, so the h2 on the conversation
+    // page may differ from the list text; the last-message id and the course
+    // carried over from the list row are the reliable identity signals.
     const subject=text(main.querySelector('h2'));
-    const course=courseFor(subject);
-    if(args.expectedSubject&&subject!==args.expectedSubject)return {loading:true,bodiesReady:false};
+    let course;try{course=courseFor(subject)||args.threadCourse;}catch{course=args.threadCourse;}
     const messageNodes=Array.from(main.querySelectorAll('[data-legacy-message-id]'));
     if(args.expectedLastMessageId&&!messageNodes.some(msg=>msg.getAttribute('data-legacy-message-id')===args.expectedLastMessageId))return {loading:true,bodiesReady:false};
     if(!course||!messageNodes.length) return {loading:true,bodiesReady:false};
@@ -98,7 +116,7 @@ export function gmailAdapter(command,args={},doc=document) {
         if(block)flush();
       };
       readLines(body);flush();
-      const candidates=Array.from(body.querySelectorAll('img')).filter(img=>!img.closest('.gmail_quote,blockquote,.gmail_signature')&&visible(img)&&!/avatar|profile|emoji|icon/i.test(`${img.className||''} ${img.alt||''} ${img.getAttribute('aria-label')||''}`));
+      const candidates=Array.from(body.querySelectorAll('img')).filter(img=>!img.closest('.gmail_quote,blockquote,.gmail_signature')&&visible(img)&&!/avatar|profile|emoji|icon|logo|favicon|badge|ytimg|teaching[-_ ]award/i.test(`${img.className||''} ${img.alt||''} ${img.getAttribute('aria-label')||''}`));
       if(candidates.some(img=>!img.complete && !img.naturalWidth)) return {loading:true,bodiesReady:false};
       const images=candidates.filter(img=>img.naturalWidth>=60 && img.naturalHeight>=20 && img.naturalHeight<=2000&&(attendanceContext||(img.naturalWidth/img.naturalHeight>=3&&img.naturalHeight<=350))).map(img=>img.currentSrc||img.src);
       if(!attendanceContext&&!images.length&&!textRows.some(row=>/\b[A-Z0-9]{5}\b/.test(row)&&/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(row)))continue;

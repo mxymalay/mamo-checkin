@@ -1,6 +1,6 @@
 import {schoolEmail} from './school-email.js';
 import {moodleCourseUrl} from './moodle-course-id.js';
-export const DEFAULTS={enabled:false,email:'',name:'',intervalMinutes:1440,academicYear:new Date().getFullYear(),mailQuery:'attendance',courses:[],senders:{},subjectKeywords:{},moodleUrls:{},schedules:{},ignoreCompleted:false};
+export const DEFAULTS={enabled:false,email:'',name:'',intervalMinutes:1440,academicYear:new Date().getFullYear(),mailQuery:'attendance',courses:[],senders:{},subjectKeywords:{},moodleUrls:{},edUrls:{},schedules:{},ignoreCompleted:false,devMode:false};
 export function normalizeIdentityField(existing,field,value,hasRecords=false){
  if(!['email','name'].includes(field))throw new Error('无效的身份字段');
  const normalized=field==='email'?schoolEmail(value):String(value||'').trim();
@@ -9,21 +9,40 @@ export function normalizeIdentityField(existing,field,value,hasRecords=false){
  return {[field]:normalized};
 }
 export function normalizeIdentity(existing,update,hasRecords=false){
- const email=schoolEmail(update.email),name=String(update.name||'').trim();
- if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!name)throw new Error('请填写有效的学校邮箱和学校系统显示的姓名');
- if(hasRecords&&(email!==existing.email||name!==existing.name))throw new Error('已有签到记录，请使用独立的 Chrome 配置文件切换账号');
+ const name=String(update.name||'').trim();
+ if(!name)throw new Error('请填写学校系统显示的姓名');
+ // Email is optional at setup: it is only needed once a course uses a Gmail
+ // sender. An empty update never clears a previously saved address.
+ const email=update.email?schoolEmail(update.email):String(existing.email||'');
+ if(email&&!/^[^\s@]+@[^\s@]+$/.test(email))throw new Error('请填写有效的学校邮箱');
+ if(hasRecords&&(name!==existing.name||(email&&existing.email&&email!==existing.email)))throw new Error('已有签到记录，请使用独立的 Chrome 配置文件切换账号');
  return {email,name};
 }
-export function normalizeSettings(existing,update,hasRecords=false){
+export function normalizeSettings(existing,update,hasRecords=false,scope='all'){
+  if(scope==='search'){
+    const academicYear=Number(update.academicYear??existing.academicYear);
+    if(!Number.isInteger(academicYear)||academicYear<2020||academicYear>2100)throw new Error('请填写有效课程年份');
+    return {...existing,academicYear,mailQuery:String(update.mailQuery??existing.mailQuery??'').trim().slice(0,200)};
+  }
+  if(scope==='automation'){
+    const cfg={...existing};
+    for(const key of ['enabled','ignoreCompleted','devMode'])if(Object.hasOwn(update,key))cfg[key]=Boolean(update[key]);
+    if(Object.hasOwn(update,'intervalMinutes'))cfg.intervalMinutes=Math.max(0.5,Math.min(10080,Number(update.intervalMinutes)||1440));
+    return cfg;
+  }
+  if(scope!=='all')throw new Error('Invalid settings scope');
   const cfg={...existing,...update};
-  cfg.email=schoolEmail(cfg.email);cfg.name=String(cfg.name||'').trim();
-  if(!/^[^\s@]+@[^\s@]+$/.test(cfg.email)||!cfg.name)throw new Error('请填写邮箱和姓名');
-  if(hasRecords&&(cfg.email!==existing.email||cfg.name!==existing.name))throw new Error('已有记录时请使用单独的 Chrome 配置文件切换账号');
-  cfg.enabled=Boolean(cfg.enabled);cfg.intervalMinutes=Math.max(5,Math.min(10080,Number(cfg.intervalMinutes)||1440));cfg.ignoreCompleted=Boolean(cfg.ignoreCompleted);
+  const rawEmail=String(cfg.email||'').trim()||String(existing.email||'').trim();
+  cfg.email=rawEmail?schoolEmail(rawEmail):'';
+  cfg.name=String(cfg.name||'').trim();
+  if(!cfg.name)throw new Error('请填写学校系统显示的姓名');
+  if(cfg.courses.some(c=>cfg.senders?.[c])&&!cfg.email)throw new Error('课程使用邮件来源时，请在学校身份中填写学校邮箱');
+  if(hasRecords&&(cfg.name!==existing.name||(cfg.email&&existing.email&&cfg.email!==existing.email)))throw new Error('已有记录时请使用单独的 Chrome 配置文件切换账号');
+  cfg.enabled=Boolean(cfg.enabled);cfg.intervalMinutes=Math.max(0.5,Math.min(10080,Number(cfg.intervalMinutes)||1440));cfg.ignoreCompleted=Boolean(cfg.ignoreCompleted);cfg.devMode=Boolean(cfg.devMode);
   cfg.academicYear=Number(cfg.academicYear);if(!Number.isInteger(cfg.academicYear)||cfg.academicYear<2020||cfg.academicYear>2100)throw new Error('请填写有效课程年份');
   cfg.courses=[...new Set((cfg.courses||[]).map(c=>String(c).trim().toUpperCase()))];
   if(!cfg.courses.length||cfg.courses.length>20||cfg.courses.some(c=>!/^([A-Z]{2,10}\d{3,6})$/.test(c)))throw new Error('请填写 1–20 门课程，例如 FIT5120');
-  cfg.senders={};cfg.subjectKeywords={};cfg.moodleUrls={};cfg.schedules={};
+  cfg.senders={};cfg.subjectKeywords={};cfg.moodleUrls={};cfg.edUrls={};cfg.schedules={};
   for(const c of cfg.courses){
     const sender=String((update.senders||existing.senders)?.[c]||'').trim().toLowerCase();
     if(sender&&!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(sender))throw new Error(`${c} 发件人邮箱无效`);
@@ -35,7 +54,14 @@ export function normalizeSettings(existing,update,hasRecords=false){
       return u.href;
     }))];
     if(cfg.moodleUrls[c].length>3)throw new Error(`${c} 最多配置 3 个 Moodle 入口`);
-    if(!sender&&!cfg.moodleUrls[c].length)throw new Error(`${c} 至少需要一个 Gmail 或 Moodle 来源`);
+    cfg.edUrls[c]=[...new Set(((update.edUrls||existing.edUrls)?.[c]||[]).map(value=>{
+      if(/^\d{2,9}$/.test(String(value).trim()))return `https://edstem.org/au/courses/${String(value).trim()}`;
+      let u;try{u=new URL(value);}catch{throw new Error(`${c} Ed 课程网址无效`);}
+      const m=u.pathname.match(/^\/au\/courses\/(\d+)/);
+      if(u.origin!=='https://edstem.org'||!m)throw new Error(`${c} 请填写 Ed course_id 或课程网址，例如 37233 或 https://edstem.org/au/courses/37233`);
+      return `https://edstem.org/au/courses/${m[1]}`;
+    }))];
+    if(cfg.edUrls[c].length>1)throw new Error(`${c} 最多配置 1 个 Ed 课程入口`);
     const schedule=(update.schedules||existing.schedules)?.[c]||[];
     if(!Array.isArray(schedule)||schedule.length>14)throw new Error(`${c} 每周最多设置 14 节课`);
     cfg.schedules[c]=schedule.map(slot=>{
@@ -53,4 +79,11 @@ export function normalizeSettings(existing,update,hasRecords=false){
   cfg.mailQuery=String(cfg.mailQuery||'').trim().slice(0,200);
   return cfg;
 }
-export function gmailQuery(cfg){const senders=[...new Set(cfg.courses.map(c=>cfg.senders[c]).filter(Boolean))];return senders.length?`newer_than:7d {${senders.map(s=>'from:'+s).join(' ')}} ${cfg.mailQuery}`:null;}
+export function gmailQuery(cfg){
+  if(!cfg.courses.length)return null;
+  // A course with the email source but no sender still scans Gmail by keyword;
+  // the adapter matches threads to courses by subject keyword.
+  const senders=[...new Set(cfg.courses.map(c=>cfg.senders[c]).filter(Boolean))];
+  const from=senders.length?`{${senders.map(s=>'from:'+s).join(' ')}} `:'';
+  return `newer_than:7d ${from}${cfg.mailQuery}`.trim();
+}

@@ -21,7 +21,7 @@ test('pending course messages translate without leftover Chinese fragments',()=>
  assert.equal(translated,'1 session is waiting for codes. They may not be published yet or were not found in the selected sources. Retry later.');
 });
 test('course setup messages stay fully bilingual, including detected counts',()=>{
- const messages=['课程配置','正在检测课程，请稍候。','正在自动读取课程，请保持签到系统登录；检测期间请勿关闭浏览器页面。','已检测到课程，请在下方完善课程来源和课表。','未检测到课程，请检查签到系统登录状态后重试，或手动添加课程。','需要修改姓名或邮箱？','已检测到 2 门课程。请在下方完善课程来源和课表。'];
+ const messages=['课程配置','正在检测课程，请稍候。','正在自动读取课程，请保持签到系统登录；检测期间请勿关闭浏览器页面。','已检测到课程，请在下方完善课程来源和课表。','未检测到课程，请检查签到系统登录状态后重试，或手动添加课程。','需要修改姓名？','已检测到 2 门课程。请在下方完善课程来源和课表。'];
  for(const message of messages)assert.doesNotMatch(translate(message,'en'),/[\u3400-\u9fff]/);
  assert.equal(translate('已检测到 1 门课程。请在下方完善课程来源和课表。','en'),'1 course detected. Complete the sources and timetable below.');
  assert.equal(translate('已检测到 2 门课程。请在下方完善课程来源和课表。','en'),'2 courses detected. Complete the sources and timetable below.');
@@ -65,4 +65,11 @@ test('English translation normalizes punctuation left around nested labels',()=>
  assert.match(translated,/^Double-click Install Mac Recognition\.command, Follow the terminal instructions\./);
  assert.match(translated,/Return here, wait for verification, then click"Reload and continue"/);
  assert.doesNotMatch(translated,/[，。；：？！“”‘’（）]/);
+});
+test('recognition settings and browser archive labels are fully translated',()=>{
+ for(const text of [
+  '当前使用浏览器内置识别引擎，全程在本机完成、无需安装；如需更高识别精度，可安装 Mac OCR 配套程序。',
+  '浏览器扩展存储（无本机归档）','开发者模式',
+  'Windows 使用浏览器内置识别，全程在本机完成。','Mac 使用 Apple Vision 在本机识别。'
+ ])assert.doesNotMatch(translate(text,'en'),/[\u3400-\u9fff]/);
 });
