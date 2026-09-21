@@ -1,8 +1,8 @@
-# Mamo OCR companion / 马莫本机识别服务
+# Mamo macOS OCR companion / 马莫 macOS 本机识别服务
 
 ## English
 
-This package installs the local OCR helper required for both the GitHub extension and the Chrome Web Store edition. Download the package for your operating system, extract it completely, and follow the steps below. Do not enable Developer mode or load another copy of the extension to install OCR.
+This package installs the optional local Mac OCR helper for both the GitHub extension and the Chrome Web Store edition. Windows uses built-in browser OCR and does not need an OCR package. Extract the package completely and follow the steps below. Do not enable Developer mode or load another copy of the extension to install OCR.
 
 ### macOS 12+
 
@@ -14,17 +14,13 @@ This package installs the local OCR helper required for both the GitHub extensio
 
 ### Windows 10/11 x64
 
-1. Install Tesseract OCR using the link in the extension guide. Keep its default location and English language data.
-2. Extract `mamo-ocr-windows.zip`, open the `English` folder, and run `Install Windows OCR.exe`. No Python installation is required.
-3. If SmartScreen blocks it, verify the source before using **More info > Run anyway**. Contact your administrator on managed computers. Do not disable Windows Security.
-4. Return to the extension and wait for the recognition check to pass.
-5. To remove the helper later, run `English/Uninstall Windows OCR.exe`. It removes only the local OCR helper and Chrome registration.
+No OCR package is required. Windows uses the built-in browser OCR locally; open the extension and follow its setup guide.
 
-Downloads must come from the [latest GitHub release](https://github.com/mxymalay/mamo-checkin/releases/latest). A download click does not prove installation succeeded; rely on the helper's self-test in the extension.
+Downloads must come from the [latest GitHub release](https://github.com/mxymalay/mamo-checkin/releases/latest). A download click does not prove installation succeeded; rely on the extension's recognition status.
 
 ## 中文
 
-此包安装本机 OCR 配套程序，GitHub 扩展和商店版都需要下载对应系统的 OCR 包。请完整解压后按下方步骤操作。安装 OCR 不需要开启开发者模式，也不要重复加载扩展。
+此包安装可选的 macOS 本机 OCR 配套程序，GitHub 扩展和商店版均可使用。Windows 使用浏览器内置 OCR，不需要下载 OCR 包。请完整解压后按下方步骤操作。安装 OCR 不需要开启开发者模式，也不要重复加载扩展。
 
 ### macOS 12+
 
@@ -36,10 +32,6 @@ Downloads must come from the [latest GitHub release](https://github.com/mxymalay
 
 ### Windows 10/11 x64
 
-1. 按扩展引导中的链接安装 Tesseract，保留默认位置和 English 语言数据。
-2. 解压 `mamo-ocr-windows.zip`，打开 `中文` 文件夹，运行 `安装 Windows OCR.exe`。无需安装 Python。
-3. SmartScreen 拦截时确认来源，再选择“更多信息 → 仍要运行”；学校管理的电脑请联系管理员，不要关闭 Windows 安全保护。
-4. 返回扩展，等待识别服务检测通过。
-5. 以后如需清除配套程序，运行 `中文/卸载 Windows OCR.exe`。只清除本机 OCR 服务和 Chrome 注册，不会删除扩展配置、课程或签到记录。
+无需下载 OCR 包。Windows 使用本机浏览器内置 OCR，打开扩展并按引导继续即可。
 
-请从[最新 GitHub Release](https://github.com/mxymalay/mamo-checkin/releases/latest)下载。点击下载不代表安装成功，请以扩展内识别服务自检结果为准。
+请从[最新 GitHub Release](https://github.com/mxymalay/mamo-checkin/releases/latest)下载。请以扩展内识别状态为准。

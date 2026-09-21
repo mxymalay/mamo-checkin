@@ -71,11 +71,11 @@ test('failed native startup stops automatic retries until manual recovery',()=>{
  assert.match(doc.getElementById('setup-check').textContent,/重新检测/);
  e.guide.health({binaryReady:true});assert.equal(doc.body.dataset.setup,'identity');assert.equal(doc.getElementById('setup-reload').hidden,true);e.dom.window.close();
 });
-test('Windows native setup errors do not mix raw English into Chinese status text',()=>{
+test('native setup errors do not expose raw technical status text',()=>{
  const e=make(),doc=e.dom.window.document;e.guide.update({setupGuide:true,settings:{}});
- e.guide.health({binaryReady:false,healthError:'Install Tesseract OCR with English language data, then click Check service again.'});
- assert.doesNotMatch(doc.getElementById('setup-health').textContent,/Install Tesseract OCR with English language data/);
- assert.match(doc.getElementById('setup-health').textContent,/Tesseract OCR/);
+ e.guide.health({binaryReady:false,healthError:'native messaging host not found'});
+ assert.doesNotMatch(doc.getElementById('setup-health').textContent,/native messaging host not found/);
+ assert.doesNotMatch(doc.getElementById('setup-health').textContent,/Windows OCR|Tesseract/);
  e.dom.window.close();
 });
 test('install guide uses one waiting health indicator and separates the macOS help',()=>{

@@ -5,10 +5,7 @@ import base64
 import binascii
 from contextlib import contextmanager
 import sys
-if sys.platform == "win32":
-    import msvcrt
-else:
-    import fcntl
+import fcntl
 import hashlib
 import json
 import os
@@ -16,7 +13,6 @@ from pathlib import Path
 import re
 import struct
 import subprocess
-import sys
 import tempfile
 import time
 
@@ -26,11 +22,10 @@ MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_OCR_OUTPUT_BYTES = MAX_RESPONSE_BYTES - 64 * 1024
 OCR_TIMEOUT_SECONDS = 30
-OCR_CACHE_VERSION = 7 if sys.platform == "win32" else 1
+OCR_CACHE_VERSION = 1
 OCR_LOG_MAX_BYTES = 5 * 1024 * 1024
 PROTOCOL_VERSION = 1
-IS_WINDOWS = sys.platform == "win32"
-OCR_ENGINE = "Tesseract" if IS_WINDOWS else "Apple Vision"
+OCR_ENGINE = "Apple Vision"
 COURSE_PATTERN = re.compile(r"[A-Z]{2,10}\d{3,6}\Z")
 META_FIELDS = ("course", "messageId", "sourceUrl", "sentAt", "subject")
 MIME_EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg"}
@@ -126,19 +121,10 @@ def image_lock(images_directory, image_id):
     lock_path = images_directory / f".{image_id}.lock"
     descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        if IS_WINDOWS:
-            os.write(descriptor, b"0")
-            os.lseek(descriptor, 0, os.SEEK_SET)
-            msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
-        else:
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
         yield
     finally:
-        if IS_WINDOWS:
-            os.lseek(descriptor, 0, os.SEEK_SET)
-            msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
-        else:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)
 
 
@@ -178,12 +164,6 @@ def valid_observations(observations):
 
 
 def run_ocr(image_path):
-    if IS_WINDOWS:
-        from windows_ocr import recognize
-        try:
-            return recognize(image_path)
-        except (OSError, ValueError, subprocess.SubprocessError) as error:
-            raise RequestError(str(error)) from error
     if not OCR_BINARY.is_file() or not os.access(OCR_BINARY, os.X_OK):
         raise RequestError("OCR binary is not ready")
     try:
@@ -209,16 +189,6 @@ def run_ocr(image_path):
     if not valid_observations(observations):
         raise RequestError("OCR returned an invalid observation list")
     return observations
-
-
-def ocr_software_version():
-    if not IS_WINDOWS:
-        return None
-    try:
-        from windows_ocr import software_version
-        return software_version()
-    except (OSError, subprocess.SubprocessError):
-        return None
 
 
 def load_sidecar(path, image_id):
@@ -299,7 +269,6 @@ def handle_ocr(request):
         raise RequestError("image is too large")
 
     image_id = hashlib.sha256(image_data).hexdigest()
-    software_version = ocr_software_version()
     images_directory = archive_directory() / "images"
     sidecar_path = images_directory / f"{image_id}.json"
     with image_lock(images_directory, image_id):
@@ -334,7 +303,6 @@ def handle_ocr(request):
             isinstance(cached_ocr, dict)
             and cached_ocr.get("version") == OCR_CACHE_VERSION
             and cached_ocr.get("engine") == OCR_ENGINE
-            and (not IS_WINDOWS or cached_ocr.get("softwareVersion") == software_version)
             and valid_observations(cached_ocr.get("observations"))
         )
         if cached:
@@ -351,7 +319,6 @@ def handle_ocr(request):
                         "event": "ocr-error",
                         "engine": OCR_ENGINE,
                         "ocrRevision": OCR_CACHE_VERSION,
-                        **({"ocrSoftwareVersion": software_version} if software_version else {}),
                         "course": meta["course"],
                         "imageId": image_id,
                         "durationMs": round((time.monotonic() - started) * 1000),
@@ -364,8 +331,6 @@ def handle_ocr(request):
                 "engine": OCR_ENGINE,
                 "observations": observations,
             }
-            if software_version:
-                sidecar["ocr"]["softwareVersion"] = software_version
         atomic_write(sidecar_path, json_bytes(sidecar) + b"\n")
         append_ocr_log(
             {
@@ -373,8 +338,7 @@ def handle_ocr(request):
                 "event": "ocr",
                 "engine": OCR_ENGINE,
                 "ocrRevision": OCR_CACHE_VERSION,
-                **({"ocrSoftwareVersion": software_version} if software_version else {}),
-                "profile": "grayscale-autocontrast-upscale-multipass-consensus-fields-context" if IS_WINDOWS else "apple-vision",
+                "profile": "apple-vision",
                 "course": meta["course"],
                 "imageId": image_id,
                 "cached": cached,
@@ -417,25 +381,21 @@ def handle_request(request):
             ready = isinstance(payload, dict) and payload.get("ok") is True
         except (OSError, ValueError, subprocess.TimeoutExpired):
             pass
-        if IS_WINDOWS:
-            from windows_ocr import self_test
-            ready, health_error = self_test()
-        if not ready and not IS_WINDOWS:
+        if not ready:
             health_error = "attendance-ocr 未通过启动自检。请安装新版识别服务；若 macOS 阻止此程序，请到系统设置 → 隐私与安全性 → 仍要打开，允许 attendance-ocr 后点击重新检测。"
         return {
             "ok": True,
             "binaryReady": ready,
-            "nativeBlocked": not IS_WINDOWS and not ready and OCR_BINARY.is_file(),
+            "nativeBlocked": not ready and OCR_BINARY.is_file(),
             "healthError": health_error,
             "binaryPath": str(OCR_BINARY),
             "archiveDir": str(archive_directory()),
             "ocrLogPath": str(ocr_log_path()),
             "engine": OCR_ENGINE,
             "ocrRevision": OCR_CACHE_VERSION,
-            "ocrSoftwareVersion": ocr_software_version(),
             "companionRevision": 1,
             "busy": False,
-            "stage": ("Local OCR ready" if ready else "Local OCR self-test failed") if IS_WINDOWS else ("Mac 原生识别已就绪" if ready else "Mac 原生识别未通过启动自检"),
+            "stage": "Mac 原生识别已就绪" if ready else "Mac 原生识别未通过启动自检",
             "protocolVersion": PROTOCOL_VERSION,
         }
     if operation == "ocr":
@@ -468,9 +428,6 @@ def send_response(stream, response):
 
 def main():
     os.umask(0o077)
-    if IS_WINDOWS:
-        msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
-        msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
     input_stream = sys.stdin.buffer
     output_stream = sys.stdout.buffer
     while True:

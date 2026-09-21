@@ -27,17 +27,12 @@ function companionPlatformSection(value,platform){
 }
 
 export async function packageDocs({platform,kind}){
- if(!['mac','windows'].includes(platform)||kind!=='ocr')throw new Error('Unsupported package docs target');
+ if(platform!=='mac'||kind!=='ocr')throw new Error('Unsupported package docs target');
  const source=await readFile(path.join(root,'OCR-INSTALL.md'),'utf8');
  const parts=splitBilingual(source,'\n## 中文');
- if(platform==='mac'){
-  const english=parts.english.replace(/^# Mamo OCR companion \/ 马莫本机识别服务$/m,'# Mamo OCR companion');
-  const chinese='# 马莫本机识别服务\n\n'+parts.chinese.replace(/^# 马莫本机识别服务\s*\n/m,'').trim()+'\n';
-  return {readme:companionPlatformSection(withoutLanguageHeading(english,'English'),'mac'),chinese:companionPlatformSection(chinese,'mac')};
- }
- const english=parts.english.replace(/^# Mamo OCR companion \/ 马莫本机识别服务$/m,'# Mamo OCR companion');
- const chinese='# 马莫本机识别服务\n\n'+parts.chinese.replace(/^# 马莫本机识别服务\s*\n/m,'').trim()+'\n';
- return {readme:companionPlatformSection(withoutLanguageHeading(english,'English'),'windows'),chinese:companionPlatformSection(chinese,'windows')};
+ const english=parts.english.replace(/^# Mamo macOS OCR companion \/ 马莫 macOS 本机识别服务$/m,'# Mamo OCR companion');
+ const chinese='# 马莫 macOS 本机识别服务\n\n'+parts.chinese.replace(/^# 马莫 macOS 本机识别服务\s*\n/m,'').trim()+'\n';
+ return {readme:companionPlatformSection(withoutLanguageHeading(english,'English'),'mac'),chinese:companionPlatformSection(chinese,'mac')};
 }
 
 export async function writePackageDocs(outputDir,target){
@@ -55,7 +50,7 @@ export async function writeLanguagePackageDocs(outputDir,target){
 
 if(process.argv[1]===fileURLToPath(import.meta.url)){
  const [platform,kind,outputDir,layout]=process.argv.slice(2);
- if(!platform||!kind||!outputDir)throw new Error('Usage: node scripts/package-docs.mjs <mac|windows> ocr <output-dir>');
+ if(!platform||!kind||!outputDir)throw new Error('Usage: node scripts/package-docs.mjs mac ocr <output-dir>');
  const target={platform,kind};
  await (layout==='split'?writeLanguagePackageDocs(path.resolve(outputDir),target):writePackageDocs(path.resolve(outputDir),target));
 }

@@ -10,13 +10,19 @@ test('GitHub extension also points users to the separate OCR package',()=>{
  assert.ok(box.querySelector('#download-companion'));
  assert.ok(box.querySelector('a[href$="mamo-ocr-mac.zip"]'));
 });
-for(const isWindows of [true,false])test(`store installation links to helper only (${isWindows?'Windows':'Mac'})`,()=>{
+test('store installation links to the Mac helper only',()=>{
  const dom=new JSDOM(markup),doc=dom.window.document,box=doc.querySelector('section');
- installCompanionDownload(box,{doc,isWindows,extensionId:STORE_ID});
- const link=doc.querySelector('#download-companion');assert.ok(link.href.endsWith(`mamo-ocr-${isWindows?'windows':'mac'}.zip`));
+ installCompanionDownload(box,{doc,extensionId:STORE_ID});
+ const link=doc.querySelector('#download-companion');assert.ok(link.href.endsWith('mamo-ocr-mac.zip'));
  assert.equal(link.closest('li'),doc.querySelector('.setup-instructions').firstElementChild);assert.equal(link.parentElement.className,'companion-download-row');
  assert.match(link.closest('li').querySelector('.authorization-title').textContent,/第一步：下载/);assert.equal(doc.querySelector('.setup-instructions').children[1].querySelector('.authorization-title').textContent,'第二步：打开解压后的 OCR 包。');assert.equal(doc.querySelector('.setup-instructions').children[2].querySelector('.authorization-title').textContent,'第三步：回到此页面，等待检测通过，自动进入下一步。');
  assert.equal(doc.querySelectorAll('[role=status]').length,0);assert.equal(doc.querySelector('.companion-download-hint').textContent,'请下载后解压。随后进行以下步骤。');assert.equal(link.parentElement.nextElementSibling,doc.querySelector('.companion-download-hint'));assert.doesNotMatch(translate(link.textContent,'en'),/[\u3400-\u9fff]/);assert.doesNotMatch(translate(link.closest('li').querySelector('.authorization-title').textContent,'en'),/[\u3400-\u9fff]/);assert.doesNotMatch(translate(doc.querySelector('.setup-instructions').children[1].querySelector('.authorization-title').textContent,'en'),/[\u3400-\u9fff]/);
+ dom.window.close();
+});
+test('Windows does not offer a companion OCR package',()=>{
+ const dom=new JSDOM(markup),doc=dom.window.document,box=doc.querySelector('section');
+ installCompanionDownload(box,{doc,isWindows:true});
+ assert.equal(doc.querySelector('#download-companion'),null);
  dom.window.close();
 });
 test('the extension package shows the same helper download step',()=>{

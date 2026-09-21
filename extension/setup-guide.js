@@ -3,9 +3,6 @@ import {installCompanionDownload} from './companion-setup.js';
 import {isWindows} from './platform.js';
 
 const nativeHealthErrors=new Map([
- ['Install Tesseract OCR with English language data, then click Check service again.','请安装 Tesseract OCR，并保留 English 语言数据，然后点击“重新检测”。'],
- ['Bundled English model is missing. Run the latest Install Windows OCR.exe again.','缺少内置英文模型，请重新运行最新版安装 Windows OCR.exe。'],
- ['Please run the latest Install Windows OCR.exe to install the corrected English model.','请重新运行最新版安装 Windows OCR.exe，安装修正后的英文模型。'],
  ['Allow the OCR executable','请在系统安全设置中允许识别程序，然后点击“重新检测”。']
 ]);
 function normalizeNativeHealthError(value,language=''){

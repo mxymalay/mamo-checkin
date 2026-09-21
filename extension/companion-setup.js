@@ -1,5 +1,6 @@
 export const STORE_ID='mneachaobiledakoicnkinfdpcjkbnmm';
 export function installCompanionDownload(box,{doc=document,isWindows=false,downloads}={}){
+ if(isWindows)return;
  const section=box.querySelector('[data-setup="install"]');
  if(!section)return;
  const instructions=section.querySelector('.setup-instructions');
@@ -7,11 +8,11 @@ export function installCompanionDownload(box,{doc=document,isWindows=false,downl
  if(!download||!instructions)return;
  download.id='download-companion';download.className='identity-check companion-download';
  download.href='https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-'+(isWindows?'windows':'mac')+'.zip';
- download.textContent=isWindows?'下载 Windows OCR 配套程序':'下载 Mac OCR 配套程序';
+ download.textContent='下载 Mac OCR 配套程序';
  const downloadsApi=downloads||globalThis.chrome?.downloads;
  const title=(text)=>{const element=doc.createElement('strong');element.className='authorization-title';element.textContent=text;return element;};
  const panel=(text,number)=>{const element=doc.createElement('li');element.className='setup-step-panel';element.dataset.stepPanel=String(number);element.append(title(text));return element;};
- const first=panel(isWindows?'第一步：下载 Windows OCR 配套包':'第一步：下载 Mac OCR 配套包',1);
+ const first=panel('第一步：下载 Mac OCR 配套包',1);
  const row=doc.createElement('div');row.className='companion-download-row';
  const hint=doc.createElement('span');hint.className='muted companion-download-hint';hint.textContent='请下载后解压。随后进行以下步骤。';
  download.remove();row.append(download);first.append(row,hint);

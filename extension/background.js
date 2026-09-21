@@ -375,13 +375,6 @@ async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin=
     state.diagnostics=[];
     await chrome.storage.local.set({diagnostics:[]});
     await cleanOwnedTabs(state);
-    if(!usingBrowserOcr&&health.engine==='Tesseract'){
-      const {ocrCacheRevision}=await chrome.storage.local.get('ocrCacheRevision');
-      if(ocrCacheRevision!==health.ocrRevision){
-        state.seenMessages={};state.seenThreads={};state.moodleProgress={};
-        await chrome.storage.local.set({seenMessages:{},seenThreads:{},moodleProgress:{},ocrCacheRevision:health.ocrRevision});
-      }
-    }
     await state.progress({message:usingBrowserOcr?'正在签到；使用浏览器内置识别图片':'正在签到；图片识别会在需要时启动',service:health});
     await inspectSchedule(state,verifiedLogin);
     for(const [scope,collect] of [['gmail',collectMail],['moodle',collectMoodle],['ed',collectEd]])try{await collect(state,native,verifiedLogin);}catch(error){await diagnose(state,{scope,error:error.message});}

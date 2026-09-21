@@ -19,16 +19,14 @@ const entries=`
 未检测到可用的本机识别服务，改用浏览器内置识别|No usable local OCR helper detected; switching to the built-in browser OCR.
 正在签到；使用浏览器内置识别图片|Checking in; recognizing images with the built-in browser OCR
 浏览器内置识别无独立日志文件|The built-in browser OCR keeps no separate log file.
-当前使用浏览器内置识别引擎，全程在本机完成、无需安装；如需更高识别精度，可安装对应系统的 OCR 配套程序。|Using the built-in browser OCR engine: fully on-device, nothing to install. Install the platform OCR companion for higher accuracy.
-Mac 可安装配套程序使用 Apple Vision；Windows 直接使用浏览器内置识别，均在本机完成。|Mac can optionally install the companion for Apple Vision; Windows uses the built-in browser OCR. All recognition stays on-device.
+当前使用浏览器内置识别引擎，全程在本机完成、无需安装；Mac 可按引导下载配套程序使用 Apple Vision 提升识别效果。|Using the built-in browser OCR engine: fully on-device, nothing to install. Mac users can follow the guide to install the companion for higher-accuracy Apple Vision recognition.
+两个平台默认使用浏览器内置识别；Mac 可选装 Apple Vision 配套程序。|Both platforms use built-in browser OCR by default; Mac users can optionally install the Apple Vision companion.
 本机识别服务版本不兼容。请使用本页下载按钮安装 OCR 配套程序，再重新检测。|The local OCR helper is incompatible. Install the companion using this page's download button, then check again.
 改用本机识别（安装配套程序）|Use Mac OCR helper
 已恢复本机识别优先；请在上方引导第 1 步安装配套程序。|On-device OCR is preferred again. Install the companion in step 1 of the guide above.
 不想麻烦？先尝试下内置识别。|Prefer to keep it simple? Try the built-in recognition first.
-下载 Windows OCR 配套程序|Download Windows OCR helper
 下载 Mac OCR 配套程序|Download Mac OCR helper
 第一步：下载 Mac OCR 配套包|Step 1: Download the Mac OCR helper
-第一步：下载 Windows OCR 配套包|Step 1: Download the Windows OCR helper
 请下载后解压。随后进行以下步骤。|Download and extract it. Then follow the steps below.
 助手连接已失效。请关闭助手页面，从 Chrome 扩展图标重新打开后重试。|The assistant connection expired. Close this page and reopen it from the Chrome extension icon, then retry.
 读取权限不足。请在 Chrome 扩展管理中允许助手访问对应网站，然后重试。|cannot be read without site permission. Allow access in Chrome extension settings, then retry.
@@ -106,7 +104,6 @@ OCR 诊断日志|OCR diagnostic log
 日期、活动类型、组别和时间必须完整后才能确认|Date, activity type, group and time must be complete before confirmation
 只有需要核对的记录可以确认|Only records needing review can be confirmed
 该记录存在多个签到码候选，请重新检测后再确认|This record has multiple attendance-code candidates. Detect again before confirming.
-请使用最新的安装 Windows OCR.exe 安装改进后的 Windows 识别服务。|Run the latest Install Windows OCR.exe to install the improved Windows OCR service.
 等待检测|Waiting to verify
 登录检测通过。|Sign-in verification passed.
 请在打开的网站完成登录，检测会自动继续。|Complete sign-in in the opened website. Verification will continue automatically.
@@ -132,7 +129,6 @@ Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm
 ，然后重新加载马莫签到助手。|, then reload Mamo Check-in.
 本地识别服务无法连接。请运行安装包中的安装程序，然后重新加载马莫签到助手。|Local recognition is unavailable. Run the installer in the package, then reload Mamo Check-in.
 本地识别服务无法连接。请运行安装包中的“安装 Mac 识别服务.command”，然后重新加载马莫签到助手。|Local recognition is unavailable. Run “Install Mac Recognition.command” from the package, then reload Mamo Check-in.
-本地识别服务无法连接。请运行安装包中的“安装 Windows OCR.exe”，然后重新加载马莫签到助手。|Local recognition is unavailable. Run “Install Windows OCR.exe” from the package, then reload Mamo Check-in.
 本地识别未返回有效结果|Local recognition returned no valid result
 本地识别连接已关闭|Local recognition connection closed
 本地识别响应超时，已停止本次连接；原图由本机服务保存。|Local recognition timed out. The connection was closed; the original image is saved locally.
@@ -141,16 +137,8 @@ Gmail 邮箱检测通过，请确认后保存。|Gmail account verified. Confirm
 本地识别完成|Local recognition complete
 识别服务未就绪，请运行对应系统的识别服务安装程序。|Recognition is not ready. Run the installer for your operating system.
 
-先安装 Windows 识别服务|Install the Windows recognition service first
-安装 Tesseract OCR|Install Tesseract OCR
-下载 Tesseract Windows 安装程序 ↗|Download the Tesseract Windows installer ↗
-使用默认安装位置，保留 English 语言数据。|Keep the default installation folder and English language data.
 连接浏览器|Connect Chrome
-双击 Install Windows OCR.exe，等待安装成功。|Run Install Windows OCR.exe and wait for installation to finish.
-安装 Windows OCR.exe|Install Windows OCR.exe
 无需安装 Python，也无需开启定时签到。|No Python installation is needed. Scheduled check-in is optional.
-Windows 阻止了安装程序？|Windows blocked the installer?
-确认文件来自本项目 Release 后，在 SmartScreen 中选择“更多信息 → 仍要运行”。学校管理的电脑若不允许，请联系管理员。|Verify the file came from this project, then choose More info → Run anyway in SmartScreen. For managed computers, contact your administrator if blocked.
 本地图片识别|Local image recognition
 首次安装请按安装引导运行对应系统的识别服务安装程序。|Follow the installation guide for your operating system.
 正在写入本地归档|Saving the local archive
@@ -527,9 +515,6 @@ Install Mac Recognition.command|Install Mac Recognition.command
 尚未连接识别服务。请完成安装；本页每 5 秒自动重试，无需反复刷新。|Recognition service is not connected. Finish installation; this page checks every 5 seconds.
 已检测到识别服务安装成功。请点击下方按钮刷新，继续填写身份。|Recognition service detected. Click below to reload and enter your details.
 识别服务已就绪。|Recognition service is ready.
-请安装 Tesseract OCR，并保留 English 语言数据，然后点击“重新检测”。|Install Tesseract OCR with the English language data, then click Check service again.
-缺少内置英文模型，请重新运行最新版安装 Windows OCR.exe。|The bundled English model is missing. Run the latest Install Windows OCR.exe again.
-请重新运行最新版安装 Windows OCR.exe，安装修正后的英文模型。|Run the latest Install Windows OCR.exe to install the corrected English model.
 请在系统安全设置中允许识别程序，然后点击“重新检测”。|Allow the recognition executable in your system security settings, then click Check service again.
 姓名|Name
 日期待核对|Date needs review
