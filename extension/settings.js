@@ -1,6 +1,7 @@
 import {schoolEmail} from './school-email.js';
 import {moodleCourseUrl} from './moodle-course-id.js';
-export const DEFAULTS={enabled:false,email:'',name:'',intervalMinutes:1440,academicYear:new Date().getFullYear(),mailQuery:'attendance',courses:[],senders:{},subjectKeywords:{},moodleUrls:{},edUrls:{},schedules:{},ignoreCompleted:false,devMode:false};
+export const DEFAULTS={enabled:false,email:'',name:'',intervalMinutes:1440,academicYear:new Date().getFullYear(),mailQuery:'attendance',courses:[],senders:{},subjectKeywords:{},moodleUrls:{},edUrls:{},schedules:{},ignoreCompleted:false,devMode:false,recognitionOnly:false,fastInterval:false};
+function normalizeFastInterval(cfg){cfg.fastInterval=Boolean(cfg.devMode&&cfg.fastInterval);if(!cfg.fastInterval&&cfg.intervalMinutes===.5)cfg.intervalMinutes=1440;}
 export function normalizeIdentityField(existing,field,value,hasRecords=false){
  if(!['email','name'].includes(field))throw new Error('无效的身份字段');
  const normalized=field==='email'?schoolEmail(value):String(value||'').trim();
@@ -32,12 +33,15 @@ export function normalizeSettings(existing,update,hasRecords=false,scope='all'){
   }
   if(scope==='automation'){
     const cfg={...existing};
-    for(const key of ['enabled','ignoreCompleted','devMode'])if(Object.hasOwn(update,key))cfg[key]=Boolean(update[key]);
+    for(const key of ['enabled','ignoreCompleted','devMode','recognitionOnly','fastInterval'])if(Object.hasOwn(update,key))cfg[key]=Boolean(update[key]);
+    cfg.recognitionOnly=Boolean(cfg.devMode&&cfg.recognitionOnly);
     if(Object.hasOwn(update,'intervalMinutes'))cfg.intervalMinutes=Math.max(0.5,Math.min(10080,Number(update.intervalMinutes)||1440));
+    normalizeFastInterval(cfg);
     return cfg;
   }
   if(scope!=='all')throw new Error('Invalid settings scope');
   const cfg={...existing,...update};
+  cfg.recognitionOnly=Boolean(cfg.devMode&&cfg.recognitionOnly);
   const rawEmail=String(cfg.email||'').trim()||String(existing.email||'').trim();
   cfg.email=rawEmail?schoolEmail(rawEmail):'';
   cfg.name=String(cfg.name||'').trim();
@@ -45,6 +49,7 @@ export function normalizeSettings(existing,update,hasRecords=false,scope='all'){
   if(cfg.courses.some(c=>cfg.senders?.[c])&&!cfg.email)throw new Error('课程使用邮件来源时，请在学校身份中填写学校邮箱');
   if(hasRecords&&(cfg.name!==existing.name||(cfg.email&&existing.email&&cfg.email!==existing.email)))throw new Error('已有记录时请使用单独的 Chrome 配置文件切换账号');
   cfg.enabled=Boolean(cfg.enabled);cfg.intervalMinutes=Math.max(0.5,Math.min(10080,Number(cfg.intervalMinutes)||1440));cfg.ignoreCompleted=Boolean(cfg.ignoreCompleted);cfg.devMode=Boolean(cfg.devMode);
+  normalizeFastInterval(cfg);
   cfg.academicYear=Number(cfg.academicYear);if(!Number.isInteger(cfg.academicYear)||cfg.academicYear<2020||cfg.academicYear>2100)throw new Error('请填写有效课程年份');
   cfg.courses=[...new Set((cfg.courses||[]).map(c=>String(c).trim().toUpperCase()))];
   if(!cfg.courses.length||cfg.courses.length>20||cfg.courses.some(c=>!/^([A-Z]{2,10}\d{3,6})$/.test(c)))throw new Error('请填写 1–20 门课程，例如 FIT5120');

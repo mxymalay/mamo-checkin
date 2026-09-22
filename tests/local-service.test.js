@@ -91,6 +91,9 @@ test('same image bytes reuse verified OCR observations without any file download
     assert.equal(fixture.events.downloadOptions.length,0);
     assert.equal(fixture.events.messages.filter(message=>message.op==='ocr').length,1);
     assert.equal(second.cached,true);
+    const retried=await service.call({...request,force:true});
+    assert.equal(retried.cached,false);
+    assert.equal(fixture.events.messages.filter(message=>message.op==='ocr').length,2);
     assert.equal(fixture.events.messages.filter(message=>message.op==='blob').length,0);
   }finally{await service.close();}
 }));

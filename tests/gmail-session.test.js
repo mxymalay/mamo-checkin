@@ -48,10 +48,15 @@ test('stale mailbox index never authorizes a switched account',async()=>{
  assert.equal(navigated,false);
  assert.equal(gmailMailbox('https://mail.google.com.evil.test/mail/u/0/'),null);
 });
-test('a preflight-verified Gmail tab is reused without a second identity read',async()=>{
+test('a preflight-verified Gmail tab is reused after rechecking its account',async()=>{
  const reads=[],navigated=[];
  const result=await openVerifiedGmail({email,search:'attendance',verifiedTabId:7,tabs:{get:async id=>({id,url:'https://mail.google.com/mail/u/2/#inbox',status:'complete'}),query:async()=>[]},readIdentity:async id=>{reads.push(id);return {email};},create:async()=>{throw Error('must not create a second tab');},navigate:async(...args)=>navigated.push(args)});
- assert.deepEqual(reads,[]);
+ assert.deepEqual(reads,[7]);
  assert.deepEqual(navigated,[[7,'https://mail.google.com/mail/u/2/#search/attendance']]);
  assert.deepEqual(result,{tabId:7,searchUrl:'https://mail.google.com/mail/u/2/#search/attendance'});
+});
+test('a reused Gmail tab whose account changed cannot search mail',async()=>{
+ let navigated=false;
+ await assert.rejects(openVerifiedGmail({email,search:'attendance',verifiedTabId:7,tabs:{get:async()=>({url:'https://mail.google.com/mail/u/2/'})},readIdentity:async()=>({email:'other@example.com'}),navigate:async()=>{navigated=true;}}),/账号已改变/);
+ assert.equal(navigated,false);
 });

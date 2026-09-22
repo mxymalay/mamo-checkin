@@ -62,6 +62,9 @@ test('a saved browser-OCR preference skips the install step on later visits',()=
  guide.update({setupGuide:true,ocrPreference:'browser',settings:{}});
  assert.equal(doc.body.dataset.setup,'identity');
  assert.equal(guide.needsHealth(),false);
+ guide.update({setupGuide:true,ocrPreference:'',settings:{}});
+ assert.equal(doc.body.dataset.setup,'install');
+ assert.equal(doc.querySelector('#setup-skip-ocr').textContent,'继续使用内置识别');
  dom.window.close();
 });
 test('failed native startup stops automatic retries until manual recovery',()=>{

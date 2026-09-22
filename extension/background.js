@@ -1,6 +1,8 @@
 import {runSummaryRecords,summaryFingerprint} from './run-summary.js';
 import {userError} from './user-error.js';
 import {syncSessionRecords} from './session-records.js';
+import {repairOcrState} from './ocr-migration.js';
+import {resolveRecord} from './record-resolution.js';
 import {checkinResult} from './checkin-result.js';
 import {parseActivity,siteDate,matchActivity} from './core.js';
 import {gmailAdapter} from './gmail.js';
@@ -20,7 +22,7 @@ import {selectEdThreads} from './ed-ranking.js';
 import {missingSessions} from './timetable.js';
 import {mergeHistory} from './history-export.js';
 import {scanSinceDate,messageOutsideWindow,outsideAttendanceWindow} from './recent-window.js';
-import {confirmLowConfidenceRecord} from './record-confirmation.js';
+import {confirmLowConfidenceRecord,fillMissingCode} from './record-confirmation.js';
 import {isWindows} from './platform.js';
 import {courseNeedsSource,recordInSchedule,expectedSessions,detectSessions,detectWeeklySchedule,gmailDateBounds} from './timetable.js';
 import {prioritiseThreads} from './gmail-ranking.js';
@@ -47,19 +49,46 @@ import {openVerifiedGmail} from './gmail-session.js';
 import {checkEmailLogin,listGmailAccounts} from './email-check.js';
 import {listGoogleAccounts,selectGoogleAccount} from './google-account.js';
 import {checkSiteLogin} from './site-check.js';
+import {verifyBackgroundLogin} from './background-preflight.js';
+import {trackLoginTabs} from './login-tabs.js';
 
 const UNITS='https://attendance.monash.edu.my/student/Units.aspx';
-let activeRun=null,activeDetection=null;
+let activeRun=null,activeDetection=null,activeMailPrefetch=null;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const emailCheckAdapters={tabs:chrome.tabs,readIdentity:tabId=>runFunction(tabId,gmailAdapter,'identity'),readGoogleAccounts:async tabId=>{const results=await chrome.scripting.executeScript({target:{tabId},func:listGoogleAccounts,args:[]});return results[0]?.result||{accounts:[]};},create:url=>chrome.tabs.create({url,active:false}),update:(tabId,url)=>chrome.tabs.update(tabId,{url}),selectAccount:async(tabId,email)=>{const results=await chrome.scripting.executeScript({target:{tabId},func:selectGoogleAccount,args:[email]});return results[0]?.result||{selected:false};}};
+const loginTabs=trackLoginTabs(chrome.tabs,chrome.storage.local);
+const emailCheckAdapters={tabs:loginTabs.tabs,readIdentity:tabId=>runFunction(tabId,gmailAdapter,'identity'),readGoogleAccounts:async tabId=>{const results=await chrome.scripting.executeScript({target:{tabId},func:listGoogleAccounts,args:[]});return results[0]?.result||{accounts:[]};},create:url=>loginTabs.tabs.create({url,active:false}),update:(tabId,url)=>chrome.tabs.update(tabId,{url}),selectAccount:async(tabId,email)=>{const results=await chrome.scripting.executeScript({target:{tabId},func:selectGoogleAccount,args:[email]});return results[0]?.result||{selected:false};}};
 
-async function loadState(){const s=await chrome.storage.local.get(['settings','records','seenMessages','seenThreads','moodleProgress','nextCourse','diagnostics','status','ownedTabIds','ocrPreference']);return {...s,settings:{...DEFAULTS,...s.settings},records:s.records||[],seenMessages:s.seenMessages||{},seenThreads:s.seenThreads||{},moodleProgress:s.moodleProgress||{},diagnostics:s.diagnostics||[],ownedTabIds:s.ownedTabIds||[]};}
+async function loadState(){const s=await chrome.storage.local.get(['settings','records','seenMessages','seenThreads','moodleProgress','nextCourse','diagnostics','status','ownedTabIds','ocrPreference','ocrRepairVersion']);return {...s,settings:{...DEFAULTS,...s.settings},records:s.records||[],seenMessages:s.seenMessages||{},seenThreads:s.seenThreads||{},moodleProgress:s.moodleProgress||{},diagnostics:s.diagnostics||[],ownedTabIds:s.ownedTabIds||[]};}
+async function loadCollectionState(){const state=await loadState(),repair=repairOcrState(state);if(repair){await chrome.storage.local.set(repair);Object.assign(state,repair);}return state;}
 async function schedule(){const s=await loadState();await reconcileScanAlarm(s.settings,chrome.alarms);}
 async function runFunction(tabId,func,command,args={}){const read=async()=>{const results=await chrome.scripting.executeScript({target:{tabId},func,args:[command,args]});return results[0]?.result;};return readAuthenticatedPage(chrome.tabs,tabId,func===gmailAdapter?'Gmail':func===moodleAdapter?'Moodle':'Attendance',read);}
 async function poll(read,predicate,timeout=25000){const end=Date.now()+timeout;let last;while(Date.now()<end){try{last=await read();if(predicate(last))return last;}catch(e){if(e.message?.includes(LOGIN_REQUIRED)||isClosedPageError(e))throw e;last=e;}await delay(600);}throw last instanceof Error?last:new Error('页面没有及时加载，请确认 Chrome 中的登录状态');}
 async function navigate(tabId,url){try{await chrome.tabs.update(tabId,{url});await poll(()=>chrome.tabs.get(tabId),t=>t.status==='complete');}catch(error){const host=new URL(url).hostname;throw pageError(error,host==='mail.google.com'?'Gmail':host==='learning.monash.edu'?'Moodle':'Attendance 签到系统');}}
 async function createOwnedTab(state,url){const tab=await chrome.tabs.create({url,active:false});state.ownedTabIds.push(tab.id);await chrome.storage.local.set({ownedTabIds:state.ownedTabIds});return tab.id;}
 async function cleanOwnedTabs(state){await cleanupOwnedTabs(state,chrome.tabs,ownedTabIds=>chrome.storage.local.set({ownedTabIds}));}
+async function connectOcr(state){
+ let native,health,usingBrowserOcr=false;
+ if(isWindows){
+  usingBrowserOcr=true;
+  await state.progress({message:'Windows 使用浏览器内置识别'});
+  native=await browserOcrService({onProgress:state.progress});
+  health=await native.call({op:'ping'});
+ }else{
+  try{
+   native=await localService({onProgress:state.progress});
+   health=await native.call({op:'ping'});
+   if(!health.binaryReady)throw new Error(health.healthError||'本机识别服务未就绪');
+  }catch(companionError){
+   try{await native?.close();}catch{}
+   native=null;usingBrowserOcr=true;
+   await state.progress({message:'未检测到可用的本机识别服务，改用浏览器内置识别'});
+   native=await browserOcrService({onProgress:state.progress});
+   health=await native.call({op:'ping'});
+  }
+ }
+ state.usingBrowserOcr=usingBrowserOcr;
+ return {native,health,usingBrowserOcr};
+}
 async function save(state,native){
   // Chrome storage is the durable submission checkpoint. Downloading an extra
   // snapshot can fail independently without stranding a not-yet-clicked row.
@@ -70,11 +99,14 @@ async function save(state,native){
 const collectionAdapter=(state,native,readImage=getImage)=>({getImage:readImage,ocr:async(payload,meta)=>{
   const at=Date.now(),context={course:meta?.course,sourceUrl:meta?.sourceUrl};
   try{
-    const result=await native.call({op:'ocr',...payload,meta});
+    const result=await native.call({op:'ocr',...payload,meta,force:Boolean(state.forceOcr)});
     await appendDiagnostic(chrome.storage.local,{event:'ocr',...context,ms:Date.now()-at,imageId:result.imageId,cached:result.cached,diagnostics:result.diagnostics,candidates:result.observations?.filter(o=>/^[A-Z0-9]{5}$/.test(o.text)).map(({text,confidence,x,y})=>({text,confidence,x,y}))});
     return result;
   }catch(error){await appendDiagnostic(chrome.storage.local,{event:'ocr-error',...context,ms:Date.now()-at,error:error.message});throw error;}
-},save:()=>save(state,native),saveDiagnostics:()=>chrome.storage.local.set({diagnostics:state.diagnostics}),recentOnly:true,refresh:Boolean(state.settings.ignoreCompleted),progress:event=>state.progress(event),shouldContinue:msg=>courseNeedsSource(state,msg.course)});
+},rescueOcr:state.usingBrowserOcr?undefined:async(payload,meta)=>{
+ const rescue=await browserOcrService({onProgress:state.progress});
+ try{return await rescue.call({op:'ocr',...payload,meta,force:Boolean(state.forceOcr)});}finally{await rescue.close();}
+},save:()=>save(state,native),saveDiagnostics:()=>chrome.storage.local.set({diagnostics:state.diagnostics}),recentOnly:true,refresh:Boolean(state.forceOcr||state.settings.ignoreCompleted),progress:event=>state.progress(event),shouldContinue:msg=>courseNeedsSource(state,msg.course)});
 async function diagnose(state,details){
  details={...details,error:userError(details.error,['gmail','thread'].includes(details.scope)?'Gmail':details.scope==='moodle'?'Moodle':details.scope==='ed'?'Ed':details.scope==='archive'?'归档':'Attendance 签到系统')};
  const source=['gmail','thread'].includes(details.scope)?'Gmail':details.scope==='moodle'?'Moodle':details.scope==='ed'?'Ed':'Attendance 签到系统';
@@ -109,7 +141,7 @@ async function collectMail(state,native,verifiedLogin={}){
   await state.progress({message:'Gmail 账号已确认，正在搜索最近 7 天的邮件',context:{sourceUrl:searchUrl}});
   mailStarted=Date.now();deadline=mailStarted+100000;
   const initial=await poll(()=>runFunction(tab,gmailAdapter,'list',cfg),r=>r&&!r.loading);
-  const pending=initial.threads.filter(thread=>state.settings.ignoreCompleted||state.seenThreads[thread.id]!==thread.lastMessageId);
+  const pending=initial.threads.filter(thread=>state.forceOcr||state.settings.ignoreCompleted||state.seenThreads[thread.id]!==thread.lastMessageId);
   if(pending.length>40)await diagnose(state,{scope:'gmail',error:'本轮最多处理 40 个新会话，其余下轮继续'});
   // Round-robin the best threads per course before falling back to score order,
   // so one noisy unit cannot consume the cap before another course's code mail.
@@ -117,7 +149,7 @@ async function collectMail(state,native,verifiedLogin={}){
   await state.progress({message:`Gmail 列表读取完成（${((Date.now()-mailStarted)/1000).toFixed(1)} 秒），${pending.length} 个待检查会话`,increment:{pages:1}});
   for(const [threadIndex,thread] of queue.entries()){
     if(Date.now()>deadline){await diagnose(state,{scope:'gmail',error:'本轮邮件检查达到时间上限，其余会话下轮继续'});break;}
-    if((!state.settings.ignoreCompleted&&state.seenThreads[thread.id]===thread.lastMessageId)||!courseNeedsSource(state,thread.course))continue;
+    if((!state.forceOcr&&!state.settings.ignoreCompleted&&state.seenThreads[thread.id]===thread.lastMessageId)||!courseNeedsSource(state,thread.course))continue;
     try{
       if(!thread.lastMessageId)throw new Error('邮件会话缺少最新消息标识');
       // Open the thread by URL: deterministic, unlike clicking the list row,
@@ -137,6 +169,26 @@ async function collectMail(state,native,verifiedLogin={}){
       await diagnose(state,{scope:'thread',threadId:thread.id,subject:thread.subject,error:error?.message||String(error)});
     }
   }
+}
+async function prefetchMail(verifiedLogin={},expectedIdentity){
+ const state=await loadCollectionState();
+ if(expectedIdentity&&(expectedIdentity.email!==state.settings.email||expectedIdentity.name!==state.settings.name))return;
+ state.manualRun=true;state.progress=async()=>{};state.diagnostics=[];
+ let native;
+ try{
+  ({native}=await connectOcr(state));
+  await collectMail(state,native,verifiedLogin);
+  await save(state,native);
+ }catch(error){
+  await diagnose(state,{scope:'gmail',error:error.message||String(error)});
+ }finally{
+  try{await cleanOwnedTabs(state);}catch{}
+  try{await native?.close();}catch{}
+ }
+}
+function startMailPrefetch(verifiedLogin={},expectedIdentity){
+ if(!activeMailPrefetch)activeMailPrefetch=prefetchMail(verifiedLogin,expectedIdentity).finally(()=>{activeMailPrefetch=null;});
+ return activeMailPrefetch;
 }
 async function collectMoodle(state,native,verifiedLogin={}){
   const cfg=state.settings,deadline=Date.now()+100000;
@@ -299,9 +351,11 @@ async function inspectSchedule(state,verifiedLogin={}){
   }
 }
 async function submit(state,native){
+  const currentSettings=(await loadState()).settings;
+  if(state.settings.recognitionOnly||currentSettings.recognitionOnly){await state.progress({message:'仅识别模式：签到码已保留，本轮不填写或提交签到'});return;}
   if(!state.records.some(r=>state.settings.courses.includes(r.course)&&recordInSchedule(state.settings,r)&&!['submitted','expired','review'].includes(r.status)))return;
   const tab=state.attendanceTab??await createOwnedTab(state,UNITS);
-  const settingsStillActive=async record=>{const current=await loadState();return (state.manualRun||current.settings.enabled)&&current.settings.email===state.settings.email&&current.settings.name===state.settings.name&&current.settings.courses.includes(record.course)&&!outsideAttendanceWindow(record)&&recordInSchedule(current.settings,record); };
+  const settingsStillActive=async record=>{const current=await loadState();return !state.settings.recognitionOnly&&!current.settings.recognitionOnly&&(state.manualRun||current.settings.enabled)&&current.settings.email===state.settings.email&&current.settings.name===state.settings.name&&current.settings.courses.includes(record.course)&&!outsideAttendanceWindow(record)&&recordInSchedule(current.settings,record); };
   let firstList=true;
   const list=async()=>{
     await state.progress({message:'正在读取网站签到记录（最多等待 25 秒）',context:{sourceUrl:UNITS}});
@@ -324,17 +378,19 @@ async function submit(state,native){
     await state.progress({message:'签到已提交，正在等待网站确认'});
     await delay(1500);
     await poll(()=>chrome.tabs.get(tab),t=>t.status==='complete');
-    return {entered:true};
+    return {entered:true,...await runFunction(tab,attendanceAdapter,'outcome',{})};
   }});
 }
-async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin={}){
-  const state=await loadState();
+async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin={},preflight=false){
+  if(activeMailPrefetch)await activeMailPrefetch;
+  const state=await loadCollectionState();
   if(expectedIdentity&&(expectedIdentity.email!==state.settings.email||expectedIdentity.name!==state.settings.name))throw new Error('签到前身份已改变，请重新登录并检测后再试');
   const beforeSummary=new Map(state.records.map(r=>[r.id,summaryFingerprint(r)]));
   state.runSubmittedIds=new Set();
   if(course)state.settings={...state.settings,courses:state.settings.courses.filter(c=>c===course)};
   if(!manual&&!state.settings.enabled)return {ok:false,error:'自动运行已暂停'};
   state.manualRun=manual;
+  state.forceOcr=Boolean(course);
   let native;
   const startedAt=new Date().toISOString();
   let loggedEvents=0;
@@ -346,32 +402,19 @@ async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin=
   state.progress=event=>progress.update({...event,...(event.message?{message:event.message.replaceAll(LOGIN_REQUIRED+' ','')}:{})});
   try{
     await state.progress({message:'正在签到：核对最近 7 天的课程'});
+    if(preflight){
+      verifiedLogin=await verifyBackgroundLogin(state.settings,{
+        request:message=>message.type==='checkEmail'?checkEmailLogin(message,emailCheckAdapters):checkSiteLogin(message,{tabs:loginTabs.tabs,readIdentity:tabId=>runFunction(tabId,message.type==='checkMoodle'?moodleAdapter:attendanceAdapter,'identity')},message.type==='checkMoodle'?'Moodle':'Attendance 签到系统'),
+        progress:state.progress,
+        onGmailVerified:result=>{void startMailPrefetch({gmail:{tabId:result.tabId}},expectedIdentity).catch(()=>{});}
+      });
+      if(activeMailPrefetch)await activeMailPrefetch;
+      const collected=await loadState();
+      state.records=collected.records;state.seenMessages=collected.seenMessages;state.seenThreads=collected.seenThreads;state.ownedTabIds=collected.ownedTabIds;
+    }
     if(!manual)notify('run-start',{title:'自动签到已开始',message:'页面将在后台打开并检查最近 7 天的课程，完成后会再通知结果。'});
     let health,usingBrowserOcr=false;
-    if(isWindows){
-      // The Windows companion is retired: the browser engine is the same
-      // Tesseract LSTM with preprocessing, so a native host adds friction
-      // for zero recognition quality.
-      usingBrowserOcr=true;
-      await state.progress({message:'Windows 使用浏览器内置识别'});
-      native=await browserOcrService({onProgress:state.progress});
-      health=await native.call({op:'ping'});
-    }else{
-      try{
-        native=await localService({onProgress:state.progress});
-        health=await native.call({op:'ping'});
-        if(!health.binaryReady)throw new Error(health.healthError||'本机识别服务未就绪');
-      }catch(companionError){
-      try{await native?.close();}catch{}
-      native=null;usingBrowserOcr=true;
-      await state.progress({message:'未检测到可用的本机识别服务，改用浏览器内置识别'});
-      native=await browserOcrService({onProgress:state.progress});
-      // The browser engine boots lazily on the first image, so an idle ping
-      // reports binaryReady:false by design; only a dead offscreen document
-      // throws here.
-      health=await native.call({op:'ping'});
-      }
-    }
+    ({native,health,usingBrowserOcr}=await connectOcr(state));
     state.diagnostics=[];
     await chrome.storage.local.set({diagnostics:[]});
     await cleanOwnedTabs(state);
@@ -388,7 +431,7 @@ async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin=
     const attention=state.records.filter(r=>['review','uncertain','attempting'].includes(r.status)).length;
     const failures=state.diagnostics.length,lastFailure=state.diagnostics.at(-1)?.error;
     const message=failures?`${failures} 项处理失败：${lastFailure?.replaceAll(LOGIN_REQUIRED+' ','')}`:attention?`${attention} 条记录需要核对`:'本轮签到流程已完成';
-    const currentRecords=state.records.filter(r=>state.settings.courses.includes(r.course)&&(r.status==='expired'||(!outsideAttendanceWindow(r)&&recordInSchedule(state.settings,r))));
+    const currentRecords=state.records.filter(r=>!['ignored','linked'].includes(r.status)&&state.settings.courses.includes(r.course)&&(r.status==='expired'||(!outsideAttendanceWindow(r)&&recordInSchedule(state.settings,r))));
     const notificationRecords=runSummaryRecords(currentRecords,beforeSummary,state.runSubmittedIds);
     const summary={issues:state.scheduleIssues||[],diagnostics:state.diagnostics.slice(-20),submitted:currentRecords.filter(r=>r.status==='submitted'&&state.runSubmittedIds.has(r.id)).length,detected:currentRecords.length,needsConfirmation:!currentRecords.length||Boolean(state.autoNeedsConfirmation),records:notificationRecords.map(({course,date,time,type,group,status})=>({course,date,time,type,group,status}))};
     summary.courses=state.settings.courses.map(course=>{
@@ -409,16 +452,18 @@ async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin=
     summary.allCompleted=summary.quiet;
     if(summary.allCompleted&&!state.autoNeedsConfirmation)summary.needsConfirmation=false;
     const outcome=checkinResult(summary,Boolean(failures));
+    if(outcome.tone==='success')try{await loginTabs.release(verifiedLogin);}catch{}
     // Scheduled runs happen unattended: a system notification carries the
     // outcome (clicking it opens the assistant) unless there is nothing to say.
     if(!manual&&!summary.quiet)notify('result',{title:outcome.title,message:(outcome.success?'':message?message+' ':'')+'点击打开马莫签到助手查看记录。'});
-    await progress.finish({message:outcome.success?outcome.title:outcome.title+'：'+message,error:Boolean(failures)||outcome.tone==='error',diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,ocrLogPath:health.ocrLogPath,summary});
+    const sameMessage=outcome.title.replace(/[。.!]+$/,'')===message.replace(/[。.!]+$/,'');
+    await progress.finish({message:outcome.success||sameMessage?outcome.title:outcome.title+'：'+message,error:Boolean(failures)||outcome.tone==='error',diagnostics:state.diagnostics.slice(-5),archiveDir:health.archiveDir,ocrLogPath:health.ocrLogPath,summary});
     await chrome.action.setBadgeText({text:attention||failures?'!':''});
     return {ok:true};
   }catch(e){const error=userError(e,'签到').replaceAll(LOGIN_REQUIRED+' ','');await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}
   finally{try{await cleanOwnedTabs(state);}catch{}try{await native?.close();}catch{}}
 }
-function start(manual=false,course=null,expectedIdentity=null,verifiedLogin={}){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run(manual,course,expectedIdentity,verifiedLogin).finally(()=>{activeRun=null;});return activeRun;}
+function start(manual=false,course=null,expectedIdentity=null,verifiedLogin={},preflight=false){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run(manual,course,expectedIdentity,verifiedLogin,preflight).finally(()=>{activeRun=null;});return activeRun;}
 async function redetect(){
  const state=await loadState();
  if(!state.settings.name)throw new Error('请先在第 2 步填写并保存姓名，再登录签到系统检测课程');
@@ -435,7 +480,7 @@ async function redetect(){
 }
 chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name==='scan')void start();});
 chrome.runtime.onInstalled.addListener(()=>{void schedule();});
-chrome.runtime.onStartup.addListener(()=>{void chrome.storage.local.set({ownedTabIds:[]}).then(schedule);});
+chrome.runtime.onStartup.addListener(()=>{void chrome.storage.local.set({ownedTabIds:[],loginTabs:[]}).then(schedule);});
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(message.target==='ocr-offscreen')return false;
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('')))return false;
@@ -443,7 +488,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     if(message.type==='checkEmail')return checkEmailLogin(message,emailCheckAdapters);
     if(message.type==='listGmailAccounts')return listGmailAccounts(emailCheckAdapters,message);
     if(message.type==='status'){const state=await loadState();if(!activeRun&&state.status?.running){state.status={...state.status,running:false,error:true,finishedAt:new Date().toISOString(),message:'上次检查已中断，已保存进度，可以重新开始检查'};await chrome.storage.local.set({status:state.status});}return {...state,discoveryAvailable:true,setupGuide:true};}
-    if(message.type==='readIdentity'||message.type==='checkMoodle')return checkSiteLogin(message,{tabs:chrome.tabs,readIdentity:tabId=>runFunction(tabId,message.type==='checkMoodle'?moodleAdapter:attendanceAdapter,'identity')},message.type==='checkMoodle'?'Moodle':'Attendance 签到系统');
+    if(message.type==='readIdentity'||message.type==='checkMoodle')return checkSiteLogin(message,{tabs:loginTabs.tabs,readIdentity:tabId=>runFunction(tabId,message.type==='checkMoodle'?moodleAdapter:attendanceAdapter,'identity')},message.type==='checkMoodle'?'Moodle':'Attendance 签到系统');
     if(message.type==='identityField'){
       if(activeRun||activeDetection)throw new Error('请等待当前检查结束再修改身份');
       const state=await loadState(),identity=normalizeIdentityField(state.settings,message.field,message.value,state.records.length>0);
@@ -454,16 +499,21 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       const state=await loadState(),identity=normalizeIdentity(state.settings,message,state.records.length>0);
       await chrome.storage.local.set({settings:{...state.settings,...identity}});return {ok:true};
     }
-    if(message.type==='confirmRecord'){
-      if(activeRun||activeDetection)throw new Error('正在签到，请等待本轮结束');
+    if(message.type==='resolveRecord'){
+      if(activeRun||activeDetection||activeMailPrefetch)throw new Error('正在签到，请等待本轮结束');
+      const state=await loadState();state.records=resolveRecord(state.records,message);
+      await chrome.storage.local.set({records:state.records});return {ok:true};
+    }
+    if(message.type==='confirmRecord'||message.type==='fillMissingCode'){
+      if(activeRun||activeDetection||activeMailPrefetch)throw new Error('正在签到，请等待本轮结束');
       const state=await loadState(),record=state.records.find(item=>item.id===message.id);
-      const confirmed=confirmLowConfidenceRecord(record);
+      const confirmed=message.type==='fillMissingCode'?fillMissingCode(record,message.code):confirmLowConfidenceRecord(record);
       state.records=state.records.map(item=>item.id===confirmed.id?confirmed:item);
       await chrome.storage.local.set({records:state.records});
       return {ok:true,record:confirmed};
     }
     if(message.type==='reset'){
-      if(activeRun||activeDetection)throw new Error('请等待当前检查结束后再重置');
+      if(activeRun||activeDetection||activeMailPrefetch)throw new Error('请等待当前检查结束后再重置');
       await chrome.alarms.clear('scan');
       await chrome.storage.local.clear();
       if(chrome.storage.session)await chrome.storage.session.clear();
@@ -474,12 +524,18 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     if(message.type==='scan'){
       if(activeDetection)throw new Error('正在重新检测课程，请稍后检查签到');
       if(message.expectedIdentity){const current=await loadState();if(message.expectedIdentity.email!==current.settings.email||message.expectedIdentity.name!==current.settings.name)throw new Error('签到前身份已改变，请重新登录并检测后再试');}
-      void start(true,null,message.expectedIdentity,message.verifiedLogin);return {ok:true};
+      void start(true,null,message.expectedIdentity,message.verifiedLogin,Boolean(message.preflight));return {ok:true};
+    }
+    if(message.type==='prefetchMail'){
+      if(activeRun||activeDetection)throw new Error('正在签到，请等待本轮结束');
+      const state=await loadState();
+      if(message.expectedIdentity&&(message.expectedIdentity.email!==state.settings.email||message.expectedIdentity.name!==state.settings.name))throw new Error('签到前身份已改变，请重新登录并检测后再试');
+      void startMailPrefetch(message.verifiedLogin,message.expectedIdentity);return {ok:true};
     }
     if(message.type==='retry'){if(activeRun||activeDetection)throw new Error('正在签到，请等待本轮结束');const state=await loadState();if(!state.settings.courses.includes(message.course))throw new Error('课程已被移除，请重新配置');if(message.expectedIdentity&&(message.expectedIdentity.email!==state.settings.email||message.expectedIdentity.name!==state.settings.name))throw new Error('签到前身份已改变，请重新登录并检测后再试');void start(true,message.course,message.expectedIdentity,message.verifiedLogin);return {ok:true};}
     if(message.type==='redetect'){if(activeRun||activeDetection)throw new Error('正在运行，请等待当前检查结束再重新检测课程');activeDetection=redetect().finally(()=>{activeDetection=null;});return activeDetection;}
     if(message.type==='clearCourses'){
-      if(activeRun||activeDetection)throw new Error('正在运行，请等待检查结束再清空课程');
+      if(activeRun||activeDetection||activeMailPrefetch)throw new Error('正在运行，请等待检查结束再清空课程');
       const state=await loadState();
       await chrome.storage.local.set({settings:{...state.settings,enabled:false,autoDiscover:false,courses:[],senders:{},subjectKeywords:{},moodleUrls:{},schedules:{}},records:[],attendanceHistory:[],diagnosticLog:[],seenMessages:{},seenThreads:{},diagnostics:[],status:{running:false,message:'课程和收集记录已清空'},moodleProgress:{},nextCourse:0});
       await schedule();return {ok:true};

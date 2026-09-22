@@ -17,3 +17,11 @@ test('invalid fields reveal their page without altering the first-run wizard sta
  doc.querySelector('#email').dispatchEvent(new dom.window.Event('invalid'));
  assert.equal(doc.querySelector('#settings>.columns').hidden,false);assert.equal(doc.body.dataset.setup,'install');dom.window.close();
 });
+
+test('credits page uses the product description without the removed nickname banner',()=>{
+ const dom=new JSDOM(html),credits=dom.window.document.querySelector('#credits');
+ assert.doesNotMatch(credits.textContent,/MAMO CHECK-IN · OPEN SOURCE/);
+ assert.doesNotMatch(credits.textContent,/一起把马莫|改进马莫/);
+ assert.match(credits.textContent,/签到助手/);
+ dom.window.close();
+});

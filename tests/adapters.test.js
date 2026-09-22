@@ -5,6 +5,17 @@ import {gmailAdapter} from '../extension/gmail.js';
 import {attendanceAdapter} from '../extension/attendance.js';
 const dom=html=>new JSDOM(html,{url:'https://mail.google.com/mail/u/2/#search/attendance'}).window.document;
 const config={email:'abcd1234@student.monash.edu',name:'Example Student',courses:['FIT5120','FIT5122'],senders:{FIT5120:'lms@example.edu',FIT5122:'teacher@example.edu'}};
+test('attendance distinguishes explicit code rejection, attempt limits and unknown results',()=>{
+ for(const [html,expected] of [
+  ['Invalid session code',{blocked:false,rejected:true}],
+  ['Incorrect code. Too many attempts, try again later.',{blocked:true,rejected:false}],
+  ['<input id="ctl00_ContentPlaceHolder1_sessionCode" disabled>',{blocked:true,rejected:false}],
+  ['Processing request',{blocked:false,rejected:false}]
+ ]){
+  const page=new JSDOM(html,{url:'https://attendance.monash.edu.my/student/Entry.aspx'});
+  assert.deepEqual(attendanceAdapter('outcome',{},page.window.document),expected);page.window.close();
+ }
+});
 test('Gmail detects wrong signed-in account before reading',()=>{
  const doc=dom('<button aria-label="Google Account: Person (wrong@example.edu)"></button>');
  assert.throws(()=>gmailAdapter('list',config,doc),/账号/);

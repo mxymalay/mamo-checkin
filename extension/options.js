@@ -7,27 +7,37 @@ import {installLanguageUI,translate} from './i18n.js';
 import {checkinResult} from './checkin-result.js';
 import {schoolEmail,emailPrefix,configureEmailInput} from './school-email.js';
 import {createSetupGuide} from './setup-guide.js';
+import {createSetupTour} from './setup-tour.js';
 import {DEFAULTS,normalizeSettings} from './settings.js';
 import {parseConfiguration,exportConfiguration} from './configuration.js';
 import {bindVerification,configuredLoginSites,loginRequest} from './verification.js';
 import {createLoginPreflight} from './login-preflight.js';
 import {appendRecordHelp} from './record-help.js';
-import {confirmLowConfidenceRecord} from './record-confirmation.js';
-import {displayStatus,weekQualifier} from './record-status.js';
+import {fillMissingCode} from './record-confirmation.js';
+import {showManualCode} from './manual-code.js';
+import {orderRecords} from './record-order.js';
+import {hiddenRecord,canResolve,linkCandidates,resolveRecord} from './record-resolution.js';
+import {createDemoRecords} from './demo-records.js';
+import {showRecordLink} from './record-link-dialog.js';
+import {displayStatus} from './record-status.js';
 import {isWindows} from './platform.js';
-import {semesterRows,historyCsv} from './history-export.js';
+import {semesterRows} from './history-export.js';
+import {historyReport} from './history-report.js';
 const $=id=>document.getElementById(id);
-const historyExport=document.createElement('details');historyExport.className='history-export source-log';
-historyExport.innerHTML='<summary>学期记录导出</summary><form id="history-export-form"><div class="history-range"><label>开始日期<input id="history-from" type="date" required></label><label>结束日期<input id="history-to" type="date" required></label></div><label class="history-projection"><input id="history-projected" type="checkbox">包含按当前课表推算的场次</label><p class="hint">推算场次不代表实际上课或签到。网站记录仅包含助手实际读取过的场次。</p><button type="submit" class="subtle">导出学期 CSV</button></form>';
+const historyExport=document.createElement('section');historyExport.className='history-export source-log';historyExport.id='history-export-panel';historyExport.hidden=true;
+historyExport.innerHTML='<h3>学期报告</h3><form id="history-export-form"><div class="history-range"><label>开始日期<input id="history-from" type="date" required></label><label>结束日期<input id="history-to" type="date" required></label></div><label class="history-projection"><input id="history-projected" type="checkbox">包含按当前课表推算的场次</label><p class="hint">推算场次不代表实际上课或签到。网站记录仅包含助手实际读取过的场次。</p><button type="submit" class="subtle">导出 HTML 报告</button></form>';
 document.querySelector('.records .table-wrap').before(historyExport);
+const exportActions=document.createElement('div');exportActions.className='record-export-actions';$('export').before(exportActions);exportActions.append($('export'));
+const reportButton=document.createElement('button');reportButton.id='export-history';reportButton.type='button';reportButton.className='subtle';reportButton.textContent='学期报告';reportButton.setAttribute('aria-controls',historyExport.id);reportButton.setAttribute('aria-expanded','false');exportActions.append(reportButton);
+reportButton.onclick=()=>{historyExport.hidden=!historyExport.hidden;reportButton.setAttribute('aria-expanded',String(!historyExport.hidden));if(!historyExport.hidden)$('history-from').focus();};
 $('history-export-form').addEventListener('submit',async event=>{
  event.preventDefault();const button=event.submitter;button.disabled=true;
  try{
   const state=await request({type:'status'}),{attendanceHistory=[]}=await chrome.storage.local.get('attendanceHistory');
   const rows=semesterRows({from:$('history-from').value,to:$('history-to').value,records:state.records,history:attendanceHistory,settings:state.settings,includeProjected:$('history-projected').checked});
   if(!rows.length){notice('所选日期范围内没有记录。','error');return;}
-  const url=URL.createObjectURL(new Blob([historyCsv(rows)],{type:'text/csv;charset=utf-8'}));
-  const link=document.createElement('a');link.href=url;link.download=`mamo-history-${$('history-from').value}-${$('history-to').value}.csv`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const url=URL.createObjectURL(new Blob([historyReport(rows,{from:$('history-from').value,to:$('history-to').value,language:document.documentElement.lang})],{type:'text/html;charset=utf-8'}));
+  const link=document.createElement('a');link.href=url;link.download=`mamo-history-${$('history-from').value}-${$('history-to').value}.html`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   notice('学期记录已导出。','success');
  }catch(error){notice(error.message,'error');}finally{button.disabled=false;}
 });
@@ -40,9 +50,9 @@ const moreCourses=document.createElement('details');moreCourses.className='more-
 document.addEventListener('click',event=>{if(event.target.closest('#result-edit'))pageTabs.show('courses');});
 const askConfirm=message=>window.confirm(translate(message));
 const labels={waiting_code:'等待签到码',ready:'等待匹配',submitted:'已签到',expired:'已过期',review:'需要核对',attempting:'核对提交结果',uncertain:'结果待确认',not_started:'未开始'};
-let guide,savedFormSnapshot;
+let guide,setupTour,savedFormSnapshot;
 let identityBindings,loginPreflight,identitySnapshot='';
-function formSnapshot(){return JSON.stringify([...document.querySelectorAll('#settings input,#settings select,#settings textarea')].map(input=>[input.id||input.dataset.field,input.type==='checkbox'?input.checked:input.value.trim()]));}
+function formSnapshot(){return JSON.stringify([...document.querySelectorAll('#settings input,#settings select,#settings textarea')].filter(input=>input.id!=='demo-records').map(input=>[input.id||input.dataset.field,input.type==='checkbox'?input.checked:input.value.trim()]));}
 let latest={},editing=false,refreshing=false,refreshQueued=false,refreshSettings=false,healthPending=false,healthWarning=false,saving=false,scanPending=false;
 const request=async payload=>{
   if(!globalThis.chrome?.runtime?.sendMessage)throw new Error('请先在 Chrome 加载此扩展，再从扩展图标打开设置');
@@ -74,7 +84,7 @@ async function discoverCourses(automatic=false){
  }catch(error){const detail=/登录|账号|页面|tab|fetch|权限/i.test(error.message)?'未检测到课程，请检查签到系统登录状态后重试，或手动添加课程。':error.message;guide?.message(detail,true);notice(detail,'error');configAlert(detail);}finally{guide?.detecting(false);discovering=false;$('redetect').disabled=false;$('redetect').textContent='重新检测课程';}
 }
 let observedRun=false,lastResult=null;
-let selectedRecordCourse='',recordViewSnapshot='';
+let selectedRecordCourse='latest',recordViewSnapshot='',demoRecords=null;
 function recordWeek(record){
  const sourceWeek=String(record.subject||'').match(/\bweek\s*(\d{1,2})\b/i);
  if(sourceWeek)return `${(record.date||'').slice(0,4)} · Week ${Number(sourceWeek[1])}（来源标注）`;
@@ -124,7 +134,22 @@ function renderProgress(status={}){
  // Idle runs keep the full log only in the records tab; this live tail is
  // a run-progress view and hides once the run ends.
  if($('run-events-details'))$('run-events-details').hidden=!status.running;
- const keys=['pages','messages','images','cached','records','skipped'],counts=status.counts||{};[...$('run-counts').querySelectorAll('dd')].forEach((node,index)=>node.textContent=String(counts[keys[index]]||0));
+ const keys=['pages','messages','images','cached','records','skipped'],counts=status.counts||{};
+ [...$('run-counts').querySelectorAll('dd')].forEach((node,index)=>{
+  const key=keys[index],count=counts[key]||0;
+  if(!count){node.textContent='0';return;}
+  let button=node.querySelector('button');if(!button){button=document.createElement('button');button.type='button';button.className='metric-link';node.replaceChildren(button);}
+  button.textContent=String(count);button.setAttribute('aria-label',`${translate(node.parentElement.querySelector('dt').textContent)} · ${translate('查看详情')}`);
+  button.onclick=()=>{
+   if(key==='records'){selectedRecordCourse='latest';recordViewSnapshot='';pageTabs.show('records');render(latest);document.querySelector('.records').scrollIntoView?.({block:'start',behavior:'smooth'});return;}
+   const dialog=document.createElement('dialog');dialog.className='metric-details';const title=document.createElement('h2');title.textContent=translate(node.parentElement.querySelector('dt').textContent);dialog.append(title);
+   const matching=(status.events||[]).filter(event=>event.metrics?.includes(key));
+   const events=matching.length?matching:status.events||[];
+   for(const event of events){const p=document.createElement('p');p.textContent=translate(event.message||'');dialog.append(p);if(/^https:\/\//.test(event.context?.sourceUrl||'')){const a=document.createElement('a');a.href=event.context.sourceUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent=sourceLabel(a.href);dialog.append(a);}}
+   if(!events.length){const p=document.createElement('p');p.textContent=translate('暂无运行明细');dialog.append(p);}
+   const close=document.createElement('button');close.type='button';close.textContent=translate('关闭');close.onclick=()=>dialog.close();dialog.append(close);dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
+  };
+ });
  const liveTail=$('run-events-details');
  if(liveTail?.hidden){liveTail.querySelector('ol')?.replaceChildren();}
  else{$('run-events').replaceChildren();for(const event of (status.events||[]).slice(-8).reverse()){const li=document.createElement('li'),time=document.createElement('time');time.textContent=event.at?new Date(event.at).toLocaleTimeString('zh-CN',{hour12:false}):'—';li.append(time,document.createTextNode(event.message||'运行状态已更新'));const url=event.context?.sourceUrl;if(/^https:\/\//.test(url||'')){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noreferrer';a.textContent='查看来源 ↗';li.append(a);}$('run-events').append(li);}if(!$('run-events').children.length){const li=document.createElement('li');li.textContent='暂无运行明细';$('run-events').append(li);}
@@ -204,8 +229,9 @@ function courseRule(code='',cfg={}){
  rule.querySelector('button').addEventListener('click',()=>{rule.remove();editing=true;syncSaveButton();});fieldHelp(rule);$('courses').append(rule);syncSaveButton();
 }
 function render(state,settings=false){
-  latest=state;guide?.update(state);
+  latest=state;guide?.update(state);setupTour?.update(state);
   const config=state.settings||{},status=state.status||{};
+  document.querySelector('.status-card').dataset.state=status.running?(status.phase==='waiting'?'waiting':'working'):status.error?'error':status.finishedAt?checkinResult(status.summary,false).tone:'idle';
   if(status.running)observedRun=true;
   if(!status.running&&status.finishedAt&&status.finishedAt!==lastResult&&(observedRun||(scanPending&&status.finishedAt!==scanPreviousFinish)||scanNotice&&status.finishedAt!==scanPreviousFinish)){lastResult=status.finishedAt;observedRun=false;showResult(state);}
   if(scanNotice){if(status.running)notice(status.message||'正在签到…','scan');else if(status.finishedAt&&status.finishedAt!==scanPreviousFinish)notice(status.error?'签到结束：'+(status.message||'处理失败，请查看明细'):'签到流程完成：'+(status.message||'本轮已结束'),checkinResult(status.summary,Boolean(status.error)).tone);}
@@ -214,21 +240,25 @@ function render(state,settings=false){
   renderProgress(status);if(status.service)renderHealth(status.service);if(status.ocrLogPath)$('ocr-log').textContent=prettyPath(status.ocrLogPath);if(status.running&&healthWarning){healthWarning=false;notice('');}
   $('last-run').textContent=status.running?'正在处理，请稍候':status.finishedAt?'最近检查：'+new Date(status.finishedAt).toLocaleString('zh-CN'):'开启后，工具将按设定间隔自动检查。';
   $('scan').disabled=Boolean(status.running)||scanPending;$('scan').textContent=status.running?'正在签到…':scanPending?'正在请求…':editing?'保存并立即签到':'立即签到';
-  if(settings&&!editing){$('enabled').checked=Boolean(config.enabled);$('dev-mode').checked=Boolean(config.devMode);$('ignore-completed').checked=Boolean(config.ignoreCompleted);$('email').value=emailPrefix(config.email);$('name').value=config.name||'';$('interval').value=String([0.5,1440,4320,7200,10080].includes(config.intervalMinutes)?config.intervalMinutes:1440);$('year').value=String(config.academicYear||new Date().getFullYear());$('mail-query').value=config.mailQuery??'attendance';$('courses').replaceChildren();for(const c of config.courses||[])courseRule(c,config);savedFormSnapshot=formSnapshot();}
+  if(settings&&!editing){$('recognition-only').checked=Boolean(config.recognitionOnly);$('enabled').checked=Boolean(config.enabled);$('dev-mode').checked=Boolean(config.devMode);$('ignore-completed').checked=Boolean(config.ignoreCompleted);$('email').value=emailPrefix(config.email);$('name').value=config.name||'';$('interval').value=String([0.5,1440,4320,7200,10080].includes(config.intervalMinutes)?config.intervalMinutes:1440);$('year').value=String(config.academicYear||new Date().getFullYear());$('mail-query').value=config.mailQuery??'attendance';$('courses').replaceChildren();for(const c of config.courses||[])courseRule(c,config);savedFormSnapshot=formSnapshot();}
   const snapshot=JSON.stringify([config.email,config.name]);if(identitySnapshot&&snapshot!==identitySnapshot&&!editing)for(const binding of Object.values(identityBindings||{}))binding.reset();identitySnapshot=snapshot;
   syncSaveButton();if(status.archiveDir)$('archive').textContent=prettyPath(status.archiveDir);
  // Developer mode owns the visibility of the ignore-completed switch and the
  // 30-second interval; the checkbox (not the saved config) drives the UI so an
  // unsaved toggle reacts instantly.
- const devOn=$('dev-mode')?.checked;const halfYear=$('interval').querySelector('option[value="0.5"]');if(halfYear)halfYear.hidden=!devOn;const ignoreToggle=document.querySelector('.ignore-completed-toggle');if(ignoreToggle)ignoreToggle.hidden=!devOn;
-  const records=[...(state.records||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const courses=[...new Set(records.map(r=>r.course||'课程待核对'))];if(!courses.includes(selectedRecordCourse))selectedRecordCourse=courses[0]||'';
-  const recordView=JSON.stringify([records,selectedRecordCourse,Boolean(status.running),scanPending]);
+ $('advanced-settings').hidden=!config.devMode;$('open-advanced').setAttribute('aria-expanded',String(Boolean(config.devMode)));
+ $('fast-interval').checked=Boolean(config.fastInterval);const devOn=$('dev-mode')?.checked;document.querySelector('.recognition-only-toggle').hidden=!devOn;const halfYear=$('interval').querySelector('option[value="0.5"]');if(halfYear)halfYear.hidden=!(devOn&&config.fastInterval);const ignoreToggle=document.querySelector('.ignore-completed-toggle');if(ignoreToggle)ignoreToggle.hidden=!devOn;
+  if(settings&&!editing)savedFormSnapshot=formSnapshot();
+  if(!config.devMode){demoRecords=null;$('demo-records').checked=false;}
+  const allRecords=orderRecords(demoRecords??state.records??[]);
+  const courses=['latest',...new Set(allRecords.filter(r=>!hiddenRecord(r)).map(r=>r.course||'课程待核对')),...(allRecords.some(hiddenRecord)?['dismissed']:[])];if(!courses.includes(selectedRecordCourse))selectedRecordCourse='latest';
+  const records=allRecords.filter(r=>selectedRecordCourse==='dismissed'?hiddenRecord(r):!hiddenRecord(r));
+  const recordView=JSON.stringify([allRecords,selectedRecordCourse,Boolean(status.running),scanPending]);
   if(recordView===recordViewSnapshot)return;
   recordViewSnapshot=recordView;
-  $('record-course-tabs').replaceChildren();for(const course of courses){const button=document.createElement('button');button.type='button';button.setAttribute('role','tab');button.setAttribute('aria-selected',String(course===selectedRecordCourse));button.textContent=`${course} (${records.filter(r=>(r.course||'课程待核对')===course).length})`;button.onclick=()=>{selectedRecordCourse=course;render(latest);};$('record-course-tabs').append(button);}
+  $('record-course-tabs').replaceChildren();for(const course of courses){const button=document.createElement('button');button.type='button';button.setAttribute('role','tab');button.setAttribute('aria-selected',String(course===selectedRecordCourse));button.textContent=course==='latest'?translate('最新'):course==='dismissed'?translate('已忽略 / 已关联'):`${course} (${allRecords.filter(r=>!hiddenRecord(r)&&(r.course||'课程待核对')===course).length})`;button.onclick=()=>{selectedRecordCourse=course;render(latest);};$('record-course-tabs').append(button);}
   $('count').textContent=records.length;$('records').replaceChildren();$('empty').hidden=records.length>0;
-  const groups=new Map();for(const r of records.filter(r=>(r.course||'课程待核对')===selectedRecordCourse)){const key=recordWeek(r);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r);}
+  const groups=new Map();for(const r of records.filter(r=>['latest','dismissed'].includes(selectedRecordCourse)||(r.course||'课程待核对')===selectedRecordCourse)){const key=recordWeek(r);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r);}
   for(const [week,rows] of groups){const heading=document.createElement('tr');heading.className='week-heading';const title=document.createElement('th');title.colSpan=5;title.textContent=week;heading.append(title);$('records').append(heading);
   for(const r of rows){
     const tr=document.createElement('tr');
@@ -236,15 +266,33 @@ function render(state,settings=false){
     cell(r.date?`${r.date} ${weekday(r.date)}`:'日期待核对',r.time||'');cell(r.course||'',`${r.type||''} ${r.group||''}`);
     const code=cell(''),strong=document.createElement('strong');strong.textContent=r.code||'—';code.append(strong);
     if(r.status==='submitted'&&!r.code)appendRecordHelp(code);
-    if(r.code){const copy=document.createElement('button');copy.type='button';copy.className='copy-code';copy.textContent='复制';copy.setAttribute('aria-label','复制签到码');copy.addEventListener('click',async()=>{copy.disabled=true;copy.textContent='复制中…';try{await window.navigator.clipboard.writeText(r.code);copy.textContent='已复制';notice('签到码已复制。','success');}catch{copy.textContent='重试复制';notice('复制失败，请选中签到码手动复制。','error');}finally{copy.disabled=false;}});code.append(copy);}
-    const statusCell=cell(''),badge=document.createElement('span');const completeForConfirmation=Boolean(r.course&&r.date&&r.time&&r.type&&r.group&&r.code);const statusKey=displayStatus(r);badge.className='state '+statusKey;const qualifier=weekQualifier(r);badge.textContent=[qualifier&&translate(qualifier),translate(r.status==='review'&&!completeForConfirmation?'资料不完整':labels[statusKey]||r.status)].filter(Boolean).join(' · ');statusCell.append(badge);
-    if(statusKey==='not_started'&&!qualifier)statusCell.append(Object.assign(document.createElement('small'),{textContent:translate(r.code?'已提前找到签到码，开课后自动提交':'开课前暂不搜索签到码')}));
-    if(r.status==='review'&&r.code&&completeForConfirmation){const confirm=document.createElement('button');confirm.type='button';confirm.className='copy-code review-confirm';confirm.textContent=translate('确认信息并签到');confirm.disabled=Boolean(latest.status?.running)||scanPending;confirm.onclick=()=>confirmLowConfidenceAndRetry(r,confirm);statusCell.append(confirm);}
+    if(r.code){const copy=document.createElement('button');copy.type='button';copy.className='copy-code code-copy';copy.textContent='⧉';copy.title='复制签到码';copy.setAttribute('aria-label','复制签到码');copy.addEventListener('click',async()=>{copy.disabled=true;copy.textContent='⟳';copy.title='复制中';copy.setAttribute('aria-label','复制中');try{await window.navigator.clipboard.writeText(r.code);copy.textContent='✓';copy.title='已复制';copy.setAttribute('aria-label','已复制');notice('签到码已复制。','success');}catch{copy.textContent='!';copy.title='复制失败';copy.setAttribute('aria-label','复制失败');notice('复制失败，请选中签到码手动复制。','error');}finally{copy.disabled=false;}});code.append(copy);}
+    const statusCell=cell(''),badge=document.createElement('span');const completeForConfirmation=Boolean(r.course&&r.date&&r.time&&r.type&&r.group&&r.code);const statusKey=displayStatus(r);badge.className='state '+statusKey;badge.textContent=translate(r.status==='review'&&!completeForConfirmation?'资料不完整':labels[statusKey]||r.status);statusCell.append(badge);
+    if(statusKey==='not_started')statusCell.append(Object.assign(document.createElement('small'),{textContent:translate(r.code?'已提前找到签到码，开课后自动提交':'开课前暂不搜索签到码')}));
     if(r.status==='waiting_code'){const retry=document.createElement('button');retry.type='button';retry.className='copy-code';retry.textContent='重试';retry.disabled=Boolean(latest.status?.running)||scanPending;retry.onclick=()=>startManualCheck(r.course);code.append(retry);}
-    const source=cell('',r.reason||''),sourceItems=[...(r.sources||[])];
+    if((!r.code&&!r.attemptedAt&&['waiting_code','review'].includes(r.status)||r.status==='review'&&r.candidatesExhausted)&&['course','date','time','type','group'].every(k=>r[k])){
+      const manual=document.createElement('button');manual.type='button';manual.className='copy-code';manual.textContent=translate('手动补码');manual.disabled=Boolean(latest.status?.running)||scanPending;
+      manual.onclick=()=>showManualCode({record:r,translate,save:async value=>{if(r.demo){const updated=fillMissingCode(r,value);demoRecords=demoRecords.map(item=>item.id===r.id?updated:item);render(latest);return;}await request({type:'fillMissingCode',id:r.id,code:value});await refresh();setTimeout(()=>void startManualCheck(r.course),0);}});code.append(manual);
+    }
+    const resolve=async(action,targetId,useCode=false)=>{if(r.demo){demoRecords=resolveRecord(demoRecords,{id:r.id,action,targetId,useCode});render(latest);return;}await request({type:'resolveRecord',id:r.id,action,targetId,useCode});await refresh();};
+    const addAction=(label,handler)=>{const button=document.createElement('button');button.type='button';button.className='copy-code';button.textContent=translate(label);button.disabled=Boolean(latest.status?.running)||scanPending;button.onclick=async()=>{button.disabled=true;try{await handler();}catch(error){notice(error.message,'error');}finally{button.disabled=Boolean(latest.status?.running)||scanPending;}};code.append(button);};
+    if(canResolve(r)){
+      addAction('关联到已有场次',()=>showRecordLink({source:r,candidates:linkCandidates(r.demo?demoRecords:latest.records||[],r),translate,save:(targetId,useCode)=>resolve('link',targetId,useCode)}));
+      addAction('忽略此记录',async()=>{if(askConfirm('忽略此记录？可在“已忽略 / 已关联”中恢复。'))await resolve('ignore');});
+    }
+    if(hiddenRecord(r)){badge.textContent=translate(r.status==='linked'?'已关联':'已忽略');addAction('恢复记录',()=>resolve('restore'));}
+    const actions=document.createElement('div');actions.className='record-code-actions';for(const button of [...code.children].filter(node=>node.tagName==='BUTTON'&&!node.classList.contains('code-copy')))actions.append(button);if(actions.children.length)code.append(actions);
+    const source=cell('',r.reason?translate(r.reason):''),sourceItems=[...(r.sources||[])];
     if(r.sourceUrl&&!sourceItems.some(item=>item.sourceUrl===r.sourceUrl))sourceItems.unshift({sourceUrl:r.sourceUrl});
     if(sourceItems.length)appendDiagnostics(source,sourceItems.map(item=>({...item,error:item.error||item.sourceUrl||'已读取此来源'})));
     if(r.imagePath)appendArchivePath(source,r.imagePath);
+    if(r.ocrEvidence?.length){const details=document.createElement('details');details.className='source-log';const summary=document.createElement('summary');summary.textContent=translate('未完整识别的来源记录');details.append(summary);for(const evidence of r.ocrEvidence){const text=document.createElement('p');text.textContent=[evidence.rawText,evidence.reason&&translate(evidence.reason)].filter(Boolean).join(' · ');details.append(text);
+      const linked=(r.demo?demoRecords:latest.records||[]).find(item=>item.id===evidence.id&&item.status==='linked'&&item.linkedTo===r.id);
+      if(linked?.code&&!r.code&&!r.attemptedAt&&['review','waiting_code'].includes(r.status)){
+        const use=document.createElement('button');use.type='button';use.className='copy-code';use.textContent=translate('使用此签到码');use.disabled=Boolean(latest.status?.running)||scanPending;
+        use.onclick=async()=>{if(!askConfirm(`${translate('使用此签到码补全目标场次')}\n${r.course} · ${r.date} · ${r.time} · ${r.type} · ${r.group}\n${linked.code}\n${translate('补全后保存为待提交，下次运行核对学校场次后提交。')}`))return;use.disabled=true;try{const message={type:'resolveRecord',id:linked.id,action:'use-linked-code'};if(r.demo){demoRecords=resolveRecord(demoRecords,message);render(latest);}else{await request(message);await refresh();}}catch(error){notice(error.message,'error');}finally{use.disabled=Boolean(latest.status?.running)||scanPending;}};details.append(use);
+      }
+    }source.append(details);}
     $('records').append(tr);
   }
   }
@@ -254,7 +302,7 @@ async function health(manual=false){if(healthPending){if(manual)notice('正在�
 function readFormSettings(){const courses=[],senders={},subjectKeywords={},moodleUrls={},edUrls={},schedules={};for(const row of $('courses').children){const value=f=>row.querySelector(`[data-field="${f}"]`).value.trim();const c=value('course').toUpperCase();if(courses.includes(c))throw new Error('课程代码重复：'+c);if(!value('source-mode'))throw new Error(c+' 请选择签到码来源');const mode=value('source-mode'),mail=['email','email-moodle','email-ed','all'].includes(mode),moodle=['moodle','email-moodle','moodle-ed','all'].includes(mode),ed=['ed','email-ed','moodle-ed','all'].includes(mode);courses.push(c);senders[c]=mail?value('sender'):'';subjectKeywords[c]=value('keyword')||c;moodleUrls[c]=moodle?value('urls').split('\n').map(s=>s.trim()).filter(Boolean):[];edUrls[c]=ed?[value('ed-urls')].filter(Boolean):[];schedules[c]=[...row.querySelectorAll('.schedule-row')].map(item=>{const field=name=>item.querySelector(`[data-field="${name}"]`).value.trim(),weekday=Number(field('weekday')),time=field('time');if(!weekday||!time)throw new Error(`${c||'该课程'} 请填写每个场次的星期和时间`);return {weekday,time,type:field('type'),group:field('group')};});}return {email:$('email').closest('label').hidden?'':($('email').value.trim()?schoolEmail($('email').value):''),name:$('name').value,enabled:$('enabled').checked,intervalMinutes:Number($('interval').value),academicYear:Number($('year').value),mailQuery:$('mail-query').value,courses,senders,subjectKeywords,moodleUrls,edUrls,schedules,ignoreCompleted:$('ignore-completed').checked,devMode:$('dev-mode').checked};}
 function hasUnsavedChanges(){if(formSnapshot()===savedFormSnapshot)return false;try{const actual=normalizeSettings(latest.settings||DEFAULTS,readFormSettings(),Boolean(latest.records?.length));const stored=normalizeSettings(latest.settings||DEFAULTS,{},Boolean(latest.records?.length));return JSON.stringify(actual)!==JSON.stringify(stored);}catch{return true;}}
 async function saveCard(scope,settings){
- const fieldIds={academicYear:'year',mailQuery:'mail-query',enabled:'enabled',intervalMinutes:'interval',ignoreCompleted:'ignore-completed',devMode:'dev-mode'};
+ const fieldIds={academicYear:'year',mailQuery:'mail-query',enabled:'enabled',intervalMinutes:'interval',ignoreCompleted:'ignore-completed',devMode:'dev-mode',recognitionOnly:'recognition-only',fastInterval:'fast-interval'};
  const ids=Object.keys(settings).map(key=>fieldIds[key]);
  const submitted=JSON.parse(formSnapshot()).filter(([id])=>ids.includes(id));
  await request({type:'settings',scope,settings});
@@ -289,8 +337,29 @@ automationSave.addEventListener('click',async()=>{
 $('ignore-completed').addEventListener('change',async()=>{
  try{await request({type:'settings',scope:'automation',settings:{ignoreCompleted:$('ignore-completed').checked}});editing=hasUnsavedChanges();}catch(error){notice(error.message,'error');}
 });
-$('dev-mode').addEventListener('change',async()=>{
- try{await request({type:'settings',scope:'automation',settings:{devMode:$('dev-mode').checked}});editing=hasUnsavedChanges();}catch(error){notice(error.message,'error');}
+$('open-advanced').addEventListener('click',async()=>{
+ const button=$('open-advanced');button.disabled=true;
+ try{
+  const on=!latest.settings?.devMode;$('dev-mode').checked=on;
+  const update={devMode:on};if(!on){$('recognition-only').checked=false;$('fast-interval').checked=false;update.recognitionOnly=false;update.fastInterval=false;if($('interval').value==='0.5'){$('interval').value='1440';update.intervalMinutes=1440;}}
+  await saveCard('automation',update);
+  if(on){const panel=$('advanced-settings');pageTabs.show('settings');panel.scrollIntoView?.({behavior:'smooth',block:'nearest'});panel.querySelector('h2').focus({preventScroll:true});}
+ }catch(error){$('dev-mode').checked=Boolean(latest.settings?.devMode);notice(error.message,'error');}
+ finally{button.disabled=false;}
+});
+$('demo-records').addEventListener('change',()=>{
+ demoRecords=$('demo-records').checked&&latest.settings?.devMode?createDemoRecords():null;
+ selectedRecordCourse='latest';recordViewSnapshot='';render(latest);if(demoRecords)pageTabs.show('records');
+});
+$('fast-interval').addEventListener('change',async()=>{
+ const input=$('fast-interval'),on=input.checked;input.disabled=true;
+ try{const update={fastInterval:on};if(!on&&$('interval').value==='0.5'){$('interval').value='1440';update.intervalMinutes=1440;}await saveCard('automation',update);}
+ catch(error){input.checked=!on;notice(error.message,'error');}finally{input.disabled=false;}
+});
+$('recognition-only').addEventListener('change',async()=>{
+ const input=$('recognition-only'),value=input.checked;input.disabled=true;
+ try{await saveCard('automation',{recognitionOnly:value});notice(value?'仅识别模式已开启，不会提交签到。':'仅识别模式已关闭。','success');}
+ catch(error){input.checked=!value;notice(error.message,'error');}finally{input.disabled=false;}
 });
 function setSaveBusy(busy){for(const button of [$('save-general'),automationSave,$('settings').querySelector('button[type=submit]')]){button.disabled=busy;button.textContent=busy?'正在保存…':button.type==='submit'?'保存全部设置':'保存设置';}}
 $('settings').addEventListener('submit',async e=>{e.preventDefault();if(saving)return;saving=true;setSaveBusy(true);notice('正在保存设置…');try{await request({type:'settings',settings:readFormSettings()});editing=false;notice('设置已保存。','success');await refresh(true);}catch(e){notice(e.message,'error');configAlert(e.message);}finally{saving=false;setSaveBusy(false);}});
@@ -318,6 +387,7 @@ $('settings-file').addEventListener('change',async()=>{
   }catch(error){notice(error.message,'error');}finally{$('settings-file').value='';}
 });
 async function startManualCheck(course=null){
+ if(demoRecords){notice('演示记录，不会提交签到');return;}
  if(scanPending||saving||latest.status?.running)return;
  editing=hasUnsavedChanges();scanPending=true;$('scan').disabled=true;scanPreviousFinish=latest.status?.finishedAt||null;
  render(latest);
@@ -327,26 +397,13 @@ async function startManualCheck(course=null){
   const settings=normalizeSettings(latest.settings||DEFAULTS,readFormSettings(),Boolean(latest.records?.length));
   if(course&&!settings.courses.includes(course))throw new Error('课程已被移除，请重新配置');
   notice('');
-  const preflight=await loginPreflight.run(course?{...settings,courses:[course]}:settings);if(!preflight)return;if(preflight.error)throw new Error(preflight.error);
+  const preflight=await loginPreflight.run(course?{...settings,courses:[course]}:settings,{onSiteVerified:(site,result)=>{identityBindings[site]?.markVerified();if(site==='gmail')void request({type:'prefetchMail',expectedIdentity:{email:settings.email,name:settings.name},verifiedLogin:{gmail:{tabId:result.tabId}}}).catch(()=>{});}});if(!preflight)return;if(preflight.error)throw new Error(preflight.error);
   notice('正在请求后台开始签到…','scan');await request({type:course?'retry':'scan',...(course?{course}:{}),expectedIdentity:{email:settings.email,name:settings.name},verifiedLogin:preflight.verifiedLogin});
   if(!course)pageTabs.show('records');
   if(scanNotice)notice('后台已收到签到请求，正在等待运行状态…','scan');await refresh();
  }catch(error){notice(error.message,'error');}finally{scanPending=false;render(latest);}
 }
-async function confirmLowConfidenceAndRetry(record,button){
- if(scanPending||latest.status?.running)return;
- if(!askConfirm('我已核对课程、日期、星期、时间、组别和签到码，确认这些信息正确并允许签到。'))return;
- button.disabled=true;button.textContent=translate('正在确认…');
- try{
-  confirmLowConfidenceRecord(record);
-  await request({type:'confirmRecord',id:record.id});
-  notice('已确认识别结果，准备签到…','success');
-  await refresh();
-  await startManualCheck(record.course);
- }catch(error){notice(error.message,'error');button.disabled=false;button.textContent=translate('确认信息并签到');}
-}
 $('scan').addEventListener('click',()=>startManualCheck());
-$('dev-mode').addEventListener('change',()=>{editing=true;const devOn=$('dev-mode').checked;const ignoreToggle=document.querySelector('.ignore-completed-toggle');if(ignoreToggle)ignoreToggle.hidden=!devOn;const halfYear=$('interval').querySelector('option[value="0.5"]');if(halfYear)halfYear.hidden=!devOn;if(!scanPending&&!latest.status?.running)$('scan').textContent=editing?'保存并立即签到':'立即签到';});
 $('check-health').addEventListener('click',()=>health(true));
 $('prefer-companion').addEventListener('click',async()=>{
  const button=$('prefer-companion');button.disabled=true;
@@ -391,7 +448,7 @@ $('export').addEventListener('click',()=>{
  notice(records.length?`已导出 ${records.length} 条记录${dates.length?`，覆盖 ${dates[0]} 至 ${dates.at(-1)}`:''}。助手只保存最近 7 天内处理的记录；更早的场次请以签到网站显示为准。`:'暂无可导出的记录。',records.length?'success':'error');
 });
 configureEmailInput($('email'));
-guide=createSetupGuide({request,refresh,skipOcr:()=>request({type:'preferBrowserOcr'}),detect:()=>discoverCourses(true),checkHealth:()=>health(true),reload:()=>window.location.reload(),reset:async()=>{if(!askConfirm('确定清空助手的姓名、邮箱、课程、签到记录和浏览器内缓存吗？此操作不可撤销，自动运行会停止。'))return;try{await request({type:'reset'});window.location.reload();}catch(error){configAlert(error.message);}}});
+guide=createSetupGuide({request,refresh,skipOcr:()=>request({type:'preferBrowserOcr'}),detect:()=>discoverCourses(true),checkHealth:()=>health(true),reload:()=>window.location.reload(),reset:async()=>{if(!askConfirm('确定清空助手的姓名、邮箱、课程、签到记录和浏览器内缓存吗？此操作不可撤销，自动运行会停止。'))return;try{await request({type:'reset'});setupTour?.reset();window.location.reload();}catch(error){configAlert(error.message);}}});
 setInterval(()=>{if(guide.needsHealth()&&!healthPending)void health();},5000);
 render({settings:DEFAULTS,setupGuide:true},true);globalThis.chrome?.storage?.onChanged?.addListener((changes,area)=>{if(area==='local'&&(changes.status||changes.settings))void refresh(Boolean(changes.settings));});setInterval(()=>renderProgress(latest.status||{}),1000);setInterval(()=>refresh(),2000);void refresh(true);if(globalThis.chrome?.runtime?.id)void health();
 
@@ -408,3 +465,4 @@ identityBindings.moodle=bindVerification({button:$('check-moodle'),status:$('che
 $('name').addEventListener('input',()=>identityBindings.moodle.reset());
 loginPreflight=createLoginPreflight({request,onVerified:site=>identityBindings[site].markVerified()});syncIdentitySources();
 installLanguageUI();
+setupTour=createSetupTour({doc:document,windows:isWindows});

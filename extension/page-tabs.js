@@ -1,7 +1,8 @@
 export function createPageTabs(doc=document){
  const panels={settings:doc.querySelector('#settings>.columns'),courses:doc.querySelector('.courses-card'),records:doc.querySelector('.records')};
+ if(doc.querySelector('#credits'))panels.credits=doc.querySelector('#credits');
  const nav=doc.createElement('nav');nav.className='page-tabs';nav.setAttribute('role','tablist');nav.setAttribute('aria-label','助手页面');
- const names={settings:'设置',courses:'课程来源与课表',records:'签到记录'},buttons={};
+ const names={settings:'设置',courses:'课程来源与课表',records:'签到记录',credits:'开发与致谢'},buttons={};
  const show=key=>{if(!panels[key])return;for(const [id,panel] of Object.entries(panels)){panel.hidden=id!==key;buttons[id].setAttribute('aria-selected',String(id===key));buttons[id].tabIndex=id===key?0:-1;}doc.body.dataset.page=key;};
  for(const [key,panel] of Object.entries(panels)){
   panel.id||='page-'+key;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby','tab-'+key);

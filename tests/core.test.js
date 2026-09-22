@@ -4,6 +4,25 @@ import {parseImageRows, mergeRecords, eligible, matchActivity, parseMailDate, pa
 const meta={course:'FIT5120',sentAt:'2026-09-04T22:08:00+08:00',messageId:'sample',sourceUrl:'https://mail.google.com/mail/u/2/#all/example'};
 const observation=(text,y=.7,confidence=1)=>({text,x:0,y,width:1,height:.2,confidence});
 const row='Studio Friday,4 Sep 01-P2 6:00PM ZQSB3';
+test('recovered image removes a uniquely matching undated partial without losing the session',()=>{
+ const full={id:'full',course:'FIT5122',date:'2026-09-16',time:'18:00',type:'Applied',group:'01',code:'8YG3G',imageId:'image',messageId:'mail',status:'ready'};
+ const partial={...full,id:'partial',date:null,code:null,status:'review'};
+ assert.deepEqual(mergeRecords([partial],[full]),[full]);
+ assert.equal(mergeRecords([partial],[full,{...full,id:'other',date:'2026-09-09'}]).length,3);
+ assert.equal(mergeRecords([{...partial,attemptedAt:'now'}],[full]).length,2);
+});
+test('wrapped month and vertically offset code stay with their own table row',()=>{
+ const cell=(text,x,y)=>({text,x,y,width:.12,height:.04,confidence:1});
+ const cells=[cell('Workshop',0,.7),cell('Monday, 14 Sep',.36,.7),cell('01',.54,.7),cell('6:00PM',.69,.7),cell('2GDTP',.9,.7),
+  cell('Applied',0,.5),cell('Wednesday, 16',.36,.5),cell('Sep',.37,.44),cell('01',.54,.5),cell('6:00PM',.69,.5),cell('8YG3G',.9,.47)];
+ const rows=parseImageRows(cells,{...meta,sentAt:'2026-09-16T19:00:00+08:00'});
+ assert.deepEqual(rows.map(r=>[r.type,r.date,r.code,r.status]),[['Workshop','2026-09-14','2GDTP','ready'],['Applied','2026-09-16','8YG3G','ready']]);
+});
+test('a continuation cannot steal a code from the next activity row',()=>{
+ const cell=(text,x,y)=>({text,x,y,width:.1,height:.03,confidence:1});
+ const rows=parseImageRows([cell('Workshop Monday, 14 Sep 01 6:00PM',0,.7),cell('Applied Wednesday, 16 Sep 01 6:00PM',0,.64),cell('8YG3G',.9,.64)],{...meta,sentAt:'2026-09-16T19:00:00+08:00'});
+ assert.equal(rows[0].code,null);assert.equal(rows[1].code,'8YG3G');
+});
 test('separate image rows retain their own date, group and code',()=>{
   const rows=parseImageRows([observation('Studio Tuesday,1 Sep 01-P1 6:00PM T9KUG',.7),observation(row,.2)],meta);
   assert.deepEqual(rows.map(r=>[r.date,r.group,r.code,r.time]),[['2026-09-01','01-P1','T9KUG','18:00'],['2026-09-04','01-P2','ZQSB3','18:00']]);

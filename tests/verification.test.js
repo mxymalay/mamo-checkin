@@ -63,6 +63,16 @@ test('preflight checks only configured sites sequentially and keeps completion v
  }finally{flow.cancel();ui.disconnect();dom.window.close();}
 });
 
+test('preflight exposes each verified site so Gmail can start background prefetching',async()=>{
+ const dom=new JSDOM('<header></header>',{url:'https://extension.test'}),doc=dom.window.document,verified=[];
+ const settings={email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'}};
+ const flow=createLoginPreflight({doc,request:async()=>({matched:true,email:settings.email,name:settings.name,tabId:1})});
+ try{
+  const done=flow.run(settings,{onSiteVerified:(site,result)=>verified.push([site,result.tabId])});
+  await flush();await flush();assert.deepEqual(verified,[['gmail',1],['attendance',1]]);flow.cancel();assert.equal(await done,false);
+ }finally{flow.cancel();dom.window.close();}
+});
+
 test('a failed buttonless preflight closes and returns its actionable error',async()=>{
  const dom=new JSDOM(''),doc=dom.window.document;
  const flow=createLoginPreflight({doc,request:async()=>{throw new Error('Attendance 页面已被关闭，无法执行签到');}});

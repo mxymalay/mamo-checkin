@@ -294,18 +294,23 @@ test('recognition settings expose the attended-session test switch and tooltip',
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
-test('developer mode reveals the attended-session switch and the 30-second interval',async()=>{
+test('footer toggles developer mode and fast interval needs its own switch',async()=>{
  const originalSetInterval=globalThis.setInterval;
  const state={settings:{enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]},schedules:{ABC1234:[]},ignoreCompleted:false,devMode:false},records:[]};
- const env=installDom(async p=>p.type==='health'?{ok:true,binaryReady:true}:state);
+ const env=installDom(async p=>{if(p.type==='settings'){Object.assign(state.settings,p.settings);return {ok:true};}return p.type==='health'?{ok:true,binaryReady:true}:state;});
  try{
   await import(`../extension/options.js?devmode=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   assert.equal(document.querySelector('.ignore-completed-toggle').hidden,true);
   assert.equal(document.querySelector('#interval option[value="0.5"]').hidden,true);
-  const dev=document.getElementById('dev-mode');dev.checked=true;dev.dispatchEvent(new env.dom.window.Event('change'));
+  document.getElementById('open-advanced').click();await new Promise(r=>setTimeout(r,20));
+  assert.equal(document.querySelector('#advanced-settings h2').textContent,'开发者模式');assert.equal(document.querySelector('.devmode-toggle'),null);
+  assert.equal(document.getElementById('advanced-settings').hidden,false);
   assert.equal(document.querySelector('.ignore-completed-toggle').hidden,false);
+  assert.equal(document.querySelector('#interval option[value="0.5"]').hidden,true);
+  const fast=document.getElementById('fast-interval');fast.checked=true;fast.dispatchEvent(new env.dom.window.Event('change'));await new Promise(r=>setTimeout(r,20));
   assert.equal(document.querySelector('#interval option[value="0.5"]').hidden,false);
-  await new Promise(r=>setTimeout(r,0));
+  document.getElementById('open-advanced').click();await new Promise(r=>setTimeout(r,20));
+  assert.equal(document.getElementById('advanced-settings').hidden,true);assert.equal(state.settings.devMode,false);assert.equal(state.settings.fastInterval,false);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 test('finished run replaces the pending scan notice',async()=>{
@@ -475,16 +480,16 @@ test('copy button writes exactly the attendance code and reports success or fail
  Object.defineProperty(env.dom.window.navigator,'clipboard',{value:{writeText:async text=>{copied.push(text);}}});
  try{
   await import(`../extension/options.js?copy=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
-  const buttons=document.querySelectorAll('.copy-code');assert.equal(buttons.length,1);
+  const buttons=document.querySelectorAll('.code-copy');assert.equal(buttons.length,1);assert.equal(buttons[0].textContent,'⧉');assert.equal(buttons[0].getAttribute('aria-label'),'复制签到码');
   buttons[0].click();await new Promise(r=>setTimeout(r,0));
-  assert.deepEqual(copied,['ABC12']);assert.equal(buttons[0].textContent,'已复制');assert.equal(document.getElementById('notice').dataset.tone,'success');
+  assert.deepEqual(copied,['ABC12']);assert.equal(buttons[0].textContent,'✓');assert.equal(document.getElementById('notice').dataset.tone,'success');
   env.dom.window.navigator.clipboard.writeText=async()=>{throw new Error('denied');};
   buttons[0].click();await new Promise(r=>setTimeout(r,0));
   assert.match(document.getElementById('notice').textContent,/复制失败/);assert.equal(document.getElementById('notice').dataset.tone,'error');assert.equal(buttons[0].disabled,false);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
-test('low-confidence records offer explicit confirmation before retrying',async()=>{
+test('low-confidence records do not require a confirmation button',async()=>{
  const originalSetInterval=globalThis.setInterval,calls=[];
  const state={settings:{enabled:false,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]}},records:[{id:'review-one',course:'ABC1234',date:'2026-09-08',time:'18:00',type:'Studio',group:'01',code:'F59V7',status:'review',confidence:.72,reason:'图片文字置信度不足'}]};
  const env=installDom(async p=>{
@@ -498,9 +503,8 @@ test('low-confidence records offer explicit confirmation before retrying',async(
  try{
   await import(`../extension/options.js?manual-confirm=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   env.dom.window.confirm=()=>true;
-  const button=[...document.querySelectorAll('.review-confirm')][0];assert.ok(button);button.click();await waitForScan();
-  const deadline=Date.now()+2000;while(!calls.some(p=>p.type==='retry')&&Date.now()<deadline)await new Promise(r=>setTimeout(r,20));
-  assert.equal(calls[0].type,'status');assert.ok(calls.some(p=>p.type==='confirmRecord'));assert.ok(calls.some(p=>p.type==='retry'));
+  assert.equal(document.querySelector('.review-confirm'),null);
+  assert.equal(calls.some(p=>p.type==='confirmRecord'),false);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
@@ -571,13 +575,60 @@ test('first visit discovers course drafts before source selection without saving
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
+test('record actions have a spaced group and nonzero counters expose source links',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{},records:[{id:'pending',course:'FIT5122',date:'2026-09-16',time:'18:00',type:'Applied',group:'01',status:'waiting_code'}],status:{counts:{pages:2,records:1},events:[{message:'页面读取完成',metrics:['pages'],context:{sourceUrl:'https://mail.google.com/mail/u/0/'}}]}};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ env.dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+ env.dom.window.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new env.dom.window.Event('close'));};
+ try{
+  await import(`../extension/options.js?metrics=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  assert.deepEqual([...document.querySelectorAll('.record-code-actions button')].map(n=>n.textContent),['重试','手动补码']);
+  const counters=document.querySelectorAll('#run-counts dd');assert.equal(counters[1].querySelector('button'),null);
+  counters[0].querySelector('button').click();assert.equal(document.querySelector('.metric-details a').href,'https://mail.google.com/mail/u/0/');
+  document.querySelector('.metric-details button').click();assert.equal(document.querySelector('.metric-details'),null);
+  counters[4].querySelector('button').click();assert.equal(document.body.dataset.page,'records');
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+test('ignored records are hidden by default and restoring the last one returns to latest',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{},records:[{id:'ignored',course:'FIT5122',status:'ignored',resolutionStatus:'review'}]};
+ const env=installDom(async p=>{if(p.type==='resolveRecord'){state.records[0].status='review';return {ok:true};}return p.type==='health'?{ok:true}:state;});
+ try{
+  await import(`../extension/options.js?ignored=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.querySelectorAll('#records tr:not(.week-heading)').length,0);
+  [...document.querySelectorAll('#record-course-tabs button')].find(b=>b.textContent.includes('已忽略')).click();
+  [...document.querySelectorAll('#records button')].find(b=>b.textContent==='恢复记录').click();await new Promise(r=>setTimeout(r,20));
+  assert.equal(document.querySelector('#record-course-tabs [aria-selected="true"]').textContent,'最新');assert.match(document.getElementById('records').textContent,/FIT5122/);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+test('demo linking and restoring never send record mutations to the background',async()=>{
+ const originalSetInterval=globalThis.setInterval,calls=[];
+ const state={settings:{devMode:true},records:[]};
+ const env=installDom(async p=>{calls.push(p.type);return p.type==='health'?{ok:true}:state;});
+ env.dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+ env.dom.window.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new env.dom.window.Event('close'));};
+ try{
+  await import(`../extension/options.js?demo=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const toggle=document.getElementById('demo-records');toggle.checked=true;toggle.dispatchEvent(new env.dom.window.Event('change'));
+  assert.match(document.getElementById('records').textContent,/DEMO1000/);
+  [...document.querySelectorAll('#records button')].find(b=>b.textContent==='关联到已有场次'&&b.closest('tr').textContent.includes('8YG3G')).click();
+  const dialog=document.querySelector('dialog[aria-labelledby="record-link-title"]');dialog.querySelector('select').value='demo-session';dialog.querySelector('select').dispatchEvent(new env.dom.window.Event('change'));const useCode=dialog.querySelector('[name="use-code"]');assert.equal(useCode.checked,false);assert.equal(useCode.closest('label').hidden,false);useCode.checked=true;dialog.querySelector('form').dispatchEvent(new env.dom.window.Event('submit',{cancelable:true}));await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.querySelectorAll('#records tr:not(.week-heading)').length,12);
+  [...document.querySelectorAll('#record-course-tabs button')].find(b=>b.textContent.includes('已忽略')).click();
+  [...document.querySelectorAll('#records button')].find(b=>b.textContent==='恢复记录').click();await new Promise(r=>setTimeout(r,0));
+  assert.equal(calls.includes('resolveRecord'),false);assert.deepEqual(state.records,[]);
+  toggle.checked=false;toggle.dispatchEvent(new env.dom.window.Event('change'));assert.doesNotMatch(document.getElementById('records').textContent,/DEMO1000/);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
 test('records switch by course and group into labeled weeks',async()=>{
  const originalSetInterval=globalThis.setInterval;
  const env=installDom(async p=>p.type==='health'?{ok:true}:{settings:{},records:[{course:'ABC1234',date:'2026-09-08',subject:'Week 7',code:'ABC12'},{course:'DEF1234',date:'2026-09-07',code:'DEF34'}]});
  try{
   await import(`../extension/options.js?tabs=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
-  assert.match(document.querySelector('.week-heading').textContent,/Week 7/);assert.doesNotMatch(document.getElementById('records').textContent,/DEF34/);
-  document.querySelectorAll('#record-course-tabs button')[1].click();assert.match(document.getElementById('records').textContent,/DEF34/);assert.match(document.querySelector('.week-heading').textContent,/2026-09-07 — 2026-09-13/);
+  assert.equal(document.querySelector('#record-course-tabs button').textContent,'最新');assert.match(document.querySelector('.week-heading').textContent,/Week 7/);assert.match(document.getElementById('records').textContent,/DEF34/);
+  document.querySelectorAll('#record-course-tabs button')[1].click();assert.doesNotMatch(document.getElementById('records').textContent,/DEF34/);
+  document.querySelectorAll('#record-course-tabs button')[2].click();assert.match(document.getElementById('records').textContent,/DEF34/);assert.match(document.querySelector('.week-heading').textContent,/2026-09-07 — 2026-09-13/);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 

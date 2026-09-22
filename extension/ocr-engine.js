@@ -1,4 +1,5 @@
 import {plausibleCode} from './core.js';
+import {tableRows} from './table-rows.js';
 // Platform-independent OCR. Crop agreement is recorded separately from the
 // engine's confidence; it is never represented as a fabricated confidence score.
 const WEEKDAY=/^(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/i;
@@ -8,14 +9,7 @@ const TIME=/^\d{1,2}\s*[:.]\s*\d{2}\s*(?:am|pm)$/i;
 const CODE=/^[A-Z0-9]{5}$/;
 const normalizeField=text=>String(text).normalize('NFKC').toLowerCase().replace(/\s+/g,'').replace(/[,.，。]/g,'');
 function rows(observations){
-  const result=[];
-  for(const observation of [...observations].sort((a,b)=>(b.y+b.height/2)-(a.y+a.height/2))){
-    const center=observation.y+observation.height/2;
-    let row=result.find(candidate=>Math.abs(candidate.center-center)<Math.max(.012,Math.min(candidate.height,observation.height)*.48));
-    if(!row){row={center,height:observation.height,cells:[]};result.push(row);}
-    row.cells.push(observation);
-  }
-  return result.map(row=>row.cells.sort((a,b)=>a.x-b.x));
+  return tableRows(observations).map(row=>row.cells);
 }
 function structuralSpans(cells){
   const spans=[];
@@ -62,7 +56,7 @@ export async function recognizeTable(worker,image,width,height,crop,progress=()=
     const primaryWords=[...words];
     for(const word of getWords(extra.data)){
       const cy=(word.bbox.y0+word.bbox.y1)/2;
-      if(!primaryWords.some(old=>Math.abs((old.bbox.y0+old.bbox.y1)/2-cy)<Math.max(3,(word.bbox.y1-word.bbox.y0)/2)))words.push(word);
+      if(!primaryWords.some(old=>Math.abs((old.bbox.y0+old.bbox.y1)/2-cy)<Math.max(3,(word.bbox.y1-word.bbox.y0)/2)&&Math.min(old.bbox.x1,word.bbox.x1)>Math.max(old.bbox.x0,word.bbox.x0)))words.push(word);
     }
   }
   const observations=words.map(word=>({text:word.text.trim(),confidence:Math.max(0,Math.min(1,word.confidence/100)),x:word.bbox.x0/width,y:1-word.bbox.y1/height,width:(word.bbox.x1-word.bbox.x0)/width,height:(word.bbox.y1-word.bbox.y0)/height,bbox:word.bbox,codeVerified:false,fieldVerified:false}));
@@ -94,6 +88,8 @@ export async function recognizeTable(worker,image,width,height,crop,progress=()=
       const uncertain=span.filter(cell=>cell.confidence<.96);
       if(!uncertain.length)continue;
       progress('正在复核课程日期、组别和时间');
+      const multiline=Math.max(...span.map(c=>c.y+c.height/2))-Math.min(...span.map(c=>c.y+c.height/2))>Math.max(...span.map(c=>c.height))*.6;
+      await worker.setParameters({tessedit_pageseg_mode:multiline?'6':'7',tessedit_char_whitelist:'',user_defined_dpi:'300'});
       const picture=await crop(unionBox(span));
       const second=await worker.recognize(picture);
       const agrees=normalizeField(second.data.text)===normalizeField(span.map(cell=>cell.text).join(' '));

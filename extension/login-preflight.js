@@ -8,7 +8,7 @@ export function createLoginPreflight({request,onVerified=()=>{},doc=document}){
  function finish(value){generation++;for(const binding of bindings)binding.stop();if(dialog.open){if(dialog.close)dialog.close();else dialog.removeAttribute('open');}const resolve=resolveRun;resolveRun=null;resolve?.(value);}
  dialog.addEventListener('cancel',event=>{event.preventDefault();finish(false);});
  doc.defaultView.addEventListener('pagehide',()=>finish(false),{once:true});
- async function run(settings){
+ async function run(settings,{onSiteVerified=onVerified}={}){
   finish(false);const ticket=generation,sites=configuredLoginSites(settings),list=dialog.querySelector('.login-checks');list.replaceChildren();bindings=[];
   const complete=dialog.querySelector('.preflight-complete');complete.hidden=true;complete.textContent='';
   const done=new Promise(resolve=>{resolveRun=resolve;});
@@ -18,7 +18,7 @@ export function createLoginPreflight({request,onVerified=()=>{},doc=document}){
    const identity=doc.createElement('p');identity.className='login-identity';identity.textContent=site==='gmail'?settings.email:settings.name;
    const button=doc.createElement('button');button.type='button';button.className='identity-check';button.hidden=true;
    const status=doc.createElement('p');status.className='identity-check-status';status.setAttribute('role','status');row.append(title,identity,button,status);list.append(row);
-   const binding=bindVerification({button,status,doc,prepare:()=>loginRequest(site,settings),check:(read,open)=>read(request,open),onVerified:()=>onVerified(site),success:'登录检测通过。'});
+   const binding=bindVerification({button,status,doc,prepare:()=>loginRequest(site,settings),check:(read,open)=>read(request,open),onVerified:result=>onSiteVerified(site,result),success:'登录检测通过。'});
    status.textContent='等待检测';button.disabled=true;bindings.push(binding);
   }
   async function proceed(){

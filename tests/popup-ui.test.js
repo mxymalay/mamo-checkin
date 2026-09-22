@@ -33,8 +33,34 @@ test('popup lists course outcomes and starts a scan with the saved identity',asy
   document.getElementById('popup-scan').click();await new Promise(r=>setTimeout(r,0));
   const scan=sent.find(p=>p.type==='scan');
   assert.ok(scan);assert.equal(scan.expectedIdentity.name,'Example Student');
+  assert.equal(scan.preflight,true);
   assert.equal(env.opened,0);
  }finally{env.dom.window.close();cleanDom();}
+});
+
+test('popup distinguishes login waiting, scanning, success, partial and failed results in both languages',async()=>{
+ const cases=[
+  [{running:true,message:'正在签到…'},'working'],
+  [{running:true,phase:'waiting',waitingSite:'moodle',loginDeadline:Date.now()+120000},'waiting'],
+  [{finishedAt:'now',summary:{submitted:2}},'success'],
+  [{finishedAt:'now',message:'本轮签到流程已完成。：本轮签到流程已完成',summary:{quiet:true}},'success'],
+  [{finishedAt:'now',summary:{submitted:1,courses:[{pending:1}]}},'waiting'],
+  [{finishedAt:'now',error:true},'error']
+ ];
+ for(const language of ['zh-CN','en-US'])for(const [status,mode] of cases){
+  const env=installDom(async()=>({settings:{name:'Example',courses:['ABC1234']},status}),{language});
+  globalThis.chrome.i18n={getUILanguage:()=>language};
+  try{
+   await import(`../extension/popup.js?state=${language}-${mode}-${Math.random()}`);await new Promise(resolve=>setTimeout(resolve,0));
+   assert.equal(document.getElementById('popup-scene').dataset.state,mode);
+   assert.equal(document.getElementById('popup-scan').disabled,Boolean(status.running));
+   if(status.waitingSite)assert.match(document.getElementById('popup-caption').textContent,/Moodle/);
+   if(status.waitingSite)assert.match(document.getElementById('popup-heading').textContent,/正在检查登录状态|Checking sign-in status/);
+   if(status.summary?.quiet)assert.match(document.getElementById('popup-status').textContent,/本次无需补签|No additional check-ins/);
+   assert.match(document.getElementById('popup-mode').textContent,/自动签到已关闭|Auto check-in off/);
+   if(language==='en-US')assert.doesNotMatch(document.getElementById('popup-scene').textContent,/[\u3400-\u9fff]/);
+  }finally{env.dom.window.close();cleanDom();}
+ }
 });
 
 test('an unconfigured popup routes the main button to the full settings page',async()=>{

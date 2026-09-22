@@ -32,7 +32,7 @@ const manifest=JSON.parse(new TextDecoder().decode(files['manifest.json']));
 delete manifest.key;
 files['manifest.json']=new TextEncoder().encode(JSON.stringify(manifest,null,2)+'\n');
 // Store metadata must describe both supported platforms, independently of GitHub packages.
-const descriptions={en:'Collect Gmail and Moodle attendance codes locally and check in to matching Monash Malaysia sessions on Mac or Windows.',zh_CN:'在 Mac 或 Windows 本机识别 Gmail 和 Moodle 签到码，并提交到匹配的 Monash Malaysia 签到场次。',zh_TW:'在 Mac 或 Windows 本機識別 Gmail 和 Moodle 簽到碼，並提交至匹配的 Monash Malaysia 簽到場次。'};
+const descriptions={en:'Collect Gmail, Moodle, and Ed attendance codes locally and check in to matching Monash Malaysia sessions on Mac or Windows.',zh_CN:'从本人 Gmail、Moodle 和 Ed 课程来源整理签到码，在 Mac 或 Windows 本机识别并提交匹配的 Monash Malaysia 学校签到场次。',zh_TW:'從本人 Gmail、Moodle 和 Ed 課程來源整理簽到碼，在 Mac 或 Windows 本機識別並提交匹配的 Monash Malaysia 學校簽到場次。'};
 for(const [locale,description] of Object.entries(descriptions)){
  const name=`_locales/${locale}/messages.json`,data=JSON.parse(new TextDecoder().decode(files[name]));
  assert.ok(description.length<=132);data.appDescription.message=description;

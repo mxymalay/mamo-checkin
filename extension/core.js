@@ -1,3 +1,4 @@
+import {tableRows} from './table-rows.js';
 const MONTHS = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 const WEEKDAYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 const pad = n => String(n).padStart(2,'0');
@@ -90,16 +91,10 @@ function rowDate(text,sentAt) {
   return WEEKDAYS[d.getUTCDay()]===m[1].toLowerCase()?{date}:{date,error:'图片的星期与日期不一致'};
 }
 export function parseImageRows(observations,meta) {
-  const lines=[];
-  for(const obs of [...observations].filter(o=>o.text?.trim()).sort((a,b)=>(b.y+b.height/2)-(a.y+a.height/2))) {
-    const center=obs.y+obs.height/2;
-    let line=lines.find(l=>Math.abs(l.center-center)<Math.max(.012,Math.min(l.height,obs.height)*.48));
-    if(!line){line={center,height:obs.height,cells:[]};lines.push(line);}
-    line.cells.push(obs);
-  }
+  const lines=tableRows(observations);
   const result=[];
   for(const [index,line] of lines.entries()) {
-    const orderedCells=line.cells.sort((a,b)=>a.x-b.x);
+    const orderedCells=line.cells;
     const cellText=cell=>String(cell.verifiedText||cell.text||'').trim();
     const rawText=orderedCells.map(cellText).join(' ').replace(/[–—]/g,'-');
     const types=[...rawText.matchAll(/(?:^|\b[A-Z0-9]{5}\s+)([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(?=\b(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b)/ig)];
@@ -143,14 +138,24 @@ export function mergeRecords(existing,incoming) {
   const map=new Map(existing.map(r=>[r.id,{...r}]));
   for(const r of incoming){
     let old=map.get(r.id);
+    if(old&&['ignored','linked'].includes(old.status))continue;
+    if(r.date&&r.group&&r.time&&r.code){
+      const compatible=(partial,full)=>['course','imageId','messageId','type','time'].every(k=>partial[k]&&partial[k]===full[k])&&['date','group'].every(k=>!partial[k]||partial[k]===full[k]);
+      for(const partial of [...map.values()]){
+        if(partial.id===r.id||(partial.code&&partial.code!==r.code)||partial.attemptedAt||partial.submittedAt||partial.status!=='review'||(partial.date&&partial.group))continue;
+        if(compatible(partial,r)&&incoming.filter(full=>compatible(partial,full)).length===1)map.delete(partial.id);
+      }
+    }
     const sameRow=x=>r.imageId&&r.messageId&&['course','date','time','type','imageId','messageId'].every(k=>r[k]&&x[k]===r[k]);
     if(r.group&&r.code&&incoming.filter(sameRow).length===1){
       const partials=[...map.values()].filter(x=>x.id!==r.id&&!x.group&&!x.code&&!x.attemptedAt&&['review','expired'].includes(x.status)&&sameRow(x));
       for(const partial of partials){map.delete(partial.id);if(!old&&partial.status==='expired')old={...partial,id:r.id,sessionOnly:true};}
     }
     if(!old){map.set(r.id,{...r});continue;}
-    if(old.sessionOnly&&!old.code){map.set(r.id,{...r,...(['submitted','expired'].includes(old.status)?{status:old.status,reason:old.reason}:{})});continue;}
+    if(!old.code&&!old.attemptedAt&&old.status==='review'&&r.code){map.set(r.id,{...r});continue;}
+    if(old.sessionOnly&&!old.code){map.set(r.id,{...r,...(old.ocrEvidence?{ocrEvidence:old.ocrEvidence}:{}),...(['submitted','expired'].includes(old.status)?{status:old.status,reason:old.reason}:{})});continue;}
     const sources=[...new Map([...recordSources(old),...recordSources(r)].map(source=>[[source.sourceUrl,source.messageId,source.imagePath].join('|'),source])).values()];
+    if(old.code&&!r.code){map.set(r.id,{...old,sources});continue;}
     if(old.status==='submitted'&&!old.code&&r.code){map.set(r.id,{...old,...r,status:'submitted',reason:old.reason,sources});continue;}
     if(old.code!==r.code){map.set(r.id,{...old,sources,status:'review',reason:'同一场次出现不同签到码',conflicts:[...new Set([...(old.conflicts||[]),old.code,r.code].filter(Boolean))]});continue;}
     const untouchedReview=old.status==='review'&&!old.attemptedAt&&!old.submittedAt&&!(old.conflicts||[]).length;

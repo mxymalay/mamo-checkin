@@ -8,6 +8,8 @@ export async function openVerifiedGmail({email,search,tabs,readIdentity,create,n
   const verifiedTab=await tabs.get(verifiedTabId);
   base=gmailMailbox(verifiedTab.url||verifiedTab.pendingUrl);
   if(!base)throw new Error('[LOGIN_REQUIRED] Gmail 登录页面尚未完成，请完成登录后重试；尚未搜索邮件。');
+  const identity=await readIdentity(verifiedTabId);
+  if(identity.email!==expected)throw new Error('[LOGIN_REQUIRED] Gmail 账号已改变，请重新检测目标邮箱；尚未搜索邮件。');
   const searchUrl=base+'#search/'+encodeURIComponent(search);
   await navigate(verifiedTabId,searchUrl);
   return {tabId:verifiedTabId,searchUrl};

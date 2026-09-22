@@ -3,6 +3,6 @@
     "message": "馬莫簽到助手"
   },
   "appDescription": {
-    "message": "在 Mac 本機識別 Gmail 和 Moodle 簽到碼，保存並提交最近 7 天的匹配場次。"
+    "message": "從本人 Gmail、Moodle 和 Ed 課程來源整理簽到碼，在 Mac 或 Windows 本機識別並提交匹配的 Monash Malaysia 學校簽到場次。"
   }
 }

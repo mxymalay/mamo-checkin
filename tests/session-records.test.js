@@ -5,6 +5,16 @@ import {mergeRecords,recordKey} from '../extension/core.js';
 const now=Date.parse('2026-09-08T12:00:00+08:00');
 const activity={course:'ABC1234',date:'2026-09-07',time:'18:00',type:'Workshop',group:'01',state:'available'};
 const make=()=>({settings:{courses:['ABC1234'],schedules:{ABC1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}]}},records:[],activities:[{...activity}]});
+test('uniquely matched undated image stays under its waiting session as evidence',()=>{
+ const state=make();state.records=[{...activity,id:'partial',imageId:'hash',date:null,code:'AB123',status:'review',sourceUrl:'https://mail.google.com/'}];
+ syncSessionRecords(state,now);assert.equal(state.records.length,1);assert.equal(state.records[0].status,'waiting_code');assert.equal(state.records[0].code,'');assert.equal(state.records[0].ocrEvidence[0].code,'AB123');
+ syncSessionRecords(state,now);assert.equal(state.records.length,1);assert.equal(state.records[0].ocrEvidence.length,1);
+ state.records=mergeRecords(state.records,[{...activity,id:recordKey(activity),code:'AB123',status:'ready'}]);syncSessionRecords(state,now);assert.equal(state.records.length,1);assert.equal(state.records[0].code,'AB123');
+});
+test('undated evidence matching multiple weeks is not absorbed',()=>{
+ const state=make();state.activities.push({...activity,date:'2026-08-31'});state.records=[{...activity,id:'partial',imageId:'hash',date:null,code:null,status:'review'}];
+ syncSessionRecords(state,now);assert.ok(state.records.some(r=>r.id==='partial'));
+});
 test('site sessions persist without codes and reconcile without duplicates',()=>{
  const state=make();syncSessionRecords(state,now);assert.equal(state.records[0].status,'waiting_code');assert.equal(state.records[0].code,'');syncSessionRecords(state,now);assert.equal(state.records.length,1);
  state.activities[0].state='completed';syncSessionRecords(state,now);assert.equal(state.records[0].status,'submitted');assert.match(state.records[0].reason,/网站原已签到/);

@@ -2,6 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {cleanupOwnedTabs,processCollectedMessages,reconcileScanAlarm} from '../extension/workflow.js';
 import {submitPending} from '../extension/runner.js';
+test('incomplete OCR uses one rescue pass and preserves archive identity',async()=>{
+ const msg={course:'FIT5122',messageId:'m',sentAt:'2026-09-16T19:00:00+08:00',images:['image']};
+ const state={records:[],seenMessages:{},diagnostics:[]};let rescues=0;
+ const obs=text=>[{text,x:0,y:.5,width:1,height:.1,confidence:1}];
+ const adapters={getImage:async()=>({}),save:async()=>{},ocr:async()=>({imageId:'original',imagePath:'/original.png',observations:obs('Applied Wednesday, 16 01 6:00PM')}),rescueOcr:async()=>{rescues++;return {imageId:'other',observations:obs('Applied Wednesday, 16 Sep 01 6:00PM 8YG3G')};}};
+ await processCollectedMessages(state,[msg],adapters);
+ assert.equal(rescues,1);assert.equal(state.records.length,1);assert.equal(state.records[0].code,'8YG3G');assert.equal(state.records[0].imagePath,'/original.png');assert.equal(state.records[0].imageId,'original');
+ await processCollectedMessages(state,[msg],adapters);assert.equal(rescues,1);
+ await processCollectedMessages(state,[msg],{...adapters,refresh:true});assert.equal(rescues,2);
+});
+test('rescue failure preserves primary OCR evidence',async()=>{
+ const state={records:[],seenMessages:{},diagnostics:[]};
+ await processCollectedMessages(state,[{course:'FIT5122',messageId:'m',sentAt:'2026-09-16T19:00:00+08:00',images:['image']}],{getImage:async()=>({}),save:async()=>{},ocr:async()=>({imageId:'i',observations:[{text:'Applied Wednesday, 16 Sep 01 6:00PM',x:0,y:.5,width:1,height:.1,confidence:1}]}),rescueOcr:async()=>{throw new Error('failed');}});
+ assert.equal(state.records[0].date,'2026-09-16');assert.equal(state.diagnostics[0].scope,'ocr-rescue');
+});
 
 test('alarm lifecycle preserves matching schedule, replaces changed period, and clears when disabled',async()=>{
   const events=[];

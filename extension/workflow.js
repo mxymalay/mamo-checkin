@@ -65,7 +65,7 @@ function parseTextRecords(msg,meta) {
   return checkDateBasis(records,msg);
 }
 
-export async function processCollectedMessages(state,messages,{getImage,ocr,save,saveDiagnostics=async()=>{},now=()=>new Date().toISOString(),recentOnly=false,progress=async()=>{},shouldContinue=()=>true,refresh=false}) {
+export async function processCollectedMessages(state,messages,{getImage,ocr,rescueOcr,save,saveDiagnostics=async()=>{},now=()=>new Date().toISOString(),recentOnly=false,progress=async()=>{},shouldContinue=()=>true,refresh=false}) {
   for(const msg of messages) {
     if(!shouldContinue(msg))continue;
     if(state.seenMessages[msg.messageId]&&!refresh) continue;
@@ -94,6 +94,14 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,save
         const payload=await getImage(imageUrl);
         const result=await ocr(payload,meta);
         let records=parseImageRows(result.observations,{...meta,imageId:result.imageId,imagePath:result.imagePath});
+        if(rescueOcr&&(!records.length||records.some(r=>!r.date||!r.group||!r.time||!r.code))){
+          await progress({message:'图片字段不完整，正在使用内置识别补扫'});
+          try{
+            const rescued=await rescueOcr(payload,meta);
+            const recovered=parseImageRows(rescued.observations,{...meta,imageId:result.imageId,imagePath:result.imagePath});
+            records=mergeRecords(records,recovered);
+          }catch(error){await recordDiagnostic(state,{scope:'ocr-rescue',course:msg.course,messageId:msg.messageId,error:error?.message||String(error)},saveDiagnostics,now);}
+        }
         if(!records.length) records.push(incompleteReview(meta,{imageId:result.imageId,imagePath:result.imagePath,rawText:result.observations.map(o=>o.text).join(' '),reason:'图片未识别出完整签到表格'}));
         records=checkDateBasis(records,msg);
         if(recentOnly)records=records.map(r=>r.status==='ready'&&outsideAttendanceWindow(r,Date.parse(now()))?{...r,status:'expired',reason:'课程已超过 7 天，不再补签'}:r);

@@ -1,7 +1,78 @@
 const entries=`
+网站暂不允许继续尝试，请查看签到系统。|The website is not allowing further attempts. Check the attendance system.
+提交结果尚未确认，下次运行先检查学校签到状态。|Submission is unconfirmed. The next run will check the school attendance status first.
+所有候选码均被网站拒绝，可能识别有误或来源码有误，请核对来源或手动补码。|All candidate codes were rejected. Recognition or the source code may be incorrect. Check the source or enter a code manually.
+关联已解除，等待签到码。|Link removed. Waiting for a check-in code.
+使用此签到码|Use this code
+补全后保存为待提交，下次运行核对学校场次后提交。|Save the completed record as pending. The next run verifies the school session before submitting.
+签到码与场次信息完整，等待核对学校场次后提交。|Code and session details are complete. Waiting to verify the school session before submission.
+学校网站已确认签到成功。|The school website has confirmed a successful check-in.
+识别结果需要核对，请确认场次信息及签到码。|Review the recognition result and confirm the session details and code.
+已尝试提交，但尚未确认结果，请查看学校网站。|Submission was attempted but the result is unconfirmed. Check the school website.
+正在向匹配的学校场次提交签到码。|Submitting the code to the matching school session.
+已找到场次，尚未找到可用签到码。|Session found, but no usable code has been found yet.
+已识别签到码，但缺少可靠日期，请关联对应场次。|Code recognized, but a reliable date is missing. Link it to the matching session.
+日期、时间与签到码尚未完整识别，请核对来源。|Date, time and code could not be fully recognized. Check the source.
+使用此签到码补全目标场次|Use this code to complete the target session
+请核对日期、时间、类型和组别。补全后仅保存为待提交，下一次运行仍核对学校网站；演示记录不会提交。|Check the date, time, activity type and group. Completing the record only saves it for submission; the next run still checks the school website. Demo records are never submitted.
+存在多个候选码，请先核对后手动补码|Multiple candidate codes exist. Review them and enter the code manually.
+显示演示记录|Show demo records
+演示记录说明|About demo records
+演示记录，不会提交签到|Demo record. No check-in will be submitted.
+临时显示演示记录，可测试关联、忽略与恢复。不修改真实记录，不读取邮箱或提交签到。关闭开关或刷新页面后清除演示。|Temporarily shows demo records for testing linking, ignoring and restoring. Does not modify real records, read mail or submit check-ins. Turn this off or refresh to clear the demo.
+30 秒检查间隔说明|About the 30-second interval
+仅识别模式说明|About recognition-only mode
+开启后，检查间隔中才会出现“每 30 秒”。仍需开启定时自动签到并选择该间隔。关闭后，已选的 30 秒间隔恢复为每天；频繁检查会增加资源占用。|Adds the every-30-seconds option. Enable scheduled check-ins and select that interval separately. Turning this off resets a selected 30-second interval to daily. Frequent checks use more resources.
+正常读取来源、识别并保存签到码，但不填写或提交签到表单。适用于测试识别与补码。关闭此开关或退出开发者模式后，后续运行可提交符合条件的记录。|Reads sources, recognizes and saves codes without filling or submitting check-in forms. Use this to test recognition and manual code entry. After turning this off or leaving developer mode, subsequent runs may submit eligible records.
+关联到已有场次|Link to an existing session
+选择对应场次|Select the matching session
+确认关联|Confirm link
+没有可关联的匹配场次|No matching session is available
+忽略此记录|Ignore this record
+已忽略 / 已关联|Ignored / linked
+忽略此记录？可在“已忽略 / 已关联”中恢复。|Ignore this record? You can restore it under Ignored / linked.
+恢复记录|Restore record
+已关联|Linked
+已忽略|Ignored
+记录不存在，请刷新后重试|Record not found. Refresh and try again.
+此记录无需恢复|This record does not need restoring.
+只能整理尚未提交的待核对记录|Only unsubmitted records needing review can be organized.
+无效的记录操作|Invalid record action.
+场次不匹配或签到码冲突，无法关联|The session does not match or the codes conflict. Linking is not allowed.
+允许每 30 秒自动检查|Allow automatic checks every 30 seconds
+未完整识别的来源记录|Incomplete source readings
+最新|Latest
+查看详情|View details
+关闭|Close
+仅识别签到码，不提交|Recognize codes only, without submitting
+仅识别模式已开启，不会提交签到。|Recognition-only mode is on. No check-ins will be submitted.
+仅识别模式已关闭。|Recognition-only mode is off.
+仅识别模式：签到码已保留，本轮不填写或提交签到|Recognition-only mode: codes are saved. No check-in form will be filled or submitted during this run.
+手动补码|Enter code
+手动补充签到码|Enter the missing check-in code
+保存并重试|Save and retry
+只有尚未提交且缺少签到码的场次可以补码|Only unsubmitted sessions without a code can be edited.
+只能补充最近 7 天已开始的场次|Only sessions that started within the last 7 days can be updated.
+图片字段不完整，正在使用内置识别补扫|Some image fields are missing. Retrying with built-in OCR.
+找到相关图片，但日期或签到码未完整识别。请重试识别，或核对来源后手动补码。|A related image was found, but its date or code could not be fully read. Retry recognition or check the source and enter the code.
+学期报告|Semester report
+导出 HTML 报告|Export HTML report
+开发与致谢|Development & thanks
+让签到更轻松，也让好想法一起生长。|Easier check-ins. Better ideas, together.
+一起把签到助手做得更好|Build a better check-in assistant together
+欢迎提交 PR：修复问题、完善翻译，或带来新的想法。|Pull requests are welcome: fix a bug, improve a translation, or bring a new idea.
+参与开发 ↗|Contribute ↗
+反馈问题与想法 ↗|Issues & ideas ↗
+共同开发者|Contributors
+项目发起人与开发者|Creator & developer
+感谢每一位使用、反馈和参与改进签到助手的人。|Thank you to everyone who uses the check-in assistant, shares feedback, and helps it improve.
+继续使用内置识别|Keep using built-in OCR
+Gmail 账号已改变，请重新检测目标邮箱；尚未搜索邮件。|The Gmail account changed. Verify the target mailbox again; no mail has been searched.
+正在读取邮件和签到码|Reading mail and check-in codes
 当前使用浏览器内置识别引擎，全程在本机完成、无需安装；如需更高识别精度，可安装 Mac OCR 配套程序。|Using built-in browser OCR, entirely on this computer. No installation needed. The optional Mac OCR helper may improve recognition.
 浏览器扩展存储（无本机归档）|Browser extension storage (no local file archive)
 开发者模式|Developer mode
+切换模式|Switch mode
 学期记录导出|Semester history export
 开始日期|Start date
 结束日期|End date
@@ -94,7 +165,6 @@ OCR 诊断日志|OCR diagnostic log
 忽略已签到|Ignore attended sessions
 忽略已签到说明|Ignore attended sessions explanation
 勾选后仍会读取已在 Attendance 中标记为已签到的场次，用于测试识别；不会重复提交签到。|When enabled, sessions already marked attended in Attendance are read again for recognition testing; check-in is not submitted twice.
-需要核对|Needs review
 确认信息并签到|Confirm details and check in
 正在确认…|Confirming…
 我已核对课程、日期、星期、时间、组别和签到码，确认这些信息正确并允许签到。|I have checked the course, date, weekday, time, group and attendance code. These details are correct and check-in is allowed.
@@ -406,6 +476,8 @@ Mac 原生图片识别|Mac text recognition
 已复制|Copied
 复制中|Copying
 复制|Copy
+复制签到码|Copy attendance code
+复制中|Copying
 重试|Retry
 查看签到系统|View attendance system
 查看邮件|View email
@@ -588,11 +660,12 @@ Moodle 和 Ed|Moodle and Ed
 `.trim().split('\n').map(line=>line.split('|')).filter(([source,target])=>source&&target);
 const sortedEntries=[...entries].sort((a,b)=>b[0].length-a[0].length);
 const exactTranslations=new Map(entries);
+const reverseTranslations=new Map(entries.map(([source,target])=>[target,source]));
 let language='en';
 export function detectLanguage(value){return /^zh(?:-|$)/i.test(value||'')?'zh':'en';}
 export function setLanguage(value){language=value==='zh'?'zh':'en';}
 export function translate(text,lang=language){
- if(lang==='zh')return text;
+ if(lang==='zh')return reverseTranslations.get(String(text))||text;
  if(exactTranslations.has(text))return exactTranslations.get(text);
  let result=String(text);
  const patterns=[
@@ -662,7 +735,7 @@ export function installLanguageUI(doc=document){
   language=picker.value==='auto'?detectLanguage(globalThis.chrome?.i18n?.getUILanguage?.()||doc.defaultView.navigator.language):picker.value;doc.documentElement.lang=language==='zh'?'zh-CN':'en';
   const walker=doc.createTreeWalker(doc.documentElement,4);let node;
   while(node=walker.nextNode()){
-   if(node.parentElement?.closest('script,style,#language'))continue;
+   if(node.parentElement?.closest('script,style,#language,#setup-tour'))continue;
    const old=texts.get(node),original=old&&node.nodeValue===old.output?old.original:node.nodeValue,output=translate(original);texts.set(node,{original,output});if(node.nodeValue!==output)node.nodeValue=output;
   }
   for(const el of doc.querySelectorAll('[placeholder],[title],[aria-label]'))for(const key of ['placeholder','title','aria-label']){

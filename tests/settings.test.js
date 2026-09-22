@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DEFAULTS,normalizeSettings,normalizeIdentity,normalizeIdentityField,gmailQuery} from '../extension/settings.js';
+test('recognition-only is opt-in and scoped to developer mode',()=>{
+ assert.equal(DEFAULTS.recognitionOnly,false);
+ assert.equal(normalizeSettings(DEFAULTS,{recognitionOnly:true},false,'automation').recognitionOnly,false);
+ const saved=normalizeSettings(DEFAULTS,{devMode:true,recognitionOnly:true},false,'automation');
+ assert.equal(saved.recognitionOnly,true);
+ assert.equal(normalizeSettings(saved,{intervalMinutes:30},false,'automation').recognitionOnly,true);
+ assert.equal(normalizeSettings(saved,{devMode:false},false,'automation').recognitionOnly,false);
+});
 test('card saves validate only their own fields and reject unrelated updates',()=>{
  const existing={...DEFAULTS,name:'Student',courses:['FIT5120'],senders:{FIT5120:'unfinished'}};
  const saved=normalizeSettings(existing,{academicYear:2027,mailQuery:' lecture ',name:'Other'},true,'search');
@@ -44,9 +52,11 @@ test('weekly schedules are normalized, preserve old configs and reject incomplet
 
 test('developer mode allows a 30-second interval and persists the flag',()=>{
  const base={...DEFAULTS,name:'Example Student',email:'abcd1234@student.monash.edu'};
- const cfg=normalizeSettings(base,{courses:['FIT5120'],senders:{FIT5120:'teacher@monash.edu'},intervalMinutes:0.5,devMode:true});
+ const cfg=normalizeSettings(base,{courses:['FIT5120'],senders:{FIT5120:'teacher@monash.edu'},intervalMinutes:0.5,devMode:true,fastInterval:true});
  assert.equal(cfg.intervalMinutes,0.5);assert.equal(cfg.devMode,true);
- assert.equal(normalizeSettings(base,{courses:['FIT5120'],senders:{FIT5120:'teacher@monash.edu'},intervalMinutes:0.2}).intervalMinutes,0.5,'below the 30-second floor clamps up');
+ assert.equal(normalizeSettings(base,{courses:['FIT5120'],senders:{FIT5120:'teacher@monash.edu'},intervalMinutes:0.2}).intervalMinutes,1440,'fast interval requires explicit opt-in');
+ assert.equal(normalizeSettings(cfg,{fastInterval:false},false,'automation').intervalMinutes,1440);
+ assert.equal(normalizeSettings(cfg,{devMode:false},false,'automation').fastInterval,false);
  assert.equal(normalizeSettings(configured,{intervalMinutes:15}).devMode,false);
 });
 test('daily is the default and is preserved when saved',()=>{

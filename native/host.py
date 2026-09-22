@@ -300,7 +300,8 @@ def handle_ocr(request):
         )
         cached_ocr = sidecar.get("ocr")
         cached = bool(
-            isinstance(cached_ocr, dict)
+            not request.get("force", False)
+            and isinstance(cached_ocr, dict)
             and cached_ocr.get("version") == OCR_CACHE_VERSION
             and cached_ocr.get("engine") == OCR_ENGINE
             and valid_observations(cached_ocr.get("observations"))

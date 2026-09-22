@@ -8,7 +8,7 @@ export function createRunProgress(persist,now=()=>new Date().toISOString()){
     for(const [key,value] of Object.entries(event.increment||{}))status.counts[key]=(status.counts[key]||0)+value;
     status={...status,...event,context:event.context??status.context,updatedAt:at,stepStartedAt:changed&&!event.detail?at:status.stepStartedAt};
     delete status.increment;delete status.detail;delete status.level;
-    if(event.message&&(changed||event.level))status.events=[...status.events,{at,message:event.message,level:event.level||'info',context:status.context}].slice(-100);
+    if(event.message&&(changed||event.level||event.increment))status.events=[...status.events,{at,message:event.message,level:event.level||'info',context:status.context,metrics:Object.keys(event.increment||{})}].slice(-100);
     const snapshot=structuredClone(status);
     writing=writing.catch(()=>{}).then(()=>persist(snapshot));return writing;
   },finish(event){const result=this.update({running:false,finishedAt:now(),...event});finished=true;return result;}};

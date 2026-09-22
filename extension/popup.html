@@ -1,8 +1,13 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>马莫签到助手</title><link rel="stylesheet" href="style.css"></head>
-<body class="popup-body"><main class="popup-shell">
-<header class="popup-header"><strong id="popup-title">马莫签到助手</strong><span id="popup-mode" class="pill popup-pill">…</span><button id="popup-settings" type="button" class="subtle">更多设置</button></header>
-<p id="popup-status" class="popup-status">正在读取状态…</p>
+<body class="popup-body"><link rel="stylesheet" href="popup.css"><main class="popup-shell">
+<header class="popup-header"><strong id="popup-title">马莫签到助手</strong><span id="popup-mode" class="pill popup-pill">…</span></header>
+<section id="popup-scene" class="popup-scene" data-state="idle" aria-labelledby="popup-heading">
+<div class="popup-art" aria-hidden="true"><div class="scene-orbit"></div><div class="scene-ticket"><span class="ticket-mark"></span><i></i><i></i><i></i><div class="scan-beam"></div></div><span class="scene-badge"></span><div class="scene-sparks"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+<h1 id="popup-heading"></h1>
+<p id="popup-caption"></p>
+<p id="popup-status" class="popup-status" role="status">正在读取状态…</p>
+</section>
 <ul id="popup-courses" class="popup-courses"></ul>
 <p id="popup-error" class="popup-error" hidden></p>
-<button id="popup-scan" type="button" class="primary">立即签到</button>
+<div class="popup-actions"><button id="popup-scan" type="button" class="primary">立即签到</button><button id="popup-settings" type="button" class="subtle">更多设置</button></div>
 </main><script type="module" src="popup.js"></script></body></html>

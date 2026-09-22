@@ -10,7 +10,13 @@ document.documentElement.lang=language==='zh'?'zh-CN':'en';
 $('popup-settings').textContent=translate('更多设置');
 $('popup-title').textContent=translate('马莫签到助手');
 $('popup-scan').textContent=translate('立即签到');
-let latest={};
+let latest={},starting=false,refreshing=false;
+const text=(zh,en)=>language==='zh'?zh:en;
+function scene(mode){
+ const copy={idle:[text('准备好，轻松签到','Ready when you are'),text('剩下的交给签到助手','Let the Check-in Assistant take it from here')],working:[text('正在为你签到','Taking care of check-in'),text('查找、识别，一步步完成','Finding codes. Making progress.')],waiting:[text('正在检查登录状态','Checking sign-in status'),text('检测通过后，自动继续','Continuing automatically once verified')],success:[text('处理完成','All done'),text('可以安心去忙啦','You can get back to your day')],error:[text('遇到一点问题','A little help needed'),text('查看下方提示，再试一次','Check the message below and retry')]}[mode];
+ $('popup-scene').dataset.state=mode;
+ $('popup-heading').textContent=copy[0];$('popup-caption').textContent=copy[1];
+}
 const request=async payload=>{
  const result=await chrome.runtime.sendMessage(payload);
  if(!result)throw new Error(translate('后台未返回结果，请从扩展图标重新打开'));
@@ -34,23 +40,35 @@ function render(state){
  latest=state;
  const status=state.status||{},config=state.settings||{},summary=status.summary||{};
  const configured=Boolean(config.name)&&(config.courses||[]).length;
- $('popup-mode').textContent=config.enabled?translate('自动运行中'):translate('已暂停');
+ let mode='idle';
+ if(status.running||starting)mode=status.phase==='waiting'?'waiting':'working';
+ else if(status.error)mode='error';
+ else if(status.finishedAt){const outcome=checkinResult(summary,false);mode=outcome.tone==='success'?'success':outcome.tone==='error'?'error':'waiting';}
+ scene(mode);
+ if(mode==='waiting'&&!status.running){$('popup-heading').textContent=text('还有一点待完成','A little more to do');$('popup-caption').textContent=text('详细结果可在更多设置中查看','See More settings for the details');}
+ $('popup-mode').textContent=config.enabled?text('自动签到已开启','Auto check-in on'):text('自动签到已关闭','Auto check-in off');
  $('popup-mode').classList.toggle('on',Boolean(config.enabled));
  const scan=$('popup-scan');
  if(!configured){
   $('popup-status').textContent=translate('先完成初始设置：填写姓名并配置课程。');
   $('popup-courses').replaceChildren();
   scan.textContent=translate('打开设置完成配置');
-  scan.disabled=false;
+  scan.disabled=starting;
   return;
  }
  if(status.running){
   $('popup-status').textContent=translate(status.message||'正在签到…');
+  if(status.phase==='waiting'){
+   const site=status.waitingSite==='gmail'?'Gmail':status.waitingSite==='moodle'?'Moodle':'Attendance';
+   const seconds=Math.max(0,Math.ceil((status.loginDeadline-Date.now())/1000));
+   $('popup-caption').textContent=text(`正在检测 ${site} · 剩余 ${seconds} 秒`,`Checking ${site} · ${seconds}s remaining`);
+   $('popup-status').textContent=text('如需登录，请在打开的网页中完成。','If sign-in is needed, complete it in the opened tab.');
+  }
  }else if(status.error){
   $('popup-status').textContent=translate(status.message||'上次检查未完成，请重试');
  }else if(status.finishedAt){
   const outcome=checkinResult(summary,Boolean(status.error));
-  $('popup-status').textContent=`${outcome.success?'✓ ':''}${summary.submitted?translate(`本轮已确认 ${summary.submitted} 场签到成功。`):translate(status.message||outcome.title)}`;
+  $('popup-status').textContent=summary.submitted?translate(`本轮已确认 ${summary.submitted} 场签到成功。`):summary.quiet?text('本次无需补签。','No additional check-ins needed this time.'):translate(outcome.title);
  }else{
   $('popup-status').textContent=translate('尚未检查；点击下方按钮立即签到。');
  }
@@ -59,23 +77,24 @@ function render(state){
  if(!courses.length){const li=document.createElement('li');li.className='popup-empty';li.textContent=translate('暂无课程；点击“更多设置”添加。');$('popup-courses').append(li);}
  for(const course of courses)$('popup-courses').append(courseLine(course));
  scan.textContent=status.running?translate('正在签到…'):translate('立即签到');
- scan.disabled=Boolean(status.running);
+ scan.disabled=Boolean(status.running)||starting;
 }
 $('popup-scan').addEventListener('click',async()=>{
  const scan=$('popup-scan');$('popup-error').hidden=true;
  const configured=Boolean(latest.settings?.name)&&(latest.settings?.courses||[]).length;
  if(!configured){chrome.runtime.openOptionsPage();window.close();return;}
- if(latest.status?.running)return;
- scan.disabled=true;
+ if(latest.status?.running||starting)return;
+ starting=true;scan.disabled=true;scene('working');$('popup-status').textContent=translate('正在签到…');
  try{
-  await request({type:'scan',expectedIdentity:{email:latest.settings?.email||'',name:latest.settings?.name||''}});
+  await request({type:'scan',preflight:true,expectedIdentity:{email:latest.settings?.email||'',name:latest.settings?.name||''}});
+  starting=false;
   await refresh();
  }catch(error){
-  $('popup-error').textContent=error.message;$('popup-error').hidden=false;
-  render(latest);
+  starting=false;$('popup-error').textContent=translate(error.message);$('popup-error').hidden=false;
+  render(latest);scene('error');
  }
 });
 $('popup-settings').addEventListener('click',()=>{chrome.runtime.openOptionsPage();window.close();});
-async function refresh(){try{render(await request({type:'status'}));}catch(error){$('popup-status').textContent=error.message;}}
+async function refresh(){if(refreshing)return;refreshing=true;try{render(await request({type:'status'}));}catch(error){$('popup-status').textContent=translate(error.message);scene('error');}finally{refreshing=false;}}
 setInterval(()=>void refresh(),1500);
 void refresh();

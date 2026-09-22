@@ -2,6 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {detectLanguage,translate,installLanguageUI} from '../extension/i18n.js';
+test('every developer switch has accessible bilingual help that survives language switching',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const dom=new JSDOM(await readFile(new URL('../extension/options.html',import.meta.url),'utf8'),{url:'https://extension.test'});
+ const ui=installLanguageUI(dom.window.document),doc=dom.window.document;
+ try{
+  const buttons=[...doc.querySelectorAll('#advanced-settings .help-button')];assert.equal(buttons.length,4);
+  doc.getElementById('language').value='en';ui.apply();
+  for(const button of buttons){const help=doc.getElementById(button.getAttribute('aria-describedby'));assert.equal(button.type,'button');assert.equal(help.getAttribute('role'),'tooltip');assert.doesNotMatch(help.textContent,/[\u3400-\u9fff]/);assert.doesNotMatch(button.getAttribute('aria-label'),/[\u3400-\u9fff]/);}
+  doc.getElementById('language').value='zh';ui.apply();
+  for(const button of buttons)assert.match(doc.getElementById(button.getAttribute('aria-describedby')).textContent,/[\u3400-\u9fff]/);
+ }finally{ui.disconnect();dom.window.close();}
+});
 test('dynamic progress translates before shorter dictionary fragments',()=>{
  const samples=['Gmail 列表读取完成（0.7 秒），0 个待检查会话','网站签到状态读取完成（10 场）','核对 FIT5120 2026-09-08 18:00 Studio','已保存 3 条文字记录','第 1/3 张图片已识别并保存','正在下载第 1/3 张图片（最多 20 秒）','已读取 Moodle FIT5201（1.2 秒）'];
  for(const text of samples){assert.doesNotMatch(translate(text,'en'),/[\u3400-\u9fff]/);assert.equal(translate(text,'zh'),text);}
@@ -27,6 +39,11 @@ test('course setup messages stay fully bilingual, including detected counts',()=
  assert.equal(translate('已检测到 2 门课程。请在下方完善课程来源和课表。','en'),'2 courses detected. Complete the sources and timetable below.');
 });
 test('English is fallback; Chinese locales select Chinese',()=>{assert.equal(detectLanguage('zh-TW'),'zh');assert.equal(detectLanguage('en-MY'),'en');assert.equal(detectLanguage('fr'),'en');assert.equal(translate('等待签到码','en'),'Waiting for code');});
+test('English-rendered record states restore when switching back to Chinese',()=>{
+ for(const [zh,en] of [['结果待确认','Confirmation pending'],['核对提交结果','Verifying submission'],['等待签到码','Waiting for code'],['需要核对','Review required'],['提交结果尚未确认，下次运行先检查学校签到状态。','Submission is unconfirmed. The next run will check the school attendance status first.']]){
+  assert.equal(translate(zh,'en'),en);assert.equal(translate(en,'zh'),zh);
+ }
+});
 test('all verification states and repeat buttons translate as whole phrases',()=>{
  const messages=['重新登录并检测','重新登录并读取姓名','登录检测通过。','请在打开的网站完成登录，检测会自动继续。','正在保存检测结果…','检测中 · 剩余 180 秒 · 请勿关闭浏览器页面','请在新打开的 Attendance 签到系统 标签页完成学校账号登录，检测会自动继续；请勿关闭页面。','Moodle 姓名与配置不一致，请登录配置的学校账号后继续检测。'];
  for(const message of messages)assert.doesNotMatch(translate(message,'en'),/[\u3400-\u9fff]/);
@@ -69,7 +86,7 @@ test('English translation normalizes punctuation left around nested labels',()=>
 test('recognition settings and browser archive labels are fully translated',()=>{
  for(const text of [
   '当前使用浏览器内置识别引擎，全程在本机完成、无需安装；如需更高识别精度，可安装 Mac OCR 配套程序。',
-  '浏览器扩展存储（无本机归档）','开发者模式',
+  '浏览器扩展存储（无本机归档）','开发者模式','切换模式',
   'Windows 使用浏览器内置识别，全程在本机完成。','Mac 使用 Apple Vision 在本机识别。'
  ])assert.doesNotMatch(translate(text,'en'),/[\u3400-\u9fff]/);
 });

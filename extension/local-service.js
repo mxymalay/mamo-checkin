@@ -32,9 +32,9 @@ export async function localService({onProgress=async()=>{}}={}){
       const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(n=>n.toString(16).padStart(2,'0')).join('');
       // Force one fresh pass after the structural-field verification update;
       // otherwise the store build could reuse observations from older code.
-      const ocrKey='ocr:row-rescue-v4:'+hash;
+      const ocrKey='ocr:row-rescue-v5:'+hash;
       const cached=(await chrome.storage.local.get(ocrKey))[ocrKey];
-      if(Array.isArray(cached?.observations)){
+      if(!payload.force&&Array.isArray(cached?.observations)){
         await report('相同图片已识别，复用结果',{increment:{cached:1}});
         return {ok:true,observations:cached.observations,diagnostics:cached.diagnostics,imageId:hash,cached:true};
       }
