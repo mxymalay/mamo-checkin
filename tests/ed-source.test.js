@@ -1,3 +1,4 @@
+import './helpers/install-source-runtime.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -89,7 +90,7 @@ test('Ed course URLs validate, canonicalize and satisfy the source requirement a
  assert.throws(()=>normalizeSettings(base,{courses:['FIT1234'],edUrls:{FIT1234:['https://edstem.org/au/courses/abc']}}),/课程网址/);
  assert.throws(()=>normalizeSettings(base,{courses:['FIT1234'],edUrls:{FIT1234:['https://edstem.org/au/courses/1','https://edstem.org/au/courses/2']}}),/最多配置 1 个/);
  test('email source with an empty sender falls back to keyword-only Gmail search',()=>{
-  const cfg=normalizeSettings(base,{courses:['FIT1234'],senders:{FIT1234:''}});
+  const cfg=normalizeSettings(base,{courses:['FIT1234'],sourceModes:{FIT1234:'email'},senders:{FIT1234:''}});
   assert.equal(cfg.senders.FIT1234,'');
   assert.equal(gmailQuery(cfg),'newer_than:7d attendance');
  });

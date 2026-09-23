@@ -1,6 +1,7 @@
 import {mergeRecords,parseImageRows,parseMailDate,plausibleCode} from './core.js';
 import {messageOutsideWindow,outsideAttendanceWindow} from './recent-window.js';
 import {parseMoodleTableRow} from './moodle-table.js';
+import {messageCacheKey} from './source-rules/cache.js';
 
 export async function reconcileScanAlarm(settings,alarms) {
   const current=await alarms.get('scan');
@@ -33,7 +34,7 @@ const codeCandidates=text=>[...new Set([...String(text).matchAll(/\b([A-Z0-9]{5}
  .filter(token=>!nonCodeWords.has(token.toLowerCase())&&plausibleCode(token));
 const textSourceType=sourceType=>`${String(sourceType||'gmail').replace(/-(?:text|image)$/,'')}-text`;
 const addReason=(record,reason)=>({...record,status:'review',reason:[record.reason,reason].filter(Boolean).join('；')});
-function checkDateBasis(records,msg){
+export function checkDateBasis(records,msg){
   if(msg.dateReferenceOnly)return records.map(record=>addReason(record,'年份仅为参考，旧页面记录不自动提交'));
   if(msg.dateWindow)return records.map(record=>!record.date||record.date<msg.dateWindow.from||record.date>msg.dateWindow.to?addReason(record,'签到日期不在课程周栏目的日期范围内'):record);
   return records;
@@ -68,10 +69,11 @@ function parseTextRecords(msg,meta) {
 export async function processCollectedMessages(state,messages,{getImage,ocr,rescueOcr,save,saveDiagnostics=async()=>{},now=()=>new Date().toISOString(),recentOnly=false,progress=async()=>{},shouldContinue=()=>true,refresh=false}) {
   for(const msg of messages) {
     if(!shouldContinue(msg))continue;
-    if(state.seenMessages[msg.messageId]&&!refresh) continue;
-    if(refresh)delete state.seenMessages[msg.messageId];
+    const cacheKey=messageCacheKey(state,msg);
+    if(state.seenMessages[cacheKey]&&!refresh) continue;
+    if(refresh)delete state.seenMessages[cacheKey];
     const sentAt=typeof msg.sentAt==='string'&&Number.isFinite(Date.parse(msg.sentAt))?msg.sentAt:parseMailDate(msg.sentAtText);
-    if(recentOnly&&messageOutsideWindow({...msg,sentAt},Date.parse(now()))){state.seenMessages[msg.messageId]=now();await progress({message:'跳过超过 7 天的旧内容',increment:{skipped:1}});await save();continue;}
+    if(recentOnly&&messageOutsideWindow({...msg,sentAt},Date.parse(now()))){state.seenMessages[cacheKey]=now();await progress({message:'跳过超过 7 天的旧内容',increment:{skipped:1}});await save();continue;}
     await progress({message:'正在读取签到文字和图片',context:{course:msg.course,subject:msg.subject,sourceUrl:msg.sourceUrl},increment:{messages:1}});
     if(!sentAt) {
       await recordDiagnostic(state,{scope:'message',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,error:`无法识别邮件发送年份：${msg.subject}`},saveDiagnostics,now);
@@ -103,7 +105,7 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,resc
           }catch(error){await recordDiagnostic(state,{scope:'ocr-rescue',course:msg.course,messageId:msg.messageId,error:error?.message||String(error)},saveDiagnostics,now);}
         }
         if(!records.length) records.push(incompleteReview(meta,{imageId:result.imageId,imagePath:result.imagePath,rawText:result.observations.map(o=>o.text).join(' '),reason:'图片未识别出完整签到表格'}));
-        records=checkDateBasis(records,msg);
+        records=checkDateBasis(records,msg).map(record=>({...record,sourceRules:msg.imageEvidence?.find(i=>i.url===imageUrl)?.matches||[]}));
         if(recentOnly)records=records.map(r=>r.status==='ready'&&outsideAttendanceWindow(r,Date.parse(now()))?{...r,status:'expired',reason:'课程已超过 7 天，不再补签'}:r);
         const before=state.records.length;state.records=mergeRecords(state.records,records);
         await save();
@@ -115,10 +117,10 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,resc
       }
     }
     if(!failed&&!incomplete) {
-      state.seenMessages[msg.messageId]=now();
+      state.seenMessages[cacheKey]=now();
       try{await save();}
       catch(error){
-        delete state.seenMessages[msg.messageId];
+        delete state.seenMessages[cacheKey];
         await recordDiagnostic(state,{scope:'message',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,error:error?.message||String(error)},saveDiagnostics,now);
       }
     }

@@ -50,6 +50,8 @@ async function handle(message){
   return {ok:true,...await engine.ocr(message)};
 }
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
-  if(message.target!=='ocr-offscreen'||sender.id!==chrome.runtime.id)return false;
+  // Only the service worker may dispatch OCR; extension pages must use its
+  // session, asset and concurrency checks instead of addressing this receiver.
+  if(message?.target!=='ocr-offscreen'||sender?.id!==chrome.runtime.id||sender.url!==chrome.runtime.getURL('background.js')||sender.tab!==undefined||sender.documentId!==undefined||sender.frameId!==undefined)return false;
   handle(message).then(respond,e=>respond({ok:false,error:e.message,resetRequired:Boolean(e.resetRequired)}));return true;
 });

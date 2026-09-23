@@ -6,12 +6,12 @@ const $=id=>document.getElementById(id);
 let choice='auto';try{choice=window.localStorage.getItem('mamo-language')||'auto';}catch{}
 const language=choice==='auto'?detectLanguage(globalThis.chrome?.i18n?.getUILanguage?.()||navigator.language):choice;
 setLanguage(language);
-document.documentElement.lang=language==='zh'?'zh-CN':'en';
+document.documentElement.lang=language==='zh'?'zh-CN':language==='zh_TW'?'zh-TW':'en';
 $('popup-settings').textContent=translate('更多设置');
 $('popup-title').textContent=translate('马莫签到助手');
 $('popup-scan').textContent=translate('立即签到');
 let latest={},starting=false,refreshing=false;
-const text=(zh,en)=>language==='zh'?zh:en;
+const text=(zh,en)=>language==='en'?en:translate(zh,language);
 function scene(mode){
  const copy={idle:[text('准备好，轻松签到','Ready when you are'),text('剩下的交给签到助手','Let the Check-in Assistant take it from here')],working:[text('正在为你签到','Taking care of check-in'),text('查找、识别，一步步完成','Finding codes. Making progress.')],waiting:[text('正在检查登录状态','Checking sign-in status'),text('检测通过后，自动继续','Continuing automatically once verified')],success:[text('处理完成','All done'),text('可以安心去忙啦','You can get back to your day')],error:[text('遇到一点问题','A little help needed'),text('查看下方提示，再试一次','Check the message below and retry')]}[mode];
  $('popup-scene').dataset.state=mode;
@@ -43,7 +43,7 @@ function render(state){
  let mode='idle';
  if(status.running||starting)mode=status.phase==='waiting'?'waiting':'working';
  else if(status.error)mode='error';
- else if(status.finishedAt){const outcome=checkinResult(summary,false);mode=outcome.tone==='success'?'success':outcome.tone==='error'?'error':'waiting';}
+ else if(status.finishedAt&&config.enabled){const outcome=checkinResult(summary,false);mode=outcome.tone==='success'?'success':outcome.tone==='error'?'error':'waiting';}
  scene(mode);
  if(mode==='waiting'&&!status.running){$('popup-heading').textContent=text('还有一点待完成','A little more to do');$('popup-caption').textContent=text('详细结果可在更多设置中查看','See More settings for the details');}
  $('popup-mode').textContent=config.enabled?text('自动签到已开启','Auto check-in on'):text('自动签到已关闭','Auto check-in off');
@@ -66,9 +66,11 @@ function render(state){
   }
  }else if(status.error){
   $('popup-status').textContent=translate(status.message||'上次检查未完成，请重试');
- }else if(status.finishedAt){
+ }else if(status.finishedAt&&config.enabled){
   const outcome=checkinResult(summary,Boolean(status.error));
   $('popup-status').textContent=summary.submitted?translate(`本轮已确认 ${summary.submitted} 场签到成功。`):summary.quiet?text('本次无需补签。','No additional check-ins needed this time.'):translate(outcome.title);
+ }else if(!config.enabled&&status.finishedAt){
+  $('popup-status').textContent=text('自动签到未开启；点击下方按钮再次检查。','Auto check-in is off; click below to run another check.');
  }else{
   $('popup-status').textContent=translate('尚未检查；点击下方按钮立即签到。');
  }

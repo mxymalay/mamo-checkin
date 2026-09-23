@@ -60,6 +60,25 @@ async function withChrome(run) {
   }
 }
 
+test('transient OCR previews do not write to the production cache',async()=>withChrome(async fixture=>{
+ const localService=await loadService(),service=await localService({transient:true});
+ try{await service.call({op:'ocr',imageBase64:btoa('preview'),mimeType:'image/png'});assert.equal(fixture.values.size,0);}
+ finally{await service.close();}
+}));
+test('closing a preview during OCR prevents a late error from restarting the offscreen document',async()=>withChrome(async fixture=>{
+ const localService=await loadService(),service=await localService({transient:true}),send=fixture.chrome.runtime.sendMessage;let rejectOcr,entered;
+ const started=new Promise(resolve=>{entered=resolve;});fixture.chrome.runtime.sendMessage=message=>message.op==='ocr'?(rejectOcr?Promise.resolve({ok:false,error:'unexpected-retry'}):new Promise((resolve,reject)=>{rejectOcr=reject;entered();})):send(message);
+ const pending=service.call({op:'ocr',imageBase64:btoa('cancelled-preview'),mimeType:'image/png'});const rejected=assert.rejects(pending,/关闭/);await started;await service.close();rejectOcr(new Error('Offscreen closed'));await rejected;
+ assert.equal(fixture.events.createDocument,1);assert.equal(fixture.isContextOpen(),false);assert.equal(fixture.values.size,0);
+}));
+test('closing while retry checks offscreen contexts prevents a new document creation',async()=>withChrome(async fixture=>{
+ const localService=await loadService(),service=await localService({transient:true}),send=fixture.chrome.runtime.sendMessage;let release,entered;
+ const checking=new Promise(resolve=>{entered=resolve;});fixture.chrome.runtime.getContexts=()=>new Promise(resolve=>{release=()=>resolve([]);entered();});
+ fixture.chrome.runtime.sendMessage=message=>message.op==='ocr'?Promise.resolve({ok:false,error:'retry-test',resetRequired:true}):send(message);
+ const call=service.call({op:'ocr',imageBase64:btoa('cancel-during-ensure'),mimeType:'image/png'}),rejection=assert.rejects(call,/关闭/);
+ await checking;const close=service.close();release();await rejection;await close;assert.equal(fixture.events.createDocument,1);
+}));
+
 test('two simultaneous clients share offscreen and only the last close releases it',async()=>withChrome(async fixture=>{
   const localService=await loadService();
   const [healthClient,runClient]=await Promise.all([localService(),localService()]);

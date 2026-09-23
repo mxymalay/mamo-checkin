@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "local.custom.moodle-attendance",
+  "version": "1.0.0",
+  "name": {
+    "en": "Moodle attendance images",
+    "zh_CN": "Moodle 签到图片",
+    "zh_TW": "Moodle 簽到圖片"
+  },
+  "author": {
+    "name": "Your name",
+    "url": "https://example.com/author"
+  },
+  "sourceUrl": "https://example.com/rules/moodle-attendance.json",
+  "source": "moodle",
+  "courses": ["FIT1234"],
+  "keywords": {
+    "navigation": [],
+    "context": []
+  },
+  "images": {
+    "selectors": [".attendance img"],
+    "excludeSelectors": [],
+    "minWidth": 60,
+    "minHeight": 20,
+    "maxHeight": 4000
+  },
+  "attachments": {
+    "selectors": []
+  }
+}

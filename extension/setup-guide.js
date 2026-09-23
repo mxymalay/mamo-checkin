@@ -1,6 +1,7 @@
 import {bindIdentityReader} from './identity-input.js';
 import {installCompanionDownload} from './companion-setup.js';
 import {isWindows} from './platform.js';
+import {courseSourceMode} from './course-sources.js';
 
 const nativeHealthErrors=new Map([
  ['Allow the OCR executable','请在系统安全设置中允许识别程序，然后点击“重新检测”。']
@@ -33,7 +34,7 @@ export function createSetupGuide({doc=document,request,refresh,detect,checkHealt
  identityBindings.attendance=bindIdentityReader({input:$('setup-name'),button:$('setup-read-name'),status:$('setup-read-name-status'),request,doc,buttonText:'重新检测姓名',verifiedButtonText:'重新检测姓名',onChange:()=>{if(!identityBindings.attendance?.running)identityEdit=true;$('setup-read-name').hidden=false;syncIdentitySubmit();},onVerified:scheduleIdentitySubmit});syncIdentitySubmit();
  let usedBrowserOcr=false;
  function render(){
- const cfg=state.settings||{},identity=Boolean(cfg.name),complete=identity&&cfg.courses?.length&&cfg.courses.every(c=>cfg.senders?.[c]||cfg.moodleUrls?.[c]?.length||cfg.edUrls?.[c]?.length);
+ const cfg=state.settings||{},identity=Boolean(cfg.name),complete=identity&&cfg.courses?.length&&cfg.courses.every(c=>courseSourceMode(cfg,c));
   const step=!windows&&!healthy&&!reloadRequired&&!ocrSkipped?'install':!identity||identityEdit?'identity':!complete?'courses':'complete';
   const enteredIdentity=step==='identity'&&lastStep!=='identity';
   if(step!=='courses')courseDetectionStarted=false;

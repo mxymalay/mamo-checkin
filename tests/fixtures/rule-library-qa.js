@@ -1,0 +1,10 @@
+import {installRuleManager} from '/extension/source-rules/manager-ui.js';
+import {ruleText} from '/extension/source-rules/strings.js';
+const locale=new URLSearchParams(location.search).get('lang')||'zh_CN';document.documentElement.lang=locale;
+const t=key=>ruleText(key,locale)||key;
+document.querySelector('#back-label').textContent=t('rules.back-settings');document.querySelector('#title').textContent=t('rules.library');
+const catalog=(await(await fetch('/extension/source-rules/catalog.json')).json()).rules;
+const rules=catalog.slice(0,3).map((entry,i)=>{const {path,demo,sha256,...rule}=entry;return {schemaVersion:1,...rule,origin:i?'local':'community',key:(i?'local:':'community:')+rule.id,images:{selectors:['.attendance img']}};});
+const state={rules,settings:{courses:['FIT5122','DEMO2000'],sourceModes:{FIT5122:'moodle',DEMO2000:'gmail'},devMode:true}};
+const manager=installRuleManager({root:document.querySelector('#manager'),translate:t,request:async()=>state,loadCatalog:async()=>catalog,onCreate:()=>{document.body.dataset.created='true';},onTest:()=>{}});
+await manager.refresh();document.querySelector('[data-library-tab=local]').click();document.body.dataset.ready='true';

@@ -37,7 +37,7 @@ button:not(:disabled):hover{box-shadow:0 2px 6px #1c485014}
 .status-card[data-state=error]{--run-accent:#bd4851;--run-tint:#fbecef}
 .status-card[data-state=error] .status-main:after{content:'!';border:0;left:14px;top:12px;color:#bd4851;font-size:24px;font-weight:700}
 .page-tabs{gap:8px;padding:0;margin:0 0 26px;border-bottom:1px solid #d9e3e9;background:transparent;border-radius:0;display:flex;flex-wrap:wrap}
-.page-tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:#6a7c89;font-size:14px;padding:13px 18px;min-height:48px;white-space:normal;height:auto}
+.page-tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:#6a7c89;font-size:18px;padding:18px;min-height:48px;white-space:normal;overflow-wrap:anywhere;height:auto}
 .page-tabs button[aria-selected=true]{color:#087bab;background:transparent;border-bottom-color:#087bab;font-weight:700}
 .settings-columns{gap:32px}.settings-main,.settings-side{min-width:0}
 .settings-columns .card,.courses-card,.records{background:#fff;border:0;border-top:1px solid #dfe7ec;border-radius:0;box-shadow:none;padding:24px;margin-bottom:20px}
@@ -55,7 +55,7 @@ button:not(:disabled):hover{box-shadow:0 2px 6px #1c485014}
 .records tbody tr:hover td{background:#f7fbfd}
 .records .state{border-radius:5px;padding:5px 9px;font-size:12px;line-height:1.5}
 #count{display:inline-block;background:#e7f3f9;color:#087bab;border-radius:5px;font-size:12px;padding:3px 8px;vertical-align:middle}
-.records .empty{padding:44px 16px;color:#71838e;font-size:14px;border-top:1px dashed #dbe5eb}
+.records .empty{padding:44px 16px;color:#71838e;font-size:14px}
 code,.archive-path-value{border-radius:6px;font-size:11px;line-height:1.8;overflow-wrap:anywhere}
 dialog,#result-dialog{border-radius:8px;border-color:#d9e4e9;box-shadow:0 20px 70px #213c4c24;animation:dashboard-arrive .2s ease-out}
 dialog::backdrop,#result-dialog::backdrop{background:#23394855}
@@ -72,4 +72,5 @@ footer{font-size:11px;color:#8997a1;padding-top:10px}
 @keyframes dashboard-breathe{50%{opacity:.35}}
 @keyframes dashboard-arrive{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:720px){.shell{padding:20px 16px}.shell>header{flex-wrap:wrap;gap:12px}.shell>header h1{font-size:22px}.header-actions{width:100%;justify-content:flex-start}.status-card{padding:20px 16px;gap:16px}.status-card h2{font-size:18px}.status-main{padding-left:54px}.status-card #scan{width:100%}.run-counts div{padding:10px}.run-counts dd{font-size:20px}.page-tabs button{padding:12px 10px;flex:1}.settings-columns .card,.courses-card,.records{padding:20px 16px}.course-actions{flex-wrap:wrap}.recognition-actions button{max-width:100%}}
+@media(max-width:600px){.page-tabs button{font-size:15px;padding:14px 8px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}

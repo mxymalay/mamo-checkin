@@ -1,3 +1,4 @@
+import './helpers/install-source-runtime.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -5,6 +6,40 @@ import {JSDOM} from 'jsdom';
 import {prioritiseThreads,scoreThread} from '../extension/gmail-ranking.js';
 import {gmailDateBounds} from '../extension/timetable.js';
 import {gmailAdapter} from '../extension/gmail.js';
+import {createSourceCollectors} from '../extension/source-collection.js';
+import {gmailQuery,DEFAULTS,normalizeSettings} from '../extension/settings.js';
+
+test('mixed-source collection reads blank-sender keyword and course matches through the real Gmail adapter',async()=>{
+ const settings=normalizeSettings(DEFAULTS,{name:'Student',email:'abcd1234@student.monash.edu',courses:['AAA1111','BBB2222','CCC3333','DDD4444','EEE5555'],sourceModes:{AAA1111:'email',BBB2222:'email-moodle',CCC3333:'moodle',DDD4444:'ed',EEE5555:'email-ed'},senders:{AAA1111:'teacher@example.edu',BBB2222:'',EEE5555:''},subjectKeywords:{BBB2222:'Studio notices'},moodleUrls:{BBB2222:['https://learning.monash.edu/course/view.php?id=2'],CCC3333:['https://learning.monash.edu/course/view.php?id=3']},edUrls:{DDD4444:['https://edstem.org/au/courses/4'],EEE5555:['https://edstem.org/au/courses/5']}});
+ assert.equal(gmailQuery(settings),'newer_than:7d attendance');
+ const threads=[
+  {id:'restricted',subject:'AAA1111 attendance',sender:'teacher@example.edu'},
+  {id:'wrong-sender',subject:'AAA1111 attendance',sender:'other@example.edu'},
+  {id:'keyword',subject:'Studio notices attendance',sender:'other@example.edu'},
+  {id:'course',subject:'EEE5555 attendance',sender:'third@example.edu'},
+  {id:'wrong-keyword',subject:'BBB2222 attendance',sender:'other@example.edu'},
+  {id:'moodle-only',subject:'CCC3333 attendance',sender:'other@example.edu'},
+  {id:'ed-only',subject:'DDD4444 attendance',sender:'other@example.edu'}
+ ];
+ const account='<div aria-label="Google Account: abcd1234@student.monash.edu"></div>';
+ const list=account+'<main><div role="grid">'+threads.map(t=>`<div role="row"><div data-legacy-thread-id="${t.id}" data-legacy-last-message-id="m-${t.id}">${t.subject}</div><span email="${t.sender}"></span></div>`).join('')+'</div></main>';
+ const messages=[],navigations=[],tab={id:1,url:'https://mail.google.com/mail/u/0/',status:'complete'};
+ const collectors=createSourceCollectors({
+  tabs:{get:async()=>tab},navigate:async(id,url)=>{tab.url=url;navigations.push(url);},
+  readAdapter:async(id,adapter,command,args)=>{
+   const thread=threads.find(t=>tab.url.endsWith('#all/'+t.id));
+   const content=thread?account+`<main><h2>${thread.subject}</h2><div data-legacy-message-id="m-${thread.id}"><span email="${thread.sender}"></span><div class="a3s">Workshop Monday 14 Sep 01 10:00 am ABC12</div></div></main>`:list;
+   const dom=new JSDOM(content,{url:tab.url});try{return adapter(command,args,dom.window.document);}finally{dom.window.close();}
+  },
+  onMessages:async items=>{messages.push(...items);return {completedMessageIds:items.map(item=>item.messageId)};},
+  onDiagnostic:async d=>{throw new Error(d.error);},delay:async()=>{},progress:async()=>{},persistCache:async()=>{}
+ });
+ const result=await collectors.collectMail({settings,cache:{seenMessages:{},seenThreads:{}},verifiedLogin:{gmail:{tabId:1}},snapshot:{courses:{}}});
+ assert.equal(result.complete,true);
+ assert.equal(decodeURIComponent(navigations[0].split('#search/')[1]),'newer_than:7d attendance');
+ assert.deepEqual(messages.map(m=>[m.course,m.sender]),[['AAA1111','teacher@example.edu'],['BBB2222','other@example.edu'],['EEE5555','third@example.edu']]);
+ assert.deepEqual(messages.map(m=>m.messageId),['m-restricted','m-keyword','m-course']);
+});
 
 test('attendance code subjects outrank noisy ones',()=>{
  assert.ok(scoreThread('Week 3 Attendance Codes')>scoreThread('Week 3 attendance consultation recording'));

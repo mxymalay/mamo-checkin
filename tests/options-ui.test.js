@@ -5,6 +5,17 @@ import {JSDOM} from 'jsdom';
 
 const html=await readFile(new URL('../extension/options.html',import.meta.url),'utf8');
 const manifest=JSON.parse(await readFile(new URL('../extension/manifest.json',import.meta.url),'utf8'));
+test('settings provides a module card below automatic checks without opening another window',()=>{
+ const dom=new JSDOM(html),doc=dom.window.document;
+ try{
+  const link=doc.querySelector('.automation-settings + .module-entry-card .modules-link');
+  assert.ok(link);assert.equal(link.getAttribute('href'),'#modules/recognition');assert.equal(link.hasAttribute('target'),false);
+  assert.ok(link.querySelector('[aria-hidden=true]'));
+  assert.equal(doc.querySelector('.module-entry-copy p').dataset.i18nKey,'rules.entry-description');
+  assert.equal(doc.querySelector('.recognition-settings'),null);
+  assert.equal(doc.querySelector('.save-paths-settings').hidden,true);
+ }finally{dom.window.close();}
+});
 test('recognition actions wrap and do not constrain translated text to a fixed height',async()=>{
  const css=await readFile(new URL('../extension/style.css',import.meta.url),'utf8');
  const dom=new JSDOM('<html lang="en"><head></head><body><div class="settings-columns"><div class="recognition-actions"><button id="check-health">Check OCR service</button><button id="prefer-companion">Use Mac OCR helper</button></div></div></body></html>');
@@ -47,6 +58,181 @@ function cleanDom(originalSetInterval){
 }
 
 const baseState={settings:{enabled:true,courses:[]},records:[]};
+test('school email Enter verifies and saves only identity, ignoring IME, repeats and busy presses',async()=>{
+ const originalSetInterval=globalThis.setInterval,calls=[];
+ const state={setupGuide:true,settings:{email:'',name:'Student',courses:[]},records:[]};
+ let finishCheck;
+ const env=installDom(async p=>{
+  calls.push(p);
+  if(p.type==='health')return {ok:true,binaryReady:true};
+  if(p.type==='redetect')return {ok:true,courses:['FIT5120'],schedules:{}};
+  if(p.type==='checkEmail')return new Promise(resolve=>{finishCheck=()=>resolve({matched:true,email:p.email});});
+  if(p.type==='identityField'){state.settings[p.field]=p.value;return {ok:true};}
+  return state;
+ });
+ try{
+  await import(`../extension/options.js?email-enter=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const mode=document.querySelector('[data-field="source-mode"]');mode.value='email';mode.dispatchEvent(new env.dom.window.Event('change'));
+  document.getElementById('add-course').click();
+  const email=document.getElementById('email');email.value='abcd1234';email.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
+  const press=extra=>{const event=new env.dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true,...extra});email.dispatchEvent(event);return event;};
+  for(const extra of [{isComposing:true},{keyCode:229},{repeat:true}])press(extra);
+  assert.equal(calls.filter(p=>p.type==='checkEmail').length,0);
+  const event=press();assert.equal(event.defaultPrevented,true,'Enter must suppress the full form default action');
+  assert.equal(calls.filter(p=>p.type==='checkEmail').length,1);
+  press();press({repeat:true});assert.equal(calls.filter(p=>p.type==='checkEmail').length,1);
+  finishCheck();await new Promise(r=>setTimeout(r,0));
+  assert.deepEqual(calls.filter(p=>p.type==='identityField'),[{type:'identityField',field:'email',value:'abcd1234@student.monash.edu'}]);
+  assert.equal(calls.some(p=>p.type==='settings'),false);
+  assert.equal(document.getElementById('config-alert'),null);
+  assert.equal(document.getElementById('email-check-status').dataset.state,'success');
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+for(const field of ['year','mail-query','enabled','interval'])test(`card save completion resets when ${field} is edited`,async()=>{
+ const {DEFAULTS,normalizeSettings}=await import('../extension/settings.js');
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{...DEFAULTS,name:'Student',academicYear:2026},records:[]};
+ const env=installDom(async p=>{
+  if(p.type==='settings'){state.settings=normalizeSettings(state.settings,p.settings,false,p.scope);return {ok:true};}
+  return p.type==='health'?{ok:true,binaryReady:true}:state;
+ });
+ try{
+  await import(`../extension/options.js?search-completion-${field}=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const automation=['enabled','interval'].includes(field),button=document.getElementById(automation?'save-automation':'save-general');button.click();await new Promise(r=>setTimeout(r,0));
+  assert.equal(button.dataset.saved,'true');
+  const input=document.getElementById(field);if(field==='enabled')input.checked=true;else input.value=field==='year'?'2027':field==='interval'?'4320':'lecture';input.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
+  assert.equal(button.dataset.saved,'false');
+  assert.equal(document.getElementById('scan').textContent,'保存并立即签到');
+  button.click();await new Promise(r=>setTimeout(r,0));assert.equal(button.dataset.saved,'true');
+  if(field==='enabled')input.checked=false;else input.value=field==='year'?'2028':field==='interval'?'7200':'workshop';input.dispatchEvent(new env.dom.window.Event('change',{bubbles:true}));
+  assert.equal(button.dataset.saved,'false');
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+for(const id of ['save-general','save-automation'])test(`failed ${id} clears completion even after an earlier successful save`,async()=>{
+ const originalSetInterval=globalThis.setInterval;let fail=false;
+ const env=installDom(async p=>p.type==='settings'?{ok:!fail,error:'Save failed'}:p.type==='health'?{ok:true}:baseState);
+ try{
+  await import(`../extension/options.js?card-failure-${id}=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const button=document.getElementById(id);button.click();await new Promise(r=>setTimeout(r,0));
+  fail=true;button.click();await new Promise(r=>setTimeout(r,0));
+  assert.equal(button.dataset.saved,'false');assert.equal(button.disabled,false);
+  assert.equal(document.getElementById('notice').dataset.tone,'error');
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+for(const field of ['year','mail-query','enabled','interval'])test(`editing ${field} during a card save stays dirty`,async()=>{
+ const {DEFAULTS,normalizeSettings}=await import('../extension/settings.js');
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{...DEFAULTS,name:'Student',academicYear:2026},records:[]};let finishSave;
+ const env=installDom(async p=>{
+  if(p.type==='settings'){await new Promise(resolve=>{finishSave=resolve;});state.settings=normalizeSettings(state.settings,p.settings,false,p.scope);return {ok:true};}
+  return p.type==='health'?{ok:true,binaryReady:true}:state;
+ });
+ try{
+  await import(`../extension/options.js?search-pending-${field}=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const button=document.getElementById(['enabled','interval'].includes(field)?'save-automation':'save-general');button.click();assert.equal(button.disabled,true);
+  const input=document.getElementById(field),draft=field==='year'?'2027':field==='interval'?'4320':field==='enabled'?true:'lecture';if(field==='enabled')input.checked=draft;else input.value=draft;input.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
+  finishSave();await new Promise(r=>setTimeout(r,0));
+  assert.equal(button.dataset.saved,'false');assert.equal(button.disabled,false);
+  assert.equal(field==='enabled'?input.checked:input.value,draft);
+  assert.equal(state.settings[{year:'academicYear','mail-query':'mailQuery',enabled:'enabled',interval:'intervalMinutes'}[field]],{year:2026,'mail-query':'attendance',enabled:false,interval:1440}[field]);
+  assert.equal(document.getElementById('scan').textContent,'保存并立即签到');
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+for(const id of ['save-general','save-automation'])test(`storage refresh cannot mark a pending or failed ${id} completed`,async()=>{
+ const {DEFAULTS}=await import('../extension/settings.js');
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{...DEFAULTS,name:'Student'},records:[]};let finishSave;
+ const env=installDom(async p=>p.type==='settings'?new Promise(resolve=>{finishSave=resolve;}):p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?card-refresh-${id}=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const button=document.getElementById(id);button.click();
+  env.listeners[0]({settings:{newValue:state.settings}},'local');await new Promise(r=>setTimeout(r,0));
+  const pendingState=button.dataset.saved;
+  finishSave({ok:false,error:'Save failed'});await new Promise(r=>setTimeout(r,0));
+  assert.equal(pendingState,'false');assert.equal(button.dataset.saved,'false');
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+for(const configured of [false,true])test(`card saved state on load distinguishes configuration from fresh defaults: ${configured}`,async()=>{
+ const {DEFAULTS}=await import('../extension/settings.js');
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{...DEFAULTS,...(configured?{name:'Student',email:'abcd1234@student.monash.edu',courses:['FIT5120'],sourceModes:{FIT5120:'email'}}:{})},records:[]};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?card-initial-${configured}=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  for(const id of ['save-general','save-automation'])assert.equal(document.getElementById(id).dataset.saved,String(configured));
+  if(configured){
+   document.getElementById('year').value='2027';document.getElementById('year').dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
+   assert.equal(document.getElementById('save-automation').dataset.saved,'true','editing search does not dirty automation');
+   document.getElementById('save-general').click();await new Promise(r=>setTimeout(r,0));
+   document.getElementById('enabled').checked=true;document.getElementById('enabled').dispatchEvent(new env.dom.window.Event('change',{bubbles:true}));
+   assert.equal(document.getElementById('save-general').dataset.saved,'true','editing automation does not dirty search');
+  }
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+for(const identity of ['saved','missing','invalid','unsaved'])test(`second email course prompts only for missing or unsaved identity: ${identity}`,async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{email:identity==='missing'?'':identity==='invalid'?'bad':'abcd1234@student.monash.edu',name:'Student',courses:['FIT5120','FIT5122'],sourceModes:{FIT5120:'email',FIT5122:'moodle'},moodleUrls:{FIT5122:['https://learning.monash.edu/course/view.php?id=1']}},records:[]};
+ const env=installDom(async p=>p.type==='health'?{ok:true,binaryReady:true}:state);
+ try{
+  await import(`../extension/options.js?email-focus-${identity}=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  document.getElementById('tab-courses').click();
+  const email=document.getElementById('email');if(identity==='unsaved'){email.value='efgh5678';email.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));}
+  let scrolls=0;email.closest('label').scrollIntoView=()=>{scrolls++;};
+  const mode=document.querySelectorAll('[data-field="source-mode"]')[1];mode.focus();mode.value='email';mode.dispatchEvent(new env.dom.window.Event('change',{bubbles:true}));
+  assert.equal(document.activeElement,identity==='saved'?mode:email);
+  assert.equal(scrolls,identity==='saved'?0:1);
+  assert.equal(document.querySelector('#settings>.columns').style.display,'');
+  assert.equal(document.querySelector('.settings-side').style.display,'');
+  assert.equal(document.body.classList.contains('guide-needs-email'),false);
+  if(identity!=='saved')assert.equal(document.querySelector('#settings>.columns').hidden,false);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('configured Moodle-only account does not demand an unused email in the run status',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{name:'Student',email:'',courses:['FIT5120'],moodleUrls:{FIT5120:['https://learning.monash.edu/course/view.php?id=1']}},records:[]};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?no-email-status=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  assert.match(document.getElementById('status').textContent,/尚未开始检查/);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+test('sender help describes blank-sender keyword and course searches in all UI languages',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{name:'Student',courses:['FIT5120'],sourceModes:{FIT5120:'email'}},records:[]};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?sender-help=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const picker=document.getElementById('language'),tooltip=document.querySelector('[data-field="sender"]').closest('label').querySelector('.tooltip');
+  for(const [language,keyword,course,stale] of [['en',/keyword/i,/course code/i,/skip email/i],['zh',/关键词/,/课程代码/,/不查/],['zh_TW',/關鍵詞/,/課程代碼/,/不查/]]){
+   picker.value=language;picker.dispatchEvent(new env.dom.window.Event('change'));await new Promise(r=>setTimeout(r,0));
+   assert.match(tooltip.textContent,keyword);assert.match(tooltip.textContent,course);assert.doesNotMatch(tooltip.textContent,stale);
+  }
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+test('keyword-only source is restored after saving and refreshing with real validation',async()=>{
+ const {DEFAULTS,normalizeSettings}=await import('../extension/settings.js');
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{...DEFAULTS,email:'abcd1234@student.monash.edu',name:'Student',courses:['FIT5120'],sourceModes:{FIT5120:'email'},senders:{FIT5120:''}},records:[]};
+ const env=installDom(async p=>{
+  if(p.type==='settings'){state.settings=normalizeSettings(state.settings,p.settings);return {ok:true};}
+  return p.type==='health'?{ok:true,binaryReady:true}:state;
+ });
+ try{
+  await import(`../extension/options.js?keyword-source=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.querySelector('[data-field="source-mode"]').value,'email');
+  document.getElementById('settings').dispatchEvent(new env.dom.window.Event('submit',{cancelable:true}));await new Promise(r=>setTimeout(r,20));
+  assert.equal(state.settings.sourceModes.FIT5120,'email');
+  assert.equal(document.querySelector('[data-field="source-mode"]').value,'email');
+  assert.equal(document.querySelector('.mail-fields').hidden,false);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
 test('search card saves through real validation without changing unfinished course drafts',async()=>{
  const {DEFAULTS,normalizeSettings}=await import('../extension/settings.js');
  const originalSetInterval=globalThis.setInterval;
@@ -89,12 +275,13 @@ test('completion keeps course prose without duplicate session rows and surfaces 
 });
 
 test('importing a personal file saves settings and refreshes the visible fields',async()=>{
+  const {parseConfigurationBundle}=await import('../extension/configuration.js');
   const originalSetInterval=globalThis.setInterval,saved=[];
   const state={settings:{enabled:false,email:'',name:'',courses:[]},records:[]};
   const settings={enabled:true,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,intervalMinutes:15,courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},moodleUrls:{ABC1234:[]},schedules:{ABC1234:[{weekday:2,time:'18:00',type:'Workshop',group:'01'}]}};
   const env=installDom(async payload=>{
     if(payload.type==='health')return {ok:true,binaryReady:true};
-    if(payload.type==='settings'){saved.push(payload.settings);state.settings=payload.settings;return {ok:true};}
+    if(payload.type==='importConfiguration'){const parsed=parseConfigurationBundle(payload.text,state.settings);saved.push(parsed.settings);state.settings=parsed.settings;return {ok:true};}
     return state;
   });
   try{
@@ -206,7 +393,7 @@ test('running status renders context, counters, elapsed timing and recent event 
     assert.match(document.getElementById('run-events').textContent,/下载签到图片/);
     const link=document.querySelector('#run-events a');
     assert.equal(link?.href,'https://learning.monash.edu/mod/forum/view.php?id=12');
-    assert.equal(document.getElementById('health').textContent,'正在识别');
+    assert.equal(document.querySelector('.recognition-settings'),null,'recognition controls live on modules.html');
   }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
@@ -233,6 +420,7 @@ test('bursts of progress notifications never overlap status requests',async()=>{
   const state={...baseState,status:{running:true,message:'正在检查',updatedAt:Date.now()}};
   const env=installDom(async payload=>{
     if(payload.type==='health')return {ok:true,binaryReady:false,busy:false,stage:'idle'};
+    if(payload.type==='ruleList')return {rules:[],bindings:{},settings:state.settings};
     statusCalls++;if(statusCalls===1)return state;
     active++;maxActive=Math.max(maxActive,active);
     await new Promise(resolve=>{release=resolve;});active--;return state;
@@ -301,16 +489,22 @@ test('footer toggles developer mode and fast interval needs its own switch',asyn
  try{
   await import(`../extension/options.js?devmode=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   assert.equal(document.querySelector('.ignore-completed-toggle').hidden,true);
+  assert.equal(document.querySelector('.save-paths-settings').hidden,true);
+  assert.equal(document.getElementById('open-advanced').textContent,'切换开发者模式');
   assert.equal(document.querySelector('#interval option[value="0.5"]').hidden,true);
   document.getElementById('open-advanced').click();await new Promise(r=>setTimeout(r,20));
   assert.equal(document.querySelector('#advanced-settings h2').textContent,'开发者模式');assert.equal(document.querySelector('.devmode-toggle'),null);
   assert.equal(document.getElementById('advanced-settings').hidden,false);
+  assert.equal(document.querySelector('.save-paths-settings').hidden,false);
+  assert.equal(document.getElementById('open-advanced').textContent,'切换正常模式');
   assert.equal(document.querySelector('.ignore-completed-toggle').hidden,false);
   assert.equal(document.querySelector('#interval option[value="0.5"]').hidden,true);
   const fast=document.getElementById('fast-interval');fast.checked=true;fast.dispatchEvent(new env.dom.window.Event('change'));await new Promise(r=>setTimeout(r,20));
   assert.equal(document.querySelector('#interval option[value="0.5"]').hidden,false);
   document.getElementById('open-advanced').click();await new Promise(r=>setTimeout(r,20));
   assert.equal(document.getElementById('advanced-settings').hidden,true);assert.equal(state.settings.devMode,false);assert.equal(state.settings.fastInterval,false);
+  assert.equal(document.querySelector('.save-paths-settings').hidden,true);
+  assert.equal(document.getElementById('open-advanced').textContent,'切换开发者模式');
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 test('finished run replaces the pending scan notice',async()=>{
@@ -320,11 +514,21 @@ test('finished run replaces the pending scan notice',async()=>{
  try{
   await import(`../extension/options.js?finished-notice=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   document.getElementById('scan').click();await waitForScan();
-  assert.match(document.getElementById('notice').textContent,/等待运行状态/);
+  assert.match(document.getElementById('notice').textContent,/启动签到检查/);
   state.status={running:false,finishedAt:'2026-09-08T00:00:00Z',message:'本次检查完成'};
   env.listeners[0]({status:{newValue:state.status}},'local');await new Promise(r=>setTimeout(r,0));
   assert.match(document.getElementById('notice').textContent,/检查完成/);
   assert.doesNotMatch(document.getElementById('notice').textContent,/已开始|等待/);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('configured idle page explains that no check has started yet',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{enabled:false,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['ABC1234']},records:[],status:{}};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?idle-copy=${Date.now()}`);await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.getElementById('status').textContent,'尚未开始检查；点击“立即签到”开始。');
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 test('interval choices are exactly one, three, five and seven days',()=>{
@@ -668,7 +872,11 @@ test('first visit cancelled discovery does not read course pages or prompt again
   await import('../extension/options.js?cancel-onboarding='+Date.now());await new Promise(r=>setTimeout(r,0));
   env.listeners[0]({status:{newValue:{}}},'local');await new Promise(r=>setTimeout(r,0));
   assert.equal(prompts,1);assert.equal(discoveries,0);assert.equal(document.querySelectorAll('.course-rule').length,0);
-  assert.deepEqual([...document.querySelector('.header-actions').children].filter(e=>!e.hidden).map(e=>e.id),['import-settings','export-settings','mode']);
+  assert.ok(document.querySelector('.header-actions #personal-settings'));
+  assert.equal(document.querySelector('#personal-settings-menu').hidden,true);
+  document.querySelector('#personal-settings').click();
+  assert.equal(document.querySelector('#personal-settings-menu').hidden,false);
+  assert.deepEqual([...document.querySelectorAll('#personal-settings-menu button')].map(e=>e.id),['import-settings','export-settings']);
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 

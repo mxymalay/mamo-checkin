@@ -12,6 +12,17 @@ const copy={
   completeTitle:'准备开始签到',
   completeText:'初始化完成。点击这里开始第一次自动检查。'
  },
+ zh_TW:{
+  skip:'略過引導',next:'知道了',finish:'完成引導',step:'步驟',
+  installTitle:'先選擇辨識方式',
+  installText:'點擊這裡即可使用內建辨識，無需安裝。也可以按上方步驟安裝 Apple Vision 配套程式。',
+  identityTitle:'確認學校身分',
+  identityText:'登入 Attendance 後，助手會自動讀取姓名。核對無誤後繼續。',
+  coursesTitle:'偵測並設定課程',
+  coursesText:'課程會自動讀取。為每門課選擇 Gmail、Moodle 或其他來源後儲存。',
+  completeTitle:'準備開始簽到',
+  completeText:'初始化完成。點擊這裡開始第一次自動檢查。'
+ },
  en:{
   skip:'Skip guide',next:'Got it',finish:'Finish guide',step:'Step',
   installTitle:'Choose your recognition method',
@@ -41,9 +52,9 @@ export function createSetupTour({doc=document,windows=false,storage}={}){
  doc.body.append(root);
  const spotlight=root.querySelector('.setup-tour-spotlight'),bubble=root.querySelector('.setup-tour-bubble'),progress=root.querySelector('#setup-tour-progress'),title=root.querySelector('#setup-tour-title'),text=root.querySelector('#setup-tour-text'),skip=root.querySelector('#setup-tour-skip'),next=root.querySelector('#setup-tour-next');
  const stages=windows?['identity','courses','complete']:['install','identity','courses','complete'];
- let state=null,current='',target=null,frame=0,observer=null,started=false,dismissed=readFlag(saved),destroyed=false;
+ let state=null,current='',target=null,previousFocus=null,frame=0,observer=null,started=false,dismissed=readFlag(saved),destroyed=false;
  const acknowledged=new Set();
- const lang=()=>/^en(?:-|$)/i.test(doc.documentElement?.lang||'')?'en':'zh';
+ const lang=()=>/^zh-(?:TW|HK|Hant)/i.test(doc.documentElement?.lang||'')?'zh_TW':/^zh/i.test(doc.documentElement?.lang||'')?'zh':'en';
  const targetFor=stage=>{
   const selectors=stage==='install'?['#setup-skip-ocr']:stage==='identity'?['#setup-name','#setup-identity']:stage==='courses'?['#courses [data-field="source-mode"]','.setup-course-header','#setup-course-message']:['#scan'];
   for(const selector of selectors){const node=doc.querySelector(selector);if(!isHidden(node)){const rect=node.getBoundingClientRect();if(rect.width>0&&rect.height>0)return node;}}
@@ -65,7 +76,32 @@ export function createSetupTour({doc=document,windows=false,storage}={}){
   Object.assign(bubble.style,{left:`${left}px`,top:`${top}px`,width:`${bubbleWidth}px`});
  }
  function schedulePosition(){if(frame||destroyed)return;frame=doc.defaultView.setTimeout(()=>{frame=0;if(state)update(state);},16);}
- function hide(){root.hidden=true;root.setAttribute('aria-hidden','true');target=null;}
+ function focusOutsideTour(node){
+  if(!node?.isConnected||root.contains(node)||typeof node.focus!=='function'||node.matches(':disabled')||node.closest('[hidden],[inert],[aria-hidden="true"]'))return false;
+  for(let ancestor=node;ancestor;ancestor=ancestor.parentElement){
+   const style=getComputedStyleSafe(ancestor);
+   if(style.display==='none'||style.visibility==='hidden'||style.visibility==='collapse'||style.contentVisibility==='hidden')return false;
+  }
+  const rect=node.getBoundingClientRect();
+  if(node!==doc.body&&!(rect.width>0&&rect.height>0))return false;
+  node.focus({preventScroll:true});
+  if(doc.activeElement===node)return true;
+  if(node.hasAttribute('tabindex'))return false;
+  // Headings and the page body need a temporary tabindex for programmatic focus.
+  node.setAttribute('tabindex','-1');
+  try{node.focus({preventScroll:true});}finally{node.removeAttribute('tabindex');}
+  return doc.activeElement===node;
+ }
+ function hide(){
+  if(root.contains(doc.activeElement)){
+   const stage=stageFromState(state)||current;
+   for(const node of [stage?targetFor(stage):target,previousFocus,doc.body]){
+    if(focusOutsideTour(node)||!root.contains(doc.activeElement))break;
+   }
+   if(root.contains(doc.activeElement))doc.activeElement.blur();
+  }
+  root.hidden=true;root.setAttribute('aria-hidden','true');target=null;previousFocus=null;
+ }
  function show(stage){
   const node=targetFor(stage);if(!node){hide();return false;}
   const changed=target!==node,rect=node.getBoundingClientRect();
@@ -73,6 +109,7 @@ export function createSetupTour({doc=document,windows=false,storage}={}){
   const c=copy[lang()];target=node;current=stage;
   const setText=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
   setText(progress,`${c.step} ${indexOf(stage)+1} / ${stages.length}`);setText(title,c[`${stage}Title`]);setText(text,c[`${stage}Text`]);setText(skip,c.skip);setText(next,stage==='complete'?c.finish:c.next);
+  if(root.hidden&&!root.contains(doc.activeElement))previousFocus=doc.activeElement;
   root.hidden=false;root.setAttribute('aria-hidden','false');position();return true;
  }
  function stageFromState(value){
@@ -104,5 +141,5 @@ export function createSetupTour({doc=document,windows=false,storage}={}){
  const reposition=()=>schedulePosition();
  doc.defaultView.addEventListener('resize',reposition);doc.defaultView.addEventListener('scroll',reposition,true);
  if(doc.defaultView.MutationObserver){observer=new doc.defaultView.MutationObserver(mutations=>{if(mutations.some(item=>!root.contains(item.target)))schedulePosition();});observer.observe(doc.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class','style','data-setup','open']});observer.observe(doc.documentElement,{attributes:true,attributeFilter:['lang']});}
- return {update,hide,reset(){try{saved?.removeItem(STORAGE_KEY);}catch{}dismissed=false;started=false;current='';acknowledged.clear();hide();},get active(){return !root.hidden;},destroy(){destroyed=true;doc.defaultView.clearTimeout(frame);observer?.disconnect();doc.removeEventListener('keydown',onKey);doc.defaultView.removeEventListener('resize',reposition);doc.defaultView.removeEventListener('scroll',reposition,true);root.remove();}};
+ return {update,hide,reset(){hide();try{saved?.removeItem(STORAGE_KEY);}catch{}dismissed=false;started=false;current='';acknowledged.clear();},get active(){return !root.hidden;},destroy(){destroyed=true;doc.defaultView.clearTimeout(frame);observer?.disconnect();doc.removeEventListener('keydown',onKey);doc.defaultView.removeEventListener('resize',reposition);doc.defaultView.removeEventListener('scroll',reposition,true);hide();root.remove();}};
 }

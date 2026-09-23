@@ -1,5 +1,12 @@
 import {runSummaryRecords,summaryFingerprint} from './run-summary.js';
+import {createOfficialRules,scheduleOfficialRules,OFFICIAL_ALARM} from './source-rules/official-updates.js';
+import {createRuleLibrary} from './source-rules/library.js';
+import {installSourceRuleRuntime} from './source-rules/runtime.js';
+import {messageCacheKey,pruneRuleCache} from './source-rules/cache.js';
+import {createSourceCollectors} from './source-collection.js';
+import {createBackgroundRules} from './background-rules.js';
 import {userError} from './user-error.js';
+import {localizeNotification} from './notification-i18n.js';
 import {syncSessionRecords} from './session-records.js';
 import {repairOcrState} from './ocr-migration.js';
 import {resolveRecord} from './record-resolution.js';
@@ -13,6 +20,7 @@ import {moodleAdapter} from './moodle.js';
 import {localService} from './native-service.js';
 import {localService as browserOcrService} from './local-service.js';
 import {DEFAULTS,normalizeSettings,normalizeIdentity,normalizeIdentityField,gmailQuery} from './settings.js';
+import {courseUsesSource} from './course-sources.js';
 import {crawlMoodle} from './moodle-frontier.js';
 import {edAdapter} from './ed-adapter.js';
 import {createRunProgress} from './progress.js';
@@ -30,13 +38,14 @@ import {getImage} from './image-download.js';
 import {LOGIN_REQUIRED,readAuthenticatedPage,isClosedPageError,pageError} from './login-state.js';
 import {LOGIN_WAIT_MS} from './verification.js';
 let activeNotifications={};
-function notify(id,options){
+async function notify(id,options){
  if(!globalThis.chrome?.notifications)return;
  // action/tabId/windowId are our routing metadata; the notifications API
  // validates its options strictly and rejects unknown properties.
  const {action,tabId,windowId,...notificationOptions}=options;
  activeNotifications[id]={action,tabId,windowId};
- chrome.notifications.create(id,{type:'basic',iconUrl:chrome.runtime.getURL('icons/icon-128.png'),...notificationOptions},()=>void chrome.runtime.lastError);
+ const localized=await localizeNotification(notificationOptions);
+ chrome.notifications.create(id,{type:'basic',iconUrl:chrome.runtime.getURL('icons/icon-128.png'),...localized},()=>void chrome.runtime.lastError);
 }
 if(globalThis.chrome?.notifications?.onClicked)chrome.notifications.onClicked.addListener(notificationId=>{
  const entry=activeNotifications[notificationId];if(!entry)return;
@@ -46,6 +55,11 @@ if(globalThis.chrome?.notifications?.onClicked)chrome.notifications.onClicked.ad
  }else chrome.runtime.openOptionsPage();
 });
 import {openVerifiedGmail} from './gmail-session.js';
+import {previewOcrService} from './source-rules/ocr-service.js';
+import {createBuilderSession} from './source-rules/builder/session.js';
+import {createBuilderPageBridge} from './source-rules/builder/page-bridge.js';
+import {createBuilderPreview} from './source-rules/builder/preview.js';
+import {createPracticeBackground} from './source-rules/practice/background.js';
 import {checkEmailLogin,listGmailAccounts} from './email-check.js';
 import {listGoogleAccounts,selectGoogleAccount} from './google-account.js';
 import {checkSiteLogin} from './site-check.js';
@@ -53,15 +67,37 @@ import {verifyBackgroundLogin} from './background-preflight.js';
 import {trackLoginTabs} from './login-tabs.js';
 
 const UNITS='https://attendance.monash.edu.my/student/Units.aspx';
-let activeRun=null,activeDetection=null,activeMailPrefetch=null;
+let activeRun=null,activeDetection=null,activeMailPrefetch=null,startupProgress=null,pendingOperations=0;
+let ruleLibraryPromise;
+const officialRules=createOfficialRules({storage:chrome.storage.local});
+const getRuleLibrary=()=>ruleLibraryPromise||=Promise.resolve(createRuleLibrary({storage:chrome.storage.local,getBuiltins:()=>officialRules.rules()}));
+const ruleControl=createBackgroundRules({storage:chrome.storage.local,getLibrary:getRuleLibrary,officialRules,tabs:chrome.tabs,readAdapter:runFunction,downloadImage:(url,{tabId})=>getImage(url,tabId),
+ isBusy:()=>Boolean(activeRun||activeDetection||activeMailPrefetch||pendingOperations||builderControl.busy||practiceControl.busy),
+ connectOcr:()=>previewOcrService({isWindows,nativeService:localService,browserService:browserOcrService})});
+const builderControl=createBuilderSession({extensionId:chrome.runtime.id,storage:chrome.storage.local,tabs:chrome.tabs,getLibrary:getRuleLibrary,
+ pageBridge:createBuilderPageBridge({scripting:chrome.scripting,tabs:chrome.tabs}),
+ preview:createBuilderPreview({downloadImage:(url,{tabId,documentId})=>getImage(url,tabId,{documentId}),connectOcr:()=>previewOcrService({isWindows,nativeService:localService,browserService:browserOcrService})}),
+ isBusy:()=>Boolean(activeRun||activeDetection||activeMailPrefetch||pendingOperations||ruleControl.busy||practiceControl.busy)});
+const practiceControl=createPracticeBackground({extensionId:chrome.runtime.id,tabs:chrome.tabs,storage:chrome.storage.local,
+ connectOcr:()=>previewOcrService({isWindows,nativeService:localService,browserService:browserOcrService}),
+ isBusy:()=>Boolean(activeRun||activeDetection||activeMailPrefetch||pendingOperations||ruleControl.busy||builderControl.busy)});
+chrome.runtime.onConnect?.addListener(port=>{if(port.name==='rule-builder-owner')port.onDisconnect.addListener(()=>{void builderControl.cancelOwner(port.sender||{});});});
+chrome.runtime.onConnect?.addListener(port=>{if(port.name.startsWith('rule-practice-'))practiceControl.connect(port);});
+chrome.tabs.onRemoved?.addListener(tabId=>{void builderControl.cancelTab(tabId);void practiceControl.cancelTab(tabId);});
+chrome.tabs.onUpdated?.addListener((tabId,change)=>{if(change.url||change.status==='loading')void practiceControl.cancelTab(tabId,change);});
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const loginTabs=trackLoginTabs(chrome.tabs,chrome.storage.local);
 const emailCheckAdapters={tabs:loginTabs.tabs,readIdentity:tabId=>runFunction(tabId,gmailAdapter,'identity'),readGoogleAccounts:async tabId=>{const results=await chrome.scripting.executeScript({target:{tabId},func:listGoogleAccounts,args:[]});return results[0]?.result||{accounts:[]};},create:url=>loginTabs.tabs.create({url,active:false}),update:(tabId,url)=>chrome.tabs.update(tabId,{url}),selectAccount:async(tabId,email)=>{const results=await chrome.scripting.executeScript({target:{tabId},func:selectGoogleAccount,args:[email]});return results[0]?.result||{selected:false};}};
 
 async function loadState(){const s=await chrome.storage.local.get(['settings','records','seenMessages','seenThreads','moodleProgress','nextCourse','diagnostics','status','ownedTabIds','ocrPreference','ocrRepairVersion']);return {...s,settings:{...DEFAULTS,...s.settings},records:s.records||[],seenMessages:s.seenMessages||{},seenThreads:s.seenThreads||{},moodleProgress:s.moodleProgress||{},diagnostics:s.diagnostics||[],ownedTabIds:s.ownedTabIds||[]};}
-async function loadCollectionState(){const state=await loadState(),repair=repairOcrState(state);if(repair){await chrome.storage.local.set(repair);Object.assign(state,repair);}return state;}
-async function schedule(){const s=await loadState();await reconcileScanAlarm(s.settings,chrome.alarms);}
-async function runFunction(tabId,func,command,args={}){const read=async()=>{const results=await chrome.scripting.executeScript({target:{tabId},func,args:[command,args]});return results[0]?.result;};return readAuthenticatedPage(chrome.tabs,tabId,func===gmailAdapter?'Gmail':func===moodleAdapter?'Moodle':'Attendance',read);}
+async function loadCollectionState(){const state=await loadState(),repair=repairOcrState(state);if(repair){await chrome.storage.local.set(repair);Object.assign(state,repair);}state.sourceRules=await (await getRuleLibrary()).snapshot(state.settings);return state;}
+async function schedule(){const s=await loadState();await reconcileScanAlarm(s.settings,chrome.alarms);await scheduleOfficialRules(chrome.alarms);}
+async function runFunction(tabId,func,command,args={}){const read=async()=>{
+  if((func===gmailAdapter&&command==='messages')||((func===moodleAdapter||func===edAdapter)&&command==='read')){
+    await chrome.scripting.executeScript({target:{tabId},func:installSourceRuleRuntime,args:[{}]});
+  }
+  const results=await chrome.scripting.executeScript({target:{tabId},func,args:[command,args]});return results[0]?.result;
+};return readAuthenticatedPage(chrome.tabs,tabId,func===gmailAdapter?'Gmail':func===moodleAdapter?'Moodle':func===edAdapter?'Ed':'Attendance',read);}
 async function poll(read,predicate,timeout=25000){const end=Date.now()+timeout;let last;while(Date.now()<end){try{last=await read();if(predicate(last))return last;}catch(e){if(e.message?.includes(LOGIN_REQUIRED)||isClosedPageError(e))throw e;last=e;}await delay(600);}throw last instanceof Error?last:new Error('页面没有及时加载，请确认 Chrome 中的登录状态');}
 async function navigate(tabId,url){try{await chrome.tabs.update(tabId,{url});await poll(()=>chrome.tabs.get(tabId),t=>t.status==='complete');}catch(error){const host=new URL(url).hostname;throw pageError(error,host==='mail.google.com'?'Gmail':host==='learning.monash.edu'?'Moodle':'Attendance 签到系统');}}
 async function createOwnedTab(state,url){const tab=await chrome.tabs.create({url,active:false});state.ownedTabIds.push(tab.id);await chrome.storage.local.set({ownedTabIds:state.ownedTabIds});return tab.id;}
@@ -90,6 +126,7 @@ async function connectOcr(state){
  return {native,health,usingBrowserOcr};
 }
 async function save(state,native){
+  pruneRuleCache(state.seenMessages,state.sourceRules);pruneRuleCache(state.seenThreads,state.sourceRules);
   // Chrome storage is the durable submission checkpoint. Downloading an extra
   // snapshot can fail independently without stranding a not-yet-clicked row.
   await chrome.storage.local.set({records:state.records,seenMessages:state.seenMessages,seenThreads:state.seenThreads,diagnostics:state.diagnostics});
@@ -117,63 +154,51 @@ async function diagnose(state,details){
  }
  await state.progress?.({message:details.error,level:'error',context:{course:details.course,subject:details.subject,sourceUrl:details.sourceUrl}});await recordDiagnostic(state,details,()=>chrome.storage.local.set({diagnostics:state.diagnostics}));
 }
-async function collectMail(state,native,verifiedLogin={}){
-  const cfg={...state.settings,courses:state.settings.courses.filter(course=>courseNeedsSource(state,course))};
-  let search=gmailQuery(cfg);if(!search)return;
-  const bounds=gmailDateBounds(cfg);if(bounds)search=search.replace('newer_than:7d ',bounds+' ');
-  let mailStarted=Date.now(),deadline=mailStarted+100000;
-  await state.progress({message:verifiedLogin.gmail?'Gmail 登录已确认，正在读取目标邮箱':`正在核对 Gmail 目标账号：${cfg.email}`});
-  const verifiedTabId=verifiedLogin.gmail?.tabId;
-  const {tabId:tab,searchUrl}=await openVerifiedGmail({email:cfg.email,search,tabs:chrome.tabs,create:url=>createOwnedTab(state,url),navigate,recoverAccount:async(tabId,email)=>{
-    const end=Date.now()+180000;let switchAttempted=false,accountSelected=false;
-    while(Date.now()<end){
-      const result=await checkEmailLogin({email,tabId,open:false,recoverClosedTab:false,switchAttempted,accountSelected},emailCheckAdapters);
-      if(result.matched)return runFunction(tabId,gmailAdapter,'identity');
-      switchAttempted||=Boolean(result.switchAttempted);accountSelected||=Boolean(result.accountSelected);
-      await state.progress({message:result.message||`正在切换 Gmail 到 ${email}，完成登录后将自动继续`});
-      await delay(3000);
-    }
-    throw new Error(`[LOGIN_REQUIRED] Gmail 尚未登录目标邮箱 ${email}，等待登录超时；未搜索邮件，请登录后重试。`);
-  },readIdentity:async tabId=>{
-    await poll(()=>chrome.tabs.get(tabId),t=>t.status==='complete');
-    return runFunction(tabId,gmailAdapter,'identity',cfg);
-  },verifiedTabId});
-  await state.progress({message:'Gmail 账号已确认，正在搜索最近 7 天的邮件',context:{sourceUrl:searchUrl}});
-  mailStarted=Date.now();deadline=mailStarted+100000;
-  const initial=await poll(()=>runFunction(tab,gmailAdapter,'list',cfg),r=>r&&!r.loading);
-  const pending=initial.threads.filter(thread=>state.forceOcr||state.settings.ignoreCompleted||state.seenThreads[thread.id]!==thread.lastMessageId);
-  if(pending.length>40)await diagnose(state,{scope:'gmail',error:'本轮最多处理 40 个新会话，其余下轮继续'});
-  // Round-robin the best threads per course before falling back to score order,
-  // so one noisy unit cannot consume the cap before another course's code mail.
-  const queue=prioritiseThreads(pending,{limit:40,perCourse:4});
-  await state.progress({message:`Gmail 列表读取完成（${((Date.now()-mailStarted)/1000).toFixed(1)} 秒），${pending.length} 个待检查会话`,increment:{pages:1}});
-  for(const [threadIndex,thread] of queue.entries()){
-    if(Date.now()>deadline){await diagnose(state,{scope:'gmail',error:'本轮邮件检查达到时间上限，其余会话下轮继续'});break;}
-    if((!state.forceOcr&&!state.settings.ignoreCompleted&&state.seenThreads[thread.id]===thread.lastMessageId)||!courseNeedsSource(state,thread.course))continue;
-    try{
-      if(!thread.lastMessageId)throw new Error('邮件会话缺少最新消息标识');
-      // Open the thread by URL: deterministic, unlike clicking the list row,
-      // which virtualised lists and overlays can silently swallow.
-      const threadUrl=`${searchUrl.split('#')[0]}#all/${thread.id}`;
-      await state.progress({message:`检查邮件会话 ${threadIndex+1}/${queue.length}（最多等待 25 秒）`,context:{subject:thread.subject,sourceUrl:threadUrl}});
-      await navigate(tab,threadUrl);
-      await state.progress({message:'正在等待邮件内容（最多等待 25 秒）',context:{subject:thread.subject,sourceUrl:threadUrl}});
-      const messageConfig={...cfg,expectedLastMessageId:thread.lastMessageId,threadCourse:thread.course};
-      await poll(()=>runFunction(tab,gmailAdapter,'messages',messageConfig),r=>r&&!r.loading);
-      await runFunction(tab,gmailAdapter,'expand',cfg);
-      await state.progress({message:'正在展开并读取邮件正文（最多等待 25 秒）'});
-      const data=await poll(()=>runFunction(tab,gmailAdapter,'messages',{...messageConfig,requireBodiesReady:true}),r=>r&&!r.loading&&r.bodiesReady);
-      await processCollectedMessages(state,data.messages,collectionAdapter(state,native,url=>getImage(url,tab)));
-      if(data.bodiesReady&&data.messages.every(msg=>state.seenMessages[msg.messageId])){state.seenThreads[thread.id]=thread.lastMessageId;await save(state,native);}
-    }catch(error){
-      await diagnose(state,{scope:'thread',threadId:thread.id,subject:thread.subject,error:error?.message||String(error)});
-    }
-  }
+async function recoverCollectorGmail(tabId,email,progress){
+ const end=Date.now()+180000;let switchAttempted=false,accountSelected=false;
+ while(Date.now()<end){
+  const result=await checkEmailLogin({email,tabId,open:false,recoverClosedTab:false,switchAttempted,accountSelected},emailCheckAdapters);
+  if(result.matched)return runFunction(tabId,gmailAdapter,'identity');
+  switchAttempted||=Boolean(result.switchAttempted);accountSelected||=Boolean(result.accountSelected);
+  await progress({message:result.message||`正在切换 Gmail 到 ${email}，完成登录后将自动继续`});await delay(3000);
+ }
+ throw new Error(`[LOGIN_REQUIRED] Gmail 尚未登录目标邮箱 ${email}`);
 }
-async function prefetchMail(verifiedLogin={},expectedIdentity){
+async function collectSource(method,state,native,verifiedLogin={}){
+ const collector=createSourceCollectors({tabs:chrome.tabs,readAdapter:runFunction,navigate,createOwnedTab:url=>createOwnedTab(state,url),delay,now:Date.now,recoverGmail:recoverCollectorGmail,
+  progress:state.progress,persistCache:patch=>chrome.storage.local.set(patch),onDiagnostic:details=>diagnose(state,details),sourceEvent:details=>appendDiagnostic(chrome.storage.local,details),
+  onMessages:async(messages,{tabId,fingerprintImages})=>{
+   const completed=[];
+   for(const original of messages){
+    if(!courseNeedsSource(state,original.course))break;
+    const msg={...original},payloads=new Map();
+    const scheduled=fingerprintImages&&expectedSessions(state.settings,msg.course)!==null;
+    if(fingerprintImages&&!scheduled){
+     const versions=[];
+     for(const image of msg.images){try{payloads.set(image,await getImage(image,tabId));}catch(error){payloads.set(image,error);}
+      const payload=payloads.get(image);versions.push(payload instanceof Error?'unavailable':[...new Uint8Array(await crypto.subtle.digest('SHA-256',Uint8Array.from(atob(payload.imageBase64),c=>c.charCodeAt(0))))].map(n=>n.toString(16).padStart(2,'0')).join(''));
+     }
+     const fingerprint=JSON.stringify([msg.sentAt,msg.dateReferenceOnly,msg.dateWindow,msg.textRows,msg.images,versions]);
+     msg.messageId+=':'+[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(fingerprint)))].map(n=>n.toString(16).padStart(2,'0')).join('');
+    }
+    const adapter=collectionAdapter(state,native,async url=>{const cached=payloads.get(url);if(cached instanceof Error)throw cached;return cached||getImage(url,tabId);});
+    await processCollectedMessages(state,[msg],{...adapter,refresh:scheduled||adapter.refresh});
+    if(state.seenMessages[messageCacheKey(state,msg)])completed.push(original.messageId);
+   }
+   return {completedMessageIds:completed};
+  }});
+ return collector[method]({settings:state.settings,snapshot:state.sourceRules,cache:state,verifiedLogin,forceRead:Boolean(state.forceOcr||state.settings.ignoreCompleted),shouldContinue:course=>courseNeedsSource(state,course)});
+}
+const collectMail=(state,native,login)=>collectSource('collectMail',state,native,login);
+const collectMoodle=(state,native,login)=>collectSource('collectMoodle',state,native,login);
+const collectEd=(state,native,login)=>collectSource('collectEd',state,native,login);
+async function prefetchMail(verifiedLogin={},expectedIdentity,snapshot){
  const state=await loadCollectionState();
+ if(snapshot)state.sourceRules=snapshot;
  if(expectedIdentity&&(expectedIdentity.email!==state.settings.email||expectedIdentity.name!==state.settings.name))return;
- state.manualRun=true;state.progress=async()=>{};state.diagnostics=[];
+ state.manualRun=true;
+ state.progress=async event=>{if(startupProgress)try{await startupProgress.update({...event,background:true});}catch{}};
+ state.diagnostics=[];
  let native;
  try{
   ({native}=await connectOcr(state));
@@ -186,103 +211,9 @@ async function prefetchMail(verifiedLogin={},expectedIdentity){
   try{await native?.close();}catch{}
  }
 }
-function startMailPrefetch(verifiedLogin={},expectedIdentity){
- if(!activeMailPrefetch)activeMailPrefetch=prefetchMail(verifiedLogin,expectedIdentity).finally(()=>{activeMailPrefetch=null;});
+function startMailPrefetch(verifiedLogin={},expectedIdentity,snapshot){
+ if(!activeMailPrefetch)activeMailPrefetch=prefetchMail(verifiedLogin,expectedIdentity,snapshot).finally(()=>{activeMailPrefetch=null;});
  return activeMailPrefetch;
-}
-async function collectMoodle(state,native,verifiedLogin={}){
-  const cfg=state.settings,deadline=Date.now()+100000;
-  const courses=cfg.courses.filter(c=>cfg.moodleUrls?.[c]?.length&&courseNeedsSource(state,c));
-  if(!courses.length)return;
-  let tab=verifiedLogin.moodle?.tabId;
-  if(!Number.isInteger(tab))tab=await createOwnedTab(state,cfg.moodleUrls[courses[state.nextCourse%courses.length||0]][0]);
-  const start=state.nextCourse%courses.length||0;
-  for(let i=0;i<courses.length;i++){
-    if(Date.now()>deadline){await diagnose(state,{scope:'moodle',error:'本轮 Moodle 检查达到时间上限，其余课程下轮继续'});break;}
-    const index=(start+i)%courses.length,course=courses[index];
-    await crawlMoodle({roots:cfg.moodleUrls[course],previous:state.settings.ignoreCompleted?{}:state.moodleProgress[course],deadline,maxPages:4,shouldContinue:()=>courseNeedsSource(state,course),version:cfg.academicYear+':recent-v1:'+scanSinceDate(),persist:async progress=>{state.moodleProgress[course]=progress;await chrome.storage.local.set({moodleProgress:state.moodleProgress});},read:async url=>{
-      try{
-        const pageStarted=Date.now();
-        await state.progress({message:'正在读取 Moodle 页面内容（最多等待 45 秒）',context:{course,sourceUrl:url}});
-        let redirected=false;
-        const data=await readTargetPage({navigate:()=>chrome.tabs.update(tab,{url}),pause:delay,timeout:Math.min(45000,Math.max(1,deadline-Date.now())),read:async()=>{
-          const current=await chrome.tabs.get(tab);
-          if(current.url?.startsWith('https://learning.monash.edu/my/')&&!redirected){redirected=true;await chrome.tabs.update(tab,{url});return {loading:true};}
-          if(current.url?.split('#')[0]!==url.split('#')[0]){await runFunction(tab,moodleAdapter,'identity');return {loading:true};}
-          return runFunction(tab,moodleAdapter,'read',{...cfg,course,sinceDate:scanSinceDate(),identityVerified:Boolean(verifiedLogin.moodle)});
-        }});
-        await appendDiagnostic(chrome.storage.local,{event:'source-read',source:'moodle',course,url,ms:Date.now()-pageStarted,messages:data.messages.length,links:data.links.length,skipped:data.skipped});
-        await state.progress({message:`已读取 Moodle ${data.pageTitle||course}（${((Date.now()-pageStarted)/1000).toFixed(1)} 秒）`,context:{course,subject:data.pageTitle||course,sourceUrl:url},increment:{pages:1,skipped:data.skipped||0}});
-        data.messages=data.messages.filter(msg=>!messageOutsideWindow(msg));
-        const payloads=new Map();
-        for(const msg of data.messages){
-          if(!courseNeedsSource(state,course))break;
-          if(expectedSessions(cfg,course)!==null){
-            // Refresh unresolved scheduled sources, fetching only images actually
-            // needed. Native content hashing handles changed and cached bytes.
-            await processCollectedMessages(state,[msg],{...collectionAdapter(state,native,image=>getImage(image,tab)),refresh:true});
-            continue;
-          }
-          const versions=[];
-          for(const image of msg.images){
-            await state.progress({message:'正在检查课程图片是否更新（下载最多 20 秒）'});
-            if(!payloads.has(image))try{payloads.set(image,await getImage(image,tab));}catch(error){payloads.set(image,error);}
-            const payload=payloads.get(image);
-            versions.push(payload instanceof Error?'unavailable':Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',Uint8Array.from(atob(payload.imageBase64),c=>c.charCodeAt(0))))).map(n=>n.toString(16).padStart(2,'0')).join(''));
-          }
-          const fingerprint=JSON.stringify([msg.sentAt,msg.dateReferenceOnly,msg.dateWindow,msg.textRows,msg.images,versions]);
-          const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(fingerprint)))).map(n=>n.toString(16).padStart(2,'0')).join('');
-          msg.messageId+=':'+hash;
-          await processCollectedMessages(state,[msg],collectionAdapter(state,native,async image=>{const payload=payloads.get(image);if(payload instanceof Error)throw payload;return payload||getImage(image,tab);}));
-        }
-        return {links:data.links,priorityLinks:data.priorityLinks};
-      }catch(error){await diagnose(state,{scope:'moodle',course,sourceUrl:url,error:error.message});return [];}
-    }});
-    state.nextCourse=(index+1)%courses.length;await chrome.storage.local.set({nextCourse:state.nextCourse});
-  }
-}
-async function collectEd(state,native,verifiedLogin={}){
-  const cfg=state.settings,deadline=Date.now()+100000;
-  const courses=cfg.courses.filter(c=>cfg.edUrls?.[c]?.length&&courseNeedsSource(state,c));
-  if(!courses.length)return;
-  let tab,rootCourse=null;
-  const read=async url=>{
-    await state.progress({message:'正在读取 Ed 页面内容（最多等待 45 秒）',context:{course:rootCourse,sourceUrl:url}});
-    return readTargetPage({navigate:()=>chrome.tabs.update(tab,{url}),pause:delay,timeout:Math.min(45000,Math.max(1,deadline-Date.now())),read:async()=>{
-      const current=await chrome.tabs.get(tab);
-      if(current.url?.split('#')[0]!==url.split('#')[0]){if(/\/login|okta/.test(current.url||''))throw new Error(LOGIN_REQUIRED+' Ed 需要登录');return {loading:true};}
-      return runFunction(tab,edAdapter,'read',{course:rootCourse,expectedCourseId:new URL(url).pathname.match(/^\/au\/courses\/(\d+)/)?.[1],sinceDate:scanSinceDate(),academicYear:cfg.academicYear});
-    }});
-  };
-  try{
-    for(const course of courses){
-      if(Date.now()>deadline){await diagnose(state,{scope:'ed',error:'本轮 Ed 检查达到时间上限，其余课程下轮继续'});break;}
-      if(!courseNeedsSource(state,course))continue;
-      rootCourse=course;
-      if(!Number.isInteger(tab))tab=await createOwnedTab(state,cfg.edUrls[course][0]);
-      try{
-        const root=cfg.edUrls[course][0];
-        const data=await read(root);
-        await state.progress({message:`已读取 Ed 课程页面（${data.pageTitle||course}）`,context:{course,sourceUrl:root},increment:{pages:1,skipped:data.skipped||0}});
-        // The course page itself may already embed an attendance table (pinned
-        // post); process it before following thread links.
-        await processCollectedMessages(state,data.messages,collectionAdapter(state,native,image=>getImage(image,tab)));
-        const missing=missingSessions(state,course);
-        const selected=selectEdThreads(data.threads||data.threadLinks||[],missing);
-        await appendDiagnostic(chrome.storage.local,{event:'ed-selection',course,missing,discovered:data.threadLinks?.length||0,selected});
-        const threads=selected.map(t=>t.url);
-        for(const [threadIndex,threadUrl] of threads.entries()){
-          if(Date.now()>deadline||!courseNeedsSource(state,course))break;
-          try{
-            await state.progress({message:`检查 Ed 讨论帖 ${threadIndex+1}/${threads.length}`,context:{course,sourceUrl:threadUrl}});
-            const thread=await read(threadUrl);
-            await appendDiagnostic(chrome.storage.local,{event:'source-read',source:'ed',course,url:threadUrl,messages:thread.messages.length,images:thread.messages.reduce((n,m)=>n+m.images.length,0)});
-            await processCollectedMessages(state,thread.messages,collectionAdapter(state,native,image=>getImage(image,tab)));
-          }catch(error){await diagnose(state,{scope:'ed',course,sourceUrl:threadUrl,error:error.message});}
-        }
-      }catch(error){await diagnose(state,{scope:'ed',course,sourceUrl:cfg.edUrls[course][0],error:error.message});}
-    }
-  }finally{rootCourse=null;}
 }
 async function readWebsiteActivities(state,tab,identityVerified=false){
   await state.progress({message:'正在核对网站已有签到（最多等待 25 秒）',context:{sourceUrl:UNITS}});
@@ -353,7 +284,7 @@ async function inspectSchedule(state,verifiedLogin={}){
 async function submit(state,native){
   const currentSettings=(await loadState()).settings;
   if(state.settings.recognitionOnly||currentSettings.recognitionOnly){await state.progress({message:'仅识别模式：签到码已保留，本轮不填写或提交签到'});return;}
-  if(!state.records.some(r=>state.settings.courses.includes(r.course)&&recordInSchedule(state.settings,r)&&!['submitted','expired','review'].includes(r.status)))return;
+  if(!state.records.some(r=>state.settings.courses.includes(r.course)&&recordInSchedule(state.settings,r)&&!['submitted','expired','ignored','linked'].includes(r.status)))return;
   const tab=state.attendanceTab??await createOwnedTab(state,UNITS);
   const settingsStillActive=async record=>{const current=await loadState();return !state.settings.recognitionOnly&&!current.settings.recognitionOnly&&(state.manualRun||current.settings.enabled)&&current.settings.email===state.settings.email&&current.settings.name===state.settings.name&&current.settings.courses.includes(record.course)&&!outsideAttendanceWindow(record)&&recordInSchedule(current.settings,record); };
   let firstList=true;
@@ -381,6 +312,14 @@ async function submit(state,native){
     return {entered:true,...await runFunction(tab,attendanceAdapter,'outcome',{})};
   }});
 }
+function createBackgroundProgress(){
+ let loggedEvents;
+ return createRunProgress(async status=>{
+  await chrome.storage.local.set({status});
+  const last=status.events.at(-1);
+  if(last&&JSON.stringify(last)!==loggedEvents){loggedEvents=JSON.stringify(last);await appendDiagnostic(chrome.storage.local,{event:'run',...last});}
+ });
+}
 async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin={},preflight=false){
   if(activeMailPrefetch)await activeMailPrefetch;
   const state=await loadCollectionState();
@@ -392,21 +331,15 @@ async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin=
   state.manualRun=manual;
   state.forceOcr=Boolean(course);
   let native;
-  const startedAt=new Date().toISOString();
-  let loggedEvents=0;
-  const progress=createRunProgress(async status=>{
-    await chrome.storage.local.set({status});
-    const last=status.events.at(-1);
-    if(last&&JSON.stringify(last)!==loggedEvents){loggedEvents=JSON.stringify(last);await appendDiagnostic(chrome.storage.local,{event:'run',...last});}
-  });
+  const progress=startupProgress||createBackgroundProgress();
   state.progress=event=>progress.update({...event,...(event.message?{message:event.message.replaceAll(LOGIN_REQUIRED+' ','')}:{})});
   try{
-    await state.progress({message:'正在签到：核对最近 7 天的课程'});
+    await state.progress({phase:'collecting',message:'正在签到：核对最近 7 天的课程'});
     if(preflight){
       verifiedLogin=await verifyBackgroundLogin(state.settings,{
         request:message=>message.type==='checkEmail'?checkEmailLogin(message,emailCheckAdapters):checkSiteLogin(message,{tabs:loginTabs.tabs,readIdentity:tabId=>runFunction(tabId,message.type==='checkMoodle'?moodleAdapter:attendanceAdapter,'identity')},message.type==='checkMoodle'?'Moodle':'Attendance 签到系统'),
         progress:state.progress,
-        onGmailVerified:result=>{void startMailPrefetch({gmail:{tabId:result.tabId}},expectedIdentity).catch(()=>{});}
+        onGmailVerified:result=>{void startMailPrefetch({gmail:{tabId:result.tabId}},expectedIdentity,state.sourceRules).catch(()=>{});}
       });
       if(activeMailPrefetch)await activeMailPrefetch;
       const collected=await loadState();
@@ -463,7 +396,17 @@ async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin=
   }catch(e){const error=userError(e,'签到').replaceAll(LOGIN_REQUIRED+' ','');await progress.finish({message:error,error:true});await chrome.action.setBadgeText({text:'!'});return {ok:false,error};}
   finally{try{await cleanOwnedTabs(state);}catch{}try{await native?.close();}catch{}}
 }
-function start(manual=false,course=null,expectedIdentity=null,verifiedLogin={},preflight=false){if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});if(!activeRun)activeRun=run(manual,course,expectedIdentity,verifiedLogin,preflight).finally(()=>{activeRun=null;});return activeRun;}
+function start(manual=false,course=null,expectedIdentity=null,verifiedLogin={},preflight=false){
+ if(ruleControl.busy||builderControl.busy||practiceControl.busy)return Promise.resolve({ok:false,error:'rule-test-busy'});
+ if(activeDetection)return Promise.resolve({ok:false,error:'正在重新检测课程，请稍后检查签到'});
+ if(activeRun)return activeRun;
+ startupProgress=createBackgroundProgress();
+ activeRun=(async()=>{
+  try{await startupProgress.update({phase:'starting',message:activeMailPrefetch?'正在预读 Gmail 签到邮件…':'正在启动签到检查…'});}catch{}
+  return run(manual,course,expectedIdentity,verifiedLogin,preflight);
+ })().finally(()=>{startupProgress=null;activeRun=null;});
+ return activeRun;
+}
 async function redetect(){
  const state=await loadState();
  if(!state.settings.name)throw new Error('请先在第 2 步填写并保存姓名，再登录签到系统检测课程');
@@ -478,13 +421,14 @@ async function redetect(){
   return {ok:true,courses,schedules,issues};
  }finally{await cleanOwnedTabs(state);}
 }
-chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name==='scan')void start();});
-chrome.runtime.onInstalled.addListener(()=>{void schedule();});
-chrome.runtime.onStartup.addListener(()=>{void chrome.storage.local.set({ownedTabIds:[],loginTabs:[]}).then(schedule);});
+chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name===OFFICIAL_ALARM)void officialRules.check().catch(()=>{});if(alarm.name==='scan'&&!ruleControl.busy&&!builderControl.busy&&!practiceControl.busy)void start();});
+chrome.runtime.onInstalled.addListener(()=>{void schedule();void officialRules.check().catch(()=>{});});
+chrome.runtime.onStartup.addListener(()=>{void chrome.storage.local.set({ownedTabIds:[],loginTabs:[]}).then(schedule);void officialRules.check().catch(()=>{});});
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(message.target==='ocr-offscreen')return false;
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('')))return false;
-  const handle=async()=>{
+  const guarded=['scan','retry','redetect','prefetchMail','identity','identityField','reset','clearCourses','confirmRecord','fillMissingCode','resolveRecord','readIdentity','checkEmail','checkMoodle','listGmailAccounts','health','settings','preferBrowserOcr','resetOcrPreference'].includes(message.type);
+  const handleProduction=async()=>{
     if(message.type==='checkEmail')return checkEmailLogin(message,emailCheckAdapters);
     if(message.type==='listGmailAccounts')return listGmailAccounts(emailCheckAdapters,message);
     if(message.type==='status'){const state=await loadState();if(!activeRun&&state.status?.running){state.status={...state.status,running:false,error:true,finishedAt:new Date().toISOString(),message:'上次检查已中断，已保存进度，可以重新开始检查'};await chrome.storage.local.set({status:state.status});}return {...state,discoveryAvailable:true,setupGuide:true};}
@@ -515,7 +459,8 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     if(message.type==='reset'){
       if(activeRun||activeDetection||activeMailPrefetch)throw new Error('请等待当前检查结束后再重置');
       await chrome.alarms.clear('scan');
-      await chrome.storage.local.clear();
+      await chrome.alarms.clear(OFFICIAL_ALARM);await officialRules.reset(()=>chrome.storage.local.clear());
+      ruleLibraryPromise=null;await ruleControl.cancel();
       if(chrome.storage.session)await chrome.storage.session.clear();
       if(globalThis.caches)for(const key of await caches.keys())await caches.delete(key);
       if(globalThis.indexedDB?.databases)for(const db of await indexedDB.databases())if(db.name)await new Promise((resolve,reject)=>{const deletion=indexedDB.deleteDatabase(db.name);deletion.onsuccess=resolve;deletion.onerror=()=>reject(new Error('缓存清理失败，请关闭其他助手页面后重试'));deletion.onblocked=()=>reject(new Error('缓存正被其他助手页面使用，请关闭其他助手页面后重试'));});
@@ -537,13 +482,16 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     if(message.type==='clearCourses'){
       if(activeRun||activeDetection||activeMailPrefetch)throw new Error('正在运行，请等待检查结束再清空课程');
       const state=await loadState();
-      await chrome.storage.local.set({settings:{...state.settings,enabled:false,autoDiscover:false,courses:[],senders:{},subjectKeywords:{},moodleUrls:{},schedules:{}},records:[],attendanceHistory:[],diagnosticLog:[],seenMessages:{},seenThreads:{},diagnostics:[],status:{running:false,message:'课程和收集记录已清空'},moodleProgress:{},nextCourse:0});
+      await chrome.storage.local.set({settings:{...state.settings,enabled:false,autoDiscover:false,courses:[],sourceModes:{},senders:{},subjectKeywords:{},moodleUrls:{},edUrls:{},schedules:{}},records:[],attendanceHistory:[],diagnosticLog:[],seenMessages:{},seenThreads:{},diagnostics:[],status:{running:false,message:'课程和收集记录已清空'},moodleProgress:{},nextCourse:0});
+      await chrome.storage.local.set({sourceRuleBindings:{},sourceRuleRevisions:{}});
       await schedule();return {ok:true};
     }
     if(message.type==='settings'){
       const existing=await loadState(),update=message.settings||{};
       const settings=normalizeSettings(existing.settings,update,existing.records.length>0,message.scope||'all');
-      await chrome.storage.local.set({settings});await schedule();return {ok:true};
+      if(ruleControl.busy&&settings.devMode)throw new Error('rule-test-busy');
+      if(!settings.devMode)await ruleControl.cancel();
+      await chrome.storage.local.set({settings});await schedule();if(!existing.settings.courses?.length&&settings.courses?.length)void officialRules.check().catch(()=>{});return {ok:true};
     }
     if(message.type==='preferBrowserOcr'){
       if(activeRun||activeDetection)throw new Error('正在运行，请稍后再更改识别方式');
@@ -561,6 +509,24 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     }
     throw new Error('未知请求');
   };
-  handle().then(respond,e=>respond({ok:false,error:userError(e,['checkEmail','listGmailAccounts'].includes(message.type)?'Gmail':message.type==='checkMoodle'?'Moodle':message.type==='readIdentity'?'Attendance 签到系统':'助手')}));return true;
+  const handle=async()=>{
+    if(practiceControl.owns(message.type))return practiceControl.handle(message,sender);
+    if(message.type.startsWith('practice')||sender.url.startsWith(chrome.runtime.getURL('practice.html'))||sender.url.startsWith(chrome.runtime.getURL('source-rules/practice/')))throw new Error('practice-owner');
+    if(message.type==='officialRulesCheck')return {ok:true,official:await officialRules.check({force:true})};
+    if(message.type==='officialRulesRollback')return {ok:true,official:await officialRules.rollback()};
+    if(practiceControl.busy&&(guarded||builderControl.owns(message.type)||ruleControl.owns(message.type)&&!['ruleList','exportConfiguration'].includes(message.type)))throw new Error('builder-busy');
+    if(builderControl.owns(message.type)){
+      try{return await builderControl.handle(message,sender);}catch(error){throw new Error(/^builder-[a-z-]+$/.test(error.message)?error.message:'builder-source-error');}
+    }
+    if(builderControl.busy&&(guarded||ruleControl.owns(message.type)&&!['ruleList','exportConfiguration'].includes(message.type)))throw new Error('builder-busy');
+    if(ruleControl.owns(message.type)){const result=await ruleControl.handle(message);if(message.type==='importConfiguration')await schedule();return result;}
+    if(guarded){
+      if(ruleControl.busy&&!(message.type==='settings'&&message.settings?.devMode===false))throw new Error('rule-test-busy');
+      // Reserve before the first storage/API await so previews cannot race startup.
+      pendingOperations++;
+    }
+    try{return await handleProduction();}finally{if(guarded)pendingOperations--;}
+  };
+  handle().then(respond,e=>respond({ok:false,error:practiceControl.owns(message.type)?String(e.message||e).slice(0,500):userError(e,['checkEmail','listGmailAccounts'].includes(message.type)?'Gmail':message.type==='checkMoodle'?'Moodle':message.type==='readIdentity'?'Attendance 签到系统':'助手')}));return true;
 });
 void schedule();

@@ -1,5 +1,6 @@
 import {schoolEmail} from './school-email.js';
 import {moodleCourseUrl} from './moodle-course-id.js';
+import {courseSourceMode,courseUsesSource} from './course-sources.js';
 export const DEFAULTS={enabled:false,email:'',name:'',intervalMinutes:1440,academicYear:new Date().getFullYear(),mailQuery:'attendance',courses:[],senders:{},subjectKeywords:{},moodleUrls:{},edUrls:{},schedules:{},ignoreCompleted:false,devMode:false,recognitionOnly:false,fastInterval:false};
 function normalizeFastInterval(cfg){cfg.fastInterval=Boolean(cfg.devMode&&cfg.fastInterval);if(!cfg.fastInterval&&cfg.intervalMinutes===.5)cfg.intervalMinutes=1440;}
 export function normalizeIdentityField(existing,field,value,hasRecords=false){
@@ -46,15 +47,18 @@ export function normalizeSettings(existing,update,hasRecords=false,scope='all'){
   cfg.email=rawEmail?schoolEmail(rawEmail):'';
   cfg.name=String(cfg.name||'').trim();
   if(!cfg.name)throw new Error('请填写学校系统显示的姓名');
-  if(cfg.courses.some(c=>cfg.senders?.[c])&&!cfg.email)throw new Error('课程使用邮件来源时，请在学校身份中填写学校邮箱');
   if(hasRecords&&(cfg.name!==existing.name||(cfg.email&&existing.email&&cfg.email!==existing.email)))throw new Error('已有记录时请使用单独的 Chrome 配置文件切换账号');
   cfg.enabled=Boolean(cfg.enabled);cfg.intervalMinutes=Math.max(0.5,Math.min(10080,Number(cfg.intervalMinutes)||1440));cfg.ignoreCompleted=Boolean(cfg.ignoreCompleted);cfg.devMode=Boolean(cfg.devMode);
   normalizeFastInterval(cfg);
   cfg.academicYear=Number(cfg.academicYear);if(!Number.isInteger(cfg.academicYear)||cfg.academicYear<2020||cfg.academicYear>2100)throw new Error('请填写有效课程年份');
   cfg.courses=[...new Set((cfg.courses||[]).map(c=>String(c).trim().toUpperCase()))];
   if(!cfg.courses.length||cfg.courses.length>20||cfg.courses.some(c=>!/^([A-Z]{2,10}\d{3,6})$/.test(c)))throw new Error('请填写 1–20 门课程，例如 FIT5120');
-  cfg.senders={};cfg.subjectKeywords={};cfg.moodleUrls={};cfg.edUrls={};cfg.schedules={};
+  const sources={...existing,...update};
+  cfg.sourceModes={};cfg.senders={};cfg.subjectKeywords={};cfg.moodleUrls={};cfg.edUrls={};cfg.schedules={};
   for(const c of cfg.courses){
+    const mode=courseSourceMode(sources,c);
+    if(Object.hasOwn(sources.sourceModes||{},c)&&!mode)throw new Error(c+' 请选择签到码来源');
+    if(mode)cfg.sourceModes[c]=mode;
     const sender=String((update.senders||existing.senders)?.[c]||'').trim().toLowerCase();
     if(sender&&!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(sender))throw new Error(`${c} 发件人邮箱无效`);
     cfg.senders[c]=sender;cfg.subjectKeywords[c]=String((update.subjectKeywords||existing.subjectKeywords)?.[c]||c).trim();
@@ -87,14 +91,16 @@ export function normalizeSettings(existing,update,hasRecords=false,scope='all'){
     const slots=cfg.schedules[c];
     if(slots.some((a,i)=>slots.slice(i+1).some(b=>a.weekday===b.weekday&&a.time===b.time&&(!a.type||!b.type||a.type===b.type)&&(!a.group||!b.group||a.group===b.group))))throw new Error(`${c} 存在重复或无法区分的上课场次`);
   }
+  if(cfg.courses.some(c=>courseUsesSource(cfg,c,'email'))&&!cfg.email)throw new Error('课程使用邮件来源时，请在学校身份中填写学校邮箱');
   cfg.mailQuery=String(cfg.mailQuery||'').trim().slice(0,200);
   return cfg;
 }
 export function gmailQuery(cfg){
-  if(!cfg.courses.length)return null;
+  const courses=cfg.courses.filter(c=>courseUsesSource(cfg,c,'email'));
+  if(!courses.length)return null;
   // A course with the email source but no sender still scans Gmail by keyword;
   // the adapter matches threads to courses by subject keyword.
-  const senders=[...new Set(cfg.courses.map(c=>cfg.senders[c]).filter(Boolean))];
-  const from=senders.length?`{${senders.map(s=>'from:'+s).join(' ')}} `:'';
+  const senders=[...new Set(courses.map(c=>cfg.senders?.[c]).filter(Boolean))];
+  const from=courses.every(c=>cfg.senders?.[c])?`{${senders.map(s=>'from:'+s).join(' ')}} `:'';
   return `newer_than:7d ${from}${cfg.mailQuery}`.trim();
 }

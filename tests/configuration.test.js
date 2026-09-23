@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import {parseConfiguration,exportConfiguration} from '../extension/configuration.js';
 import {DEFAULTS} from '../extension/settings.js';
 const settings={...DEFAULTS,email:'abcd1234@student.monash.edu',name:'Example Student',enabled:true,courses:['ABC1234'],senders:{ABC1234:'teacher@example.edu'},subjectKeywords:{ABC1234:'ABC1234'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1']}};
+test('legacy import infers its own sources instead of retaining the previous source mode',()=>{
+ const previous={...settings,sourceModes:{ABC1234:'email'}};
+ const restored=parseConfiguration(JSON.stringify({format:'attendance-settings-v1',settings:{...settings,senders:{}}}),previous);
+ assert.equal(restored.sourceModes.ABC1234,'moodle');
+});
 test('personal configuration imports validated settings without changing blank defaults or importing records',()=>{
   const imported=parseConfiguration(JSON.stringify({format:'attendance-settings-v1',settings:{...settings,records:[{code:'ABCDE'}]}}),DEFAULTS);
   assert.equal(imported.email,settings.email);assert.equal(imported.enabled,true);assert.deepEqual(imported.moodleUrls,settings.moodleUrls);

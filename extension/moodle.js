@@ -1,6 +1,6 @@
 // Serialized into Chrome's isolated page world. Navigation is returned as data.
 export function moodleAdapter(command,args={},doc=document){
-  if(!['read','identity'].includes(command))throw new Error('未知 Moodle 操作');
+  if(!['read','identity','builderDescribe'].includes(command))throw new Error('未知 Moodle 操作');
   if(doc.location.pathname.startsWith('/login/')||doc.querySelector('form input[type="password"],#okta-sign-in'))throw new Error('[LOGIN_REQUIRED] Moodle 需要登录，请完成学校账号登录及验证后重试');
   if(doc.location.origin!=='https://learning.monash.edu')throw new Error('Moodle 需要重新登录');
   const text=el=>(el?.innerText||el?.textContent||'').replace(/\s+/g,' ').trim();
@@ -42,20 +42,23 @@ export function moodleAdapter(command,args={},doc=document){
   const posts=[...main.querySelectorAll('article[data-post-id]')];
   const sections=[...main.querySelectorAll('li.section,section[data-sectionid]')].filter(s=>!s.parentElement.closest('li.section,section[data-sectionid]'));
   const roots=posts.length?posts.filter(p=>p.querySelector('.starter')).map(p=>({root:p.querySelector('.post-content-container'),post:p})): (sections.length?sections:[main]).map(root=>({root,post:null}));
+  if(command==='builderDescribe')return globalThis.__mamoRulePicker.registerRoots({source:'moodle',course:args.course,roots:roots.filter(item=>item.root&&visible(item.root)).map(item=>({...item,messageKey:item.post?.getAttribute('data-post-id')||item.root.getAttribute('data-sectionid')||item.root.id||doc.location.href}))});
   const pageWindow=weekWindow(main,sections.length>0),messages=[];let skipped=0;
   for(const {root,post} of roots){
     if(!root)continue;
     const range=post?null:weekWindow(root)||pageWindow;
     if(args.sinceDate&&range?.to<args.sinceDate){skipped++;continue;}
+    if(args.untilDate&&range?.from>args.untilDate){skipped++;continue;}
     const context=hasAttendance(text(root));
-    const candidates=[...root.querySelectorAll('img')].filter(img=>visible(img)&&!img.closest('blockquote,.userpicture,.activityiconcontainer')&&!/avatar|logo|icon|emoji|favicon|badge|ytimg|teaching[-_ ]award/i.test(`${img.className} ${img.alt}`));
-    // A short, wide image can be the whole attendance table, with no caption.
-    const images=candidates.filter(img=>!img.naturalWidth||(img.naturalWidth>=60&&img.naturalHeight>=20&&img.naturalHeight<=4000&&(context||(img.naturalWidth/img.naturalHeight>=3&&img.naturalHeight<=350)))).map(img=>img.currentSrc||img.getAttribute('src')||img.getAttribute('data-src')).filter(Boolean).map(value=>new URL(value,doc.location.href).href).filter(url=>url.startsWith('https://learning.monash.edu/'));
+    if(!globalThis.__mamoSourceRules)throw new Error('Source rule runtime unavailable');
+    const selection=args.sourceRules?.courses?.[args.course]?.moodle;
+    const located=globalThis.__mamoSourceRules.locate({root,source:'moodle',course:args.course,rules:selection?[selection.builtin,selection.community].flat().filter(Boolean):undefined,mode:args.ruleMode||'combined',contextText:text(root),collectTrace:Boolean(args.ruleTrace)});
+    const images=located.images.map(i=>i.url);
     const textRows=rows(root);
-    if(!context&&!images.length&&!textRows.some(s=>/\b[A-Z0-9]{5}\b/.test(s)&&/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(s)))continue;
+    if(!args.ruleTrace&&!context&&!images.length&&!textRows.some(s=>/\b[A-Z0-9]{5}\b/.test(s)&&/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(s)))continue;
     const sentAt=post?.querySelector('time[datetime]')?.getAttribute('datetime');
     const reliableDate=sentAt&&Number.isFinite(Date.parse(sentAt)),dateWindow=post?null:weekWindow(root)||pageWindow;
-    messages.push({messageId:`moodle:${args.course}:${post?.getAttribute('data-post-id')||doc.location.href+':'+(root.id||'main')}`,course:args.course,subject:text(post?.querySelector('h3')||root.querySelector('h3')||doc.querySelector('h1'))||args.course,sourceUrl:doc.location.href,sourceType:'moodle',sentAt:reliableDate?sentAt:dateWindow?dateWindow.to+'T23:59:00+08:00':`${args.academicYear}-01-01T00:00:00+08:00`,dateReferenceOnly:!reliableDate&&!dateWindow,dateWindow,dateBasis:reliableDate?'posted-at':dateWindow?'week-range':'reference-year',textRows,images:[...new Set(images)]});
+    messages.push({messageId:`moodle:${args.course}:${post?.getAttribute('data-post-id')||doc.location.href+':'+(root.id||'main')}`,course:args.course,subject:text(post?.querySelector('h3')||root.querySelector('h3')||doc.querySelector('h1'))||args.course,sourceUrl:doc.location.href,sourceType:'moodle',sentAt:reliableDate?sentAt:dateWindow?dateWindow.to+'T23:59:00+08:00':`${args.academicYear}-01-01T00:00:00+08:00`,dateReferenceOnly:!reliableDate&&!dateWindow,dateWindow,dateBasis:reliableDate?'posted-at':dateWindow?'week-range':'reference-year',textRows,images:[...new Set(images)],imageEvidence:located.images,ruleTrace:located.trace,ruleTruncated:located.truncated});
   }
   const safePaths=['/course/view.php','/mod/forum/view.php','/mod/forum/discuss.php','/mod/page/view.php'];
   const currentCourse=new URL(doc.location.href).pathname==='/course/view.php'?new URL(doc.location.href).searchParams.get('id'):null;
@@ -64,7 +67,9 @@ export function moodleAdapter(command,args={},doc=document){
   const currentWeek=Number([...main.querySelectorAll('a[href],[onclick]')].find(el=>visible(el)&&currentLink(el)&&/week\s*\d+/i.test(text(el)))?.textContent.match(/week\s*(\d+)/i)?.[1]||0);
   for(const el of main.querySelectorAll('a[href],[onclick]')){
     if(!visible(el))continue;
-    const label=text(el);if(!/attendance|签到|簽到|announcements?|week\s*\d+|current week|this week|^learning$|^forums$/i.test(label))continue;
+    const selection=args.sourceRules?.courses?.[args.course]?.moodle;
+    const extraWords=args.ruleMode==='builtin'?[]:[selection?.community].flat().flatMap(rule=>rule?.keywords?.navigation||[]).filter(word=>typeof word==='string');
+    const label=text(el);if(!/attendance|签到|簽到|announcements?|week\s*\d+|current week|this week|^learning$|^forums$/i.test(label)&&!extraWords.some(w=>label.toLowerCase().includes(w.toLowerCase())))continue;
     // Only read the known literal URL pattern; never execute page-provided code.
     const href=el.getAttribute('href')||el.getAttribute('onclick')?.match(/^\s*(?:window\.)?location\.href\s*=\s*(['"])(.*?)\1;?\s*$/)?.[2];
     if(!href)continue;let url;try{url=new URL(href,doc.location.href);}catch{continue;}
@@ -73,9 +78,10 @@ export function moodleAdapter(command,args={},doc=document){
     if(url.pathname==='/course/view.php'&&currentCourse&&url.searchParams.get('id')!==currentCourse)continue;
     url.hash='';if(url.href===doc.location.href.split('#')[0])continue;
     const week=Number(label.match(/week\s*(\d+)/i)?.[1]||0),isCurrent=currentLink(el);
-    if(args.sinceDate&&currentWeek&&week&&(week<currentWeek-1||week>currentWeek)){skipped++;continue;}
+    if(args.sinceDate&&!args.testDateRange&&currentWeek&&week&&(week<currentWeek-1||week>currentWeek)){skipped++;continue;}
     const enclosingRange=weekWindow(el.closest('li.section,section[data-sectionid]')||el);
     if(args.sinceDate&&enclosingRange?.to<args.sinceDate){skipped++;continue;}
+    if(args.untilDate&&enclosingRange?.from>args.untilDate){skipped++;continue;}
     const priority=isCurrent?1000:hasAttendance(label)?500:week?100+week:0;
     if(!found.has(url.href)||found.get(url.href)<priority)found.set(url.href,priority);
   }

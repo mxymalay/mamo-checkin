@@ -27,6 +27,19 @@ test('verified identity saves one field without requiring or replacing the other
  assert.throws(()=>normalizeIdentityField({name:'Existing Student'},'name','Other Student',true),/已有签到记录/);
 });
 const configured={...DEFAULTS,email:'abcd1234@student.monash.edu',name:'Example Student',courses:['FIT5120'],senders:{FIT5120:'teacher@example.edu'},moodleUrls:{FIT5120:[]}};
+test('explicit keyword-only Gmail survives normalization and configuration export',async()=>{
+ const {configuredLoginSites}=await import('../extension/verification.js');
+ const {exportConfiguration,parseConfiguration}=await import('../extension/configuration.js');
+ const cfg=normalizeSettings(configured,{sourceModes:{FIT5120:'email'},senders:{FIT5120:''}});
+ assert.deepEqual(configuredLoginSites(cfg),['gmail','attendance']);
+ assert.equal(gmailQuery(cfg),'newer_than:7d attendance');
+ assert.equal(parseConfiguration(exportConfiguration(cfg),DEFAULTS).sourceModes.FIT5120,'email');
+ assert.throws(()=>normalizeSettings({...DEFAULTS,name:'Student'},{courses:['FIT5120'],sourceModes:{FIT5120:'email'}}),/学校邮箱/);
+});
+test('non-email sources never search Gmail and mixed keyword-only rules are not sender-filtered',()=>{
+ for(const source of ['moodleUrls','edUrls'])assert.equal(gmailQuery({...configured,senders:{},[source]:{FIT5120:['https://example.test/1']}}),null);
+ assert.equal(gmailQuery({...configured,courses:['FIT5120','FIT5122'],sourceModes:{FIT5120:'email',FIT5122:'email'}}),'newer_than:7d attendance');
+});
 test('fresh installation contains no personal or course source information',()=>{
  assert.equal(DEFAULTS.email,'');assert.equal(DEFAULTS.name,'');assert.equal(DEFAULTS.enabled,false);
  assert.deepEqual(DEFAULTS.courses,[]);assert.deepEqual(DEFAULTS.senders,{});assert.deepEqual(DEFAULTS.moodleUrls,{});

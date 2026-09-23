@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "builtin.moodle",
+  "version": "1.0.2",
+  "name": {
+    "en": "Official Moodle",
+    "zh_CN": "官方 Moodle",
+    "zh_TW": "官方 Moodle"
+  },
+  "source": "moodle",
+  "courses": [],
+  "keywords": {
+    "context": [
+      "attendance",
+      "签到",
+      "簽到"
+    ],
+    "navigation": [
+      "attendance",
+      "签到",
+      "簽到",
+      "announcement",
+      "week",
+      "learning",
+      "forums"
+    ]
+  },
+  "images": {
+    "selectors": [
+      "img"
+    ],
+    "excludeSelectors": [
+      ".userpicture img",
+      ".activityiconcontainer img"
+    ],
+    "minWidth": 60,
+    "minHeight": 20,
+    "maxHeight": 4000
+  },
+  "author": {
+    "name": "mxymalay",
+    "url": "https://github.com/mxymalay"
+  },
+  "sourceUrl": "https://github.com/mxymalay/mamo-checkin-rules/blob/main/builtin/moodle.json"
+}

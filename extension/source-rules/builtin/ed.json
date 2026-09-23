@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "builtin.ed",
+  "version": "1.0.2",
+  "name": {
+    "en": "Official Ed",
+    "zh_CN": "官方 Ed",
+    "zh_TW": "官方 Ed"
+  },
+  "source": "ed",
+  "courses": [],
+  "keywords": {
+    "context": [
+      "attendance",
+      "签到",
+      "簽到"
+    ],
+    "navigation": [
+      "attendance",
+      "code"
+    ]
+  },
+  "images": {
+    "selectors": [
+      "img"
+    ],
+    "excludeSelectors": [],
+    "minWidth": 60,
+    "minHeight": 20,
+    "maxHeight": 4000
+  },
+  "attachments": {
+    "selectors": [
+      "a[href*='edusercontent.com/files/']"
+    ]
+  },
+  "author": {
+    "name": "mxymalay",
+    "url": "https://github.com/mxymalay"
+  },
+  "sourceUrl": "https://github.com/mxymalay/mamo-checkin-rules/blob/main/builtin/ed.json"
+}

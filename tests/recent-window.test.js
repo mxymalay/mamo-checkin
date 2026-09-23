@@ -1,3 +1,4 @@
+import './helpers/install-source-runtime.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {outsideAttendanceWindow,messageOutsideWindow,scanSinceDate} from '../extension/recent-window.js';

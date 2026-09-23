@@ -53,7 +53,7 @@ test('preflight checks only configured sites sequentially and keeps completion v
  try{
   const done=flow.run(settings);await flush();
   assert.deepEqual(calls,['checkEmail','checkMoodle','readIdentity']);assert.equal(flow.active,true);
-  assert.equal(doc.querySelector('.preflight-complete').hidden,false);assert.equal(doc.querySelector('.preflight-complete').textContent,'Initial checks passed. Starting check-in…');
+  assert.equal(doc.querySelector('.preflight-complete').hidden,false);assert.equal(doc.querySelector('.preflight-complete').textContent,'Sign-in verified. Checking courses and attendance codes…');
   for(const button of doc.querySelectorAll('#login-preflight button'))assert.equal(button.hidden,true);
   for(const activity of doc.querySelectorAll('.verification-activity'))assert.equal(activity.hidden,true);
   assert.doesNotMatch(doc.querySelector('#login-preflight').textContent,/[\u3400-\u9fff]/);

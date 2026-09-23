@@ -1,3 +1,4 @@
+import './helpers/install-source-runtime.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
@@ -5,6 +6,17 @@ import {gmailAdapter} from '../extension/gmail.js';
 import {attendanceAdapter} from '../extension/attendance.js';
 const dom=html=>new JSDOM(html,{url:'https://mail.google.com/mail/u/2/#search/attendance'}).window.document;
 const config={email:'abcd1234@student.monash.edu',name:'Example Student',courses:['FIT5120','FIT5122'],senders:{FIT5120:'lms@example.edu',FIT5122:'teacher@example.edu'}};
+test('keyword-only Gmail accepts matching threads and waits for all message bodies',()=>{
+ const cfg={...config,courses:['FIT5122'],senders:{FIT5122:''}};
+ const doc=dom('<button aria-label="Google Account: Person (abcd1234@student.monash.edu)"></button><main><table role="grid"><tr role="row"><td><span email="teacher@example.edu"></span><span data-legacy-thread-id="thread" data-legacy-last-message-id="message">FIT5122 Attendance</span></td></tr></table><h2>FIT5122 Attendance</h2><div data-legacy-message-id="message"><span email="teacher@example.edu"></span><div class="a3s" hidden>Attendance AB123</div></div></main>');
+ try{
+  assert.deepEqual(gmailAdapter('list',cfg,doc).threads.map(t=>t.id),['thread']);
+  assert.equal(gmailAdapter('messages',{...cfg,requireBodiesReady:true},doc).loading,true);
+  doc.querySelector('.a3s').hidden=false;
+  const result=gmailAdapter('messages',{...cfg,requireBodiesReady:true},doc);
+  assert.equal(result.bodiesReady,true);assert.deepEqual(result.messages.map(m=>m.messageId),['message']);
+ }finally{doc.defaultView.close();}
+});
 test('attendance distinguishes explicit code rejection, attempt limits and unknown results',()=>{
  for(const [html,expected] of [
   ['Invalid session code',{blocked:false,rejected:true}],
@@ -34,12 +46,12 @@ test('overlapping subject rules never choose the first matching course',()=>{
  const doc=dom(`<button aria-label="Google Account: Person (abcd1234@student.monash.edu)"></button><main role="main"><table role="grid"><tr role="row"><td><span email="teacher@example.edu"></span><span data-legacy-thread-id="ambiguous" data-legacy-last-message-id="latest">Weekly code</span></td></tr></table></main>`);
  assert.throws(()=>gmailAdapter('list',overlapping,doc),/多个课程/);
 });
-test('each message keeps its own timestamp and excludes quoted pictures',()=>{
+test('each message keeps its own timestamp and includes quoted picture candidates',()=>{
  const doc=dom(`<button aria-label="Google Account: Person (abcd1234@student.monash.edu)"></button><main role="main"><h2>[FIT5122_S2_2026_TUT01] Attendance Code</h2><div data-message-id="x" data-legacy-message-id="new"><span email="teacher@example.edu"></span><span class="g3" title="2 Sept 2026, 19:31"></span><div class="a3s">Attendance Week 6<img src="https://mail.google.com/current.png" width="763" height="35"><div class="gmail_quote">Old reply<img src="https://mail.google.com/old.png" width="763" height="35"></div></div></div></main>`);
  for(const img of doc.images){Object.defineProperty(img,'naturalWidth',{value:763});Object.defineProperty(img,'naturalHeight',{value:35});}
  const messages=gmailAdapter('messages',config,doc).messages;
  assert.equal(messages.length,1); assert.equal(messages[0].sentAtText,'2 Sept 2026, 19:31');
- assert.deepEqual(messages[0].images,['https://mail.google.com/current.png']);
+ assert.deepEqual(messages[0].images,['https://mail.google.com/current.png','https://mail.google.com/old.png']);
  assert.equal(gmailAdapter('messages',{...config,expectedSubject:'FIT5120 - Week 7 Summary',expectedLastMessageId:'missing'},doc).loading,true);
  assert.equal(gmailAdapter('messages',{...config,expectedLastMessageId:'later'},doc).loading,true);
  assert.equal(gmailAdapter('messages',{...config,expectedLastMessageId:'new'},doc).messages.length,1);

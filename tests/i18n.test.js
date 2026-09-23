@@ -2,6 +2,54 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {detectLanguage,translate,installLanguageUI} from '../extension/i18n.js';
+import {ruleUI} from '../extension/source-rules/ui.js';
+test('open details and rule names switch language without changing raw JSON or user content',()=>{
+ const dom=new JSDOM('<header></header><section id="manager"><pre data-rule-literal>{"name":"内置 Gmail"}</pre><input value="软件开发"></section>',{url:'https://extension.test'}),doc=dom.window.document;
+ const ui=installLanguageUI(doc),root=doc.querySelector('#manager'),{nameNode}=ruleUI(root,translate);
+ const title=nameNode({id:'local.sample',name:{en:'Gmail example',zh_CN:'Gmail 示例',zh_TW:'Gmail 範例'}},'h3');root.append(title);
+ try{for(const [lang,want] of [['zh_TW','Gmail 範例'],['en','Gmail example'],['zh','Gmail 示例']]){doc.querySelector('#language').value=lang;ui.apply();assert.equal(title.textContent,want);assert.equal(doc.querySelector('pre').textContent,'{"name":"内置 Gmail"}');assert.equal(doc.querySelector('input').value,'软件开发');}}finally{ui.disconnect();dom.window.close();}
+});
+test('app-owned validation and error templates translate while values remain literal',()=>{
+ for(const [source,expected] of [['FIT5122 发件人邮箱无效','FIT5122 寄件者信箱無效'],['图片下载失败（HTTP 403），请检查原页面登录和网络状态','圖片下載失敗（HTTP 403），請檢查原頁面登入和網路狀態'],['课程代码重复：','課程代碼重複：']])assert.equal(translate(source,'zh_TW'),expected);
+ assert.equal(translate(translate('FIT5122 发件人邮箱无效','en'),'zh_TW'),'FIT5122 寄件者信箱無效');
+ assert.equal(translate('設定','en'),'Settings');
+});
+test('dynamic progress roundtrips and nested application reasons use the selected language',()=>{
+ const text='已保存 3 条文字记录',tw=translate(text,'zh_TW');
+ assert.equal(translate(tw,'en'),'Saved 3 text records');assert.equal(translate(tw,'zh'),text);
+ assert.equal(translate('1 项处理失败：签到码格式不正确','en'),'1 item failed: Invalid check-in code format');
+ assert.equal(translate('本次签到成功 1 场；网站显示已签到 2 场','zh_TW'),'本次簽到成功 1 場；網站顯示已簽到 2 場');
+ for(const locale of ['zh-Hant-TW','zh_Hant_TW','zh-MO'])assert.equal(translate('rules.origin-community',locale),'社群');
+ for(const language of ['en','zh','zh_TW'])assert.equal(translate('Install Mac Recognition.command',language),'Install Mac Recognition.command');
+ assert.equal(translate('安装 Mac 识别服务.command','zh_TW'),'安装 Mac 识别服务.command');
+});
+test('nested download and export clauses translate without leftover source-language prose',()=>{
+ const download='图片下载失败（HTTP 403），请检查原页面登录和网络状态；原页面读取也未完成，请确认该页面仍已登录并可访问图片';
+ assert.doesNotMatch(translate(download,'en'),/[\u3400-\u9fff]/);
+ assert.match(translate(download,'zh_TW'),/^圖片下載失敗（HTTP 403）/);
+ const exported='已导出 3 条记录，覆盖 2026-09-20 至 2026-09-23。助手只保存最近 7 天内处理的记录；更早的场次请以签到网站显示为准。';
+ assert.doesNotMatch(translate(exported,'en'),/[\u3400-\u9fff]/);
+ assert.match(translate(exported,'zh_TW'),/涵蓋 2026-09-20 至 2026-09-23/);
+});
+test('Traditional Chinese covers existing UI and preserves dynamic user values',()=>{
+ for(const [source,expected] of [['设置','設定'],['等待签到码','等待簽到碼'],['课程来源与课表','課程來源與課表'],['所有候选码均被网站拒绝，可能识别有误或来源码有误，请核对来源或手动补码。','所有候選碼均被網站拒絕，可能辨識有誤或來源碼有誤，請核對來源或手動補碼。']])assert.equal(translate(source,'zh_TW'),expected);
+ assert.equal(translate('已保存 3 条文字记录','zh_TW'),'已儲存 3 筆文字記錄');
+ assert.equal(translate('请在 Gmail 登录 张三@example.com，完成验证后会自动检测。','zh_TW'),'請在 Gmail 登入 张三@example.com，完成驗證後會自動偵測。');
+ assert.equal(translate('个人原始内容 张三','zh_TW'),'个人原始内容 张三');
+ for(const locale of ['zh-TW','zh-HK','zh-Hant','zh_Hant_TW'])assert.equal(detectLanguage(locale),'zh_TW');
+});
+test('every existing dictionary entry has an explicit Traditional translation',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../extension/i18n.js',import.meta.url),'utf8');
+ const rows=source.match(/const entries=`([\s\S]*?)`\.trim/)[1].trim().split('\n');
+ const missing=rows.filter(row=>!row.split('|')[2]);
+ assert.deepEqual(missing,[]);
+});
+test('scoped save feedback translates completely and restores Chinese',()=>{
+ for(const [zh,en] of [['课程检索已保存。','Course search saved.'],['自动检查设置已保存。','Automatic check settings saved.'],['正在保存…','Saving…']]){
+  assert.equal(translate(zh,'en'),en);assert.equal(translate(en,'zh'),zh);
+ }
+});
 test('every developer switch has accessible bilingual help that survives language switching',async()=>{
  const {readFile}=await import('node:fs/promises');
  const dom=new JSDOM(await readFile(new URL('../extension/options.html',import.meta.url),'utf8'),{url:'https://extension.test'});
@@ -38,7 +86,7 @@ test('course setup messages stay fully bilingual, including detected counts',()=
  assert.equal(translate('已检测到 1 门课程。请在下方完善课程来源和课表。','en'),'1 course detected. Complete the sources and timetable below.');
  assert.equal(translate('已检测到 2 门课程。请在下方完善课程来源和课表。','en'),'2 courses detected. Complete the sources and timetable below.');
 });
-test('English is fallback; Chinese locales select Chinese',()=>{assert.equal(detectLanguage('zh-TW'),'zh');assert.equal(detectLanguage('en-MY'),'en');assert.equal(detectLanguage('fr'),'en');assert.equal(translate('等待签到码','en'),'Waiting for code');});
+test('English is fallback; Chinese variants retain their distinct locales',()=>{assert.equal(detectLanguage('zh-TW'),'zh_TW');assert.equal(detectLanguage('zh-CN'),'zh');assert.equal(detectLanguage('en-MY'),'en');assert.equal(detectLanguage('fr'),'en');assert.equal(translate('等待签到码','en'),'Waiting for code');});
 test('English-rendered record states restore when switching back to Chinese',()=>{
  for(const [zh,en] of [['结果待确认','Confirmation pending'],['核对提交结果','Verifying submission'],['等待签到码','Waiting for code'],['需要核对','Review required'],['提交结果尚未确认，下次运行先检查学校签到状态。','Submission is unconfirmed. The next run will check the school attendance status first.']]){
   assert.equal(translate(zh,'en'),en);assert.equal(translate(en,'zh'),zh);
@@ -65,10 +113,10 @@ test('settings tabs and new actions translate and restore Chinese',()=>{
  const dom=new JSDOM('<header></header>'+labels.map(label=>`<button>${label}</button>`).join(''),{url:'https://extension.test'}),doc=dom.window.document;
  const ui=installLanguageUI(doc),picker=doc.getElementById('language');
  picker.value='en';picker.dispatchEvent(new dom.window.Event('change'));
- assert.equal(doc.querySelector('button').textContent,'Settings');
- for(const button of doc.querySelectorAll('button'))assert.doesNotMatch(button.textContent,/[\u3400-\u9fff]/);
+ assert.equal(doc.querySelector('body>button').textContent,'Settings');
+ for(const button of doc.querySelectorAll('body>button'))assert.doesNotMatch(button.textContent,/[\u3400-\u9fff]/);
  picker.value='zh';picker.dispatchEvent(new dom.window.Event('change'));
- assert.deepEqual([...doc.querySelectorAll('button')].map(b=>b.textContent),labels);
+ assert.deepEqual([...doc.querySelectorAll('body>button')].map(b=>b.textContent),labels);
  ui.disconnect();dom.window.close();
 });
 test('language changes translate existing and dynamic text without changing field values',async()=>{

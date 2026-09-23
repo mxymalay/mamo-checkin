@@ -1,8 +1,9 @@
+import {courseUsesSource} from './course-sources.js';
 export const LOGIN_WAIT_MS=180000;
 
 export function configuredLoginSites(settings={}){
  const courses=settings.courses||[];
- return [...(courses.some(c=>settings.senders?.[c])?['gmail']:[]),...(courses.some(c=>settings.moodleUrls?.[c]?.length)?['moodle']:[]),'attendance'];
+ return [...(courses.some(c=>courseUsesSource(settings,c,'email'))?['gmail']:[]),...(courses.some(c=>courseUsesSource(settings,c,'moodle'))?['moodle']:[]),'attendance'];
 }
 
 export function bindVerification({button,status,prepare=()=>({}),check,onVerified=async()=>{},onError=()=>{},success='登录检测通过。',idleText='登录并检测',verifiedText='重新登录并检测',doc=button.ownerDocument,timeout=LOGIN_WAIT_MS,interval=3000}){

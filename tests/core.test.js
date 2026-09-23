@@ -4,6 +4,22 @@ import {parseImageRows, mergeRecords, eligible, matchActivity, parseMailDate, pa
 const meta={course:'FIT5120',sentAt:'2026-09-04T22:08:00+08:00',messageId:'sample',sourceUrl:'https://mail.google.com/mail/u/2/#all/example'};
 const observation=(text,y=.7,confidence=1)=>({text,x:0,y,width:1,height:.2,confidence});
 const row='Studio Friday,4 Sep 01-P2 6:00PM ZQSB3';
+test('filling a confirmed code-less session retains its confirmation metadata',()=>{
+ for(const sessionOnly of [false,true]){
+  const confirmed={id:'done',code:'',status:'submitted',sessionOnly,reason:'Confirmed by website',confirmedAt:'2026-09-01T10:00:00Z'};
+  const [record]=mergeRecords([confirmed],[{id:'done',code:'AB123',status:'ready',confirmedAt:undefined}]);
+  assert.equal(record.status,'submitted');assert.equal(record.confirmedAt,confirmed.confirmedAt);assert.equal(record.reason,confirmed.reason);assert.equal(record.code,'AB123');
+ }
+});
+test('conflicting OCR never downgrades a confirmed submission during session reconciliation',async()=>{
+ const {syncSessionRecords}=await import('../extension/session-records.js');
+ const confirmed={id:'confirmed',course:'FIT5120',date:'2020-01-06',time:'18:00',type:'Workshop',group:'01',code:'AB123',status:'submitted',reason:'Website confirmed',confirmedAt:'2020-01-06T10:01:00Z',sourceUrl:'https://example.test/old'};
+ const records=mergeRecords([confirmed],[{...confirmed,code:'XY234',status:'expired',sourceUrl:'https://example.test/new',confirmedAt:undefined}]);
+ assert.equal(records[0].status,'submitted');assert.equal(records[0].code,'AB123');assert.equal(records[0].confirmedAt,confirmed.confirmedAt);assert.equal(records[0].reason,confirmed.reason);
+ assert.equal(records[0].sources.length,2);assert.deepEqual(records[0].conflicts,['AB123','XY234']);
+ syncSessionRecords({settings:{courses:['FIT5120'],schedules:{}},records,activities:[]});
+ assert.equal(records[0].status,'submitted');
+});
 test('recovered image removes a uniquely matching undated partial without losing the session',()=>{
  const full={id:'full',course:'FIT5122',date:'2026-09-16',time:'18:00',type:'Applied',group:'01',code:'8YG3G',imageId:'image',messageId:'mail',status:'ready'};
  const partial={...full,id:'partial',date:null,code:null,status:'review'};

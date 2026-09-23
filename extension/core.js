@@ -152,11 +152,14 @@ export function mergeRecords(existing,incoming) {
       for(const partial of partials){map.delete(partial.id);if(!old&&partial.status==='expired')old={...partial,id:r.id,sessionOnly:true};}
     }
     if(!old){map.set(r.id,{...r});continue;}
+    const sources=[...new Map([...recordSources(old),...recordSources(r)].map(source=>[[source.sourceUrl,source.messageId,source.imagePath].join('|'),source])).values()];
+    if(old.status==='submitted'){
+      const conflicts=old.code&&r.code&&old.code!==r.code?[...new Set([...(old.conflicts||[]),old.code,r.code])]:null;
+      map.set(r.id,{...r,...old,code:old.code||r.code||old.code,sources,...(conflicts?{conflicts}:{})});continue;
+    }
     if(!old.code&&!old.attemptedAt&&old.status==='review'&&r.code){map.set(r.id,{...r});continue;}
     if(old.sessionOnly&&!old.code){map.set(r.id,{...r,...(old.ocrEvidence?{ocrEvidence:old.ocrEvidence}:{}),...(['submitted','expired'].includes(old.status)?{status:old.status,reason:old.reason}:{})});continue;}
-    const sources=[...new Map([...recordSources(old),...recordSources(r)].map(source=>[[source.sourceUrl,source.messageId,source.imagePath].join('|'),source])).values()];
     if(old.code&&!r.code){map.set(r.id,{...old,sources});continue;}
-    if(old.status==='submitted'&&!old.code&&r.code){map.set(r.id,{...old,...r,status:'submitted',reason:old.reason,sources});continue;}
     if(old.code!==r.code){map.set(r.id,{...old,sources,status:'review',reason:'同一场次出现不同签到码',conflicts:[...new Set([...(old.conflicts||[]),old.code,r.code].filter(Boolean))]});continue;}
     const untouchedReview=old.status==='review'&&!old.attemptedAt&&!old.submittedAt&&!(old.conflicts||[]).length;
     if(untouchedReview&&r.status==='ready'&&reliableEvidence(r)){map.set(r.id,{...r,sources});continue;}

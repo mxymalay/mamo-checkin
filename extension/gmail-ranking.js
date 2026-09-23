@@ -11,7 +11,7 @@ export function scoreThread(subject){
  return score;
 }
 export function prioritiseThreads(threads,{limit=40,perCourse=4}={}){
- const scored=(threads||[]).map(thread=>({thread,score:scoreThread(thread.subject)})).sort((a,b)=>b.score-a.score);
+ const scored=(threads||[]).map(thread=>({thread,score:scoreThread(thread.subject)+Math.min(40,Math.max(0,Number(thread.navigationPriority)||0))})).sort((a,b)=>b.score-a.score);
  const groups=new Map();
  for(const item of scored){const key=item.thread.course||'';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item);}
  const picked=[],seen=new Set();

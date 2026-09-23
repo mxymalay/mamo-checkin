@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "builtin.gmail",
+  "version": "1.0.2",
+  "name": {
+    "en": "Official Gmail",
+    "zh_CN": "官方 Gmail",
+    "zh_TW": "官方 Gmail"
+  },
+  "source": "gmail",
+  "courses": [],
+  "keywords": {
+    "context": [
+      "attendance",
+      "签到",
+      "簽到"
+    ],
+    "navigation": [
+      "attendance",
+      "code"
+    ]
+  },
+  "images": {
+    "selectors": [
+      "img"
+    ],
+    "excludeSelectors": [
+      ".gmail_signature img"
+    ],
+    "minWidth": 60,
+    "minHeight": 20,
+    "maxHeight": 2000
+  },
+  "author": {
+    "name": "mxymalay",
+    "url": "https://github.com/mxymalay"
+  },
+  "sourceUrl": "https://github.com/mxymalay/mamo-checkin-rules/blob/main/builtin/gmail.json"
+}

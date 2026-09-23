@@ -10,7 +10,7 @@ export function selectEdThreads(threads,sessions,{limit=4}={}){
       return label.includes(date)||new RegExp(`\\b${d.getUTCDate()}\\s+${month}\\w*\\b`,'i').test(label);
     });
     const target=dates||weeks.has(week);
-    return {...item,week,index,target,score:(target?1000:0)+(/attendance|签到/i.test(label)?100:/\bcode\b/i.test(label)?50:0),reason:target?'missing-session':week?'week-fallback':'general-fallback'};
+    return {...item,week,index,target,score:(target?1000:0)+(/attendance|签到/i.test(label)?100:/\bcode\b/i.test(label)?50:0)+Math.min(40,Math.max(0,Number(item.navigationPriority)||0)),reason:target?'missing-session':week?'week-fallback':'general-fallback'};
   }).sort((a,b)=>b.score-a.score||a.index-b.index);
   const result=[],seen=new Set();
   // Give each explicitly matched week a place before filling remaining slots.

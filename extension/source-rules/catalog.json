@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "community.example.ed-images",
+      "version": "1.0.1",
+      "name": {
+        "en": "Synthetic Ed example",
+        "zh_CN": "Ed 合成示例",
+        "zh_TW": "Ed 合成範例"
+      },
+      "source": "ed",
+      "courses": [
+        "DEMO1000"
+      ],
+      "path": "examples/DEMO1000/demo-ed.json",
+      "demo": true,
+      "sha256": "3a78eed8e093d82418025f70bac5419036b7537c9d8583ef13ef7dca38fe3542",
+      "author": {
+        "name": "mxymalay",
+        "url": "https://github.com/mxymalay"
+      },
+      "sourceUrl": "https://github.com/mxymalay/mamo-checkin-rules/blob/main/examples/DEMO1000/demo-ed.json"
+    },
+    {
+      "id": "community.example.gmail-images",
+      "version": "1.0.1",
+      "name": {
+        "en": "Synthetic Gmail example",
+        "zh_CN": "Gmail 合成示例",
+        "zh_TW": "Gmail 合成範例"
+      },
+      "source": "gmail",
+      "courses": [
+        "DEMO1000"
+      ],
+      "path": "examples/DEMO1000/demo-gmail.json",
+      "demo": true,
+      "sha256": "c199fa71495998580420cf75dbe3c52ad82f73229759d883c6870a88dc21d914",
+      "author": {
+        "name": "mxymalay",
+        "url": "https://github.com/mxymalay"
+      },
+      "sourceUrl": "https://github.com/mxymalay/mamo-checkin-rules/blob/main/examples/DEMO1000/demo-gmail.json"
+    },
+    {
+      "id": "community.example.moodle-images",
+      "version": "1.0.1",
+      "name": {
+        "en": "Synthetic Moodle example",
+        "zh_CN": "Moodle 合成示例",
+        "zh_TW": "Moodle 合成範例"
+      },
+      "source": "moodle",
+      "courses": [
+        "DEMO1000"
+      ],
+      "path": "examples/DEMO1000/demo-moodle.json",
+      "demo": true,
+      "sha256": "c7b14929a1e8e059014aa40acdb63c9b643c0015165e46a0d86d4123569edf70",
+      "author": {
+        "name": "mxymalay",
+        "url": "https://github.com/mxymalay"
+      },
+      "sourceUrl": "https://github.com/mxymalay/mamo-checkin-rules/blob/main/examples/DEMO1000/demo-moodle.json"
+    },
+    {
+      "id": "community.example.shared-gmail-images",
+      "version": "1.0.1",
+      "name": {
+        "en": "Synthetic shared Gmail example",
+        "zh_CN": "Gmail 多课程合成示例",
+        "zh_TW": "Gmail 多課程合成範例"
+      },
+      "source": "gmail",
+      "courses": [
+        "DEMO1000",
+        "DEMO2000"
+      ],
+      "path": "examples/shared/demo-shared-gmail.json",
+      "demo": true,
+      "sha256": "a16ba11dfa9e2aa33b93183847cf2e28c1f18d5c8e2f8caf1101eae548116a35",
+      "author": {
+        "name": "mxymalay",
+        "url": "https://github.com/mxymalay"
+      },
+      "sourceUrl": "https://github.com/mxymalay/mamo-checkin-rules/blob/main/examples/shared/demo-shared-gmail.json"
+    }
+  ]
+}

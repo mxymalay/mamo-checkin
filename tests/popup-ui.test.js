@@ -4,6 +4,9 @@ import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
 
 const html=await readFile(new URL('../extension/popup.html',import.meta.url),'utf8');
+test('popup has no rule builder footer shortcut',()=>{
+ const dom=new JSDOM(html);try{assert.equal(dom.window.document.querySelector('#popup-rule-builder'),null);}finally{dom.window.close();}
+});
 
 function installDom(sendMessage,{language='zh-CN'}={}){
  const dom=new JSDOM(html,{url:'https://extension.test/popup.html'});
@@ -19,6 +22,13 @@ function installDom(sendMessage,{language='zh-CN'}={}){
 function cleanDom(){
  delete globalThis.chrome;delete globalThis.window;delete globalThis.document;
 }
+test('popup honours explicit and automatic Traditional Chinese across scene and status',async()=>{
+ for(const saved of ['zh_TW','auto']){
+  const env=installDom(async()=>({settings:{enabled:false,name:'Example',courses:['FIT5122']},status:{finishedAt:'now'}}),{language:'zh-TW'});
+  env.dom.window.localStorage.setItem('mamo-language',saved);globalThis.chrome.i18n={getUILanguage:()=> 'zh-TW'};
+  try{await import(`../extension/popup.js?traditional=${saved}`);await new Promise(r=>setTimeout(r,0));assert.equal(document.documentElement.lang,'zh-TW');assert.equal(document.querySelector('#popup-settings').textContent,'更多設定');assert.match(document.querySelector('#popup-status').textContent,/自動簽到未開啟/);}finally{env.dom.window.close();cleanDom();}
+ }
+});
 
 test('popup lists course outcomes and starts a scan with the saved identity',async()=>{
  const sent=[];
@@ -48,7 +58,7 @@ test('popup distinguishes login waiting, scanning, success, partial and failed r
   [{finishedAt:'now',error:true},'error']
  ];
  for(const language of ['zh-CN','en-US'])for(const [status,mode] of cases){
-  const env=installDom(async()=>({settings:{name:'Example',courses:['ABC1234']},status}),{language});
+  const env=installDom(async()=>({settings:{enabled:true,name:'Example',courses:['ABC1234']},status}),{language});
   globalThis.chrome.i18n={getUILanguage:()=>language};
   try{
    await import(`../extension/popup.js?state=${language}-${mode}-${Math.random()}`);await new Promise(resolve=>setTimeout(resolve,0));
@@ -57,10 +67,21 @@ test('popup distinguishes login waiting, scanning, success, partial and failed r
    if(status.waitingSite)assert.match(document.getElementById('popup-caption').textContent,/Moodle/);
    if(status.waitingSite)assert.match(document.getElementById('popup-heading').textContent,/正在检查登录状态|Checking sign-in status/);
    if(status.summary?.quiet)assert.match(document.getElementById('popup-status').textContent,/本次无需补签|No additional check-ins/);
-   assert.match(document.getElementById('popup-mode').textContent,/自动签到已关闭|Auto check-in off/);
+   assert.match(document.getElementById('popup-mode').textContent,/自动签到已开启|Auto check-in on/);
    if(language==='en-US')assert.doesNotMatch(document.getElementById('popup-scene').textContent,/[\u3400-\u9fff]/);
   }finally{env.dom.window.close();cleanDom();}
  }
+});
+
+test('popup returns to ready state after a manual run when auto check-in is off',async()=>{
+ const state={settings:{enabled:false,name:'Example',courses:['ABC1234']},records:[],status:{finishedAt:'now',summary:{submitted:2}}};
+ const env=installDom(async()=>state);
+ try{
+  await import(`../extension/popup.js?manual-complete=${Date.now()}`);await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.getElementById('popup-scene').dataset.state,'idle');
+  assert.match(document.getElementById('popup-status').textContent,/自动签到未开启|Auto check-in is off/);
+  assert.doesNotMatch(document.getElementById('popup-heading').textContent,/处理完成|All done/);
+ }finally{env.dom.window.close();cleanDom();}
 });
 
 test('an unconfigured popup routes the main button to the full settings page',async()=>{

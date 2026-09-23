@@ -60,7 +60,7 @@ async function readImage(url,timeoutMs,maxBytes,requirePage=false,deadline=0){
   }
 }
 
-export async function getImage(url,tabId){
+export async function getImage(url,tabId,{documentId}={}){
   const deadline=Date.now()+DOWNLOAD_BUDGET_MS;
   let timer;
   const attempt=async()=>{
@@ -72,7 +72,7 @@ export async function getImage(url,tabId){
     if(!canFallback)throw new Error(direct.error);
     let results;
     try{
-      results=await chrome.scripting.executeScript({target:{tabId},world:'ISOLATED',func:readImage,args:[url,Math.max(0,deadline-Date.now()),MAX_IMAGE_BYTES,true,deadline]});
+      results=await chrome.scripting.executeScript({target:{tabId,...(documentId?{documentIds:[documentId]}:{})},world:'ISOLATED',func:readImage,args:[url,Math.max(0,deadline-Date.now()),MAX_IMAGE_BYTES,true,deadline]});
     }catch{
       throw new Error(`${direct.error}；原页面读取也未完成，请确认该页面仍已登录并可访问图片`);
     }

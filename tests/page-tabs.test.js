@@ -25,3 +25,9 @@ test('credits page uses the product description without the removed nickname ban
  assert.match(credits.textContent,/签到助手/);
  dom.window.close();
 });
+test('auxiliary module pages retain the header and unsaved settings while switching content',()=>{
+ const dom=new JSDOM(html),doc=dom.window.document,tabs=createPageTabs(doc),header=doc.querySelector('header'),panel=doc.createElement('section');panel.id='module-page';doc.querySelector('footer').before(panel);
+ assert.equal(typeof tabs.register,'function');tabs.register('modules',panel);doc.querySelector('#email').value='draft1234';tabs.show('modules');
+ assert.equal(panel.hidden,false);assert.equal(doc.querySelector('#settings>.columns').hidden,true);assert.equal(doc.querySelector('header'),header);assert.equal(doc.querySelector('#tab-modules'),null);
+ tabs.show('settings');assert.equal(panel.hidden,true);assert.equal(doc.querySelector('#email').value,'draft1234');dom.window.close();
+});

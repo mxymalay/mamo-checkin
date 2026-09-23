@@ -255,7 +255,8 @@ def handle_ocr(request):
     if mime_type not in MIME_EXTENSIONS:
         raise RequestError("mimeType must be image/png or image/jpeg")
     meta = request.get("meta")
-    validate_meta(meta)
+    if request.get("op") != "ocr-preview":
+        validate_meta(meta)
     encoded_image = request.get("imageBase64")
     if not isinstance(encoded_image, str) or not encoded_image:
         raise RequestError("imageBase64 must be a non-empty string")
@@ -269,6 +270,13 @@ def handle_ocr(request):
         raise RequestError("image is too large")
 
     image_id = hashlib.sha256(image_data).hexdigest()
+    if request.get("op") == "ocr-preview":
+        # Preview files live only for the native call, never in the user archive.
+        with tempfile.TemporaryDirectory(prefix="mamo-preview-") as directory:
+            image_path = Path(directory) / ("preview" + MIME_EXTENSIONS[mime_type])
+            image_path.write_bytes(image_data)
+            observations = run_ocr(image_path)
+        return {"ok": True, "imageId": image_id, "observations": observations, "cached": False}
     images_directory = archive_directory() / "images"
     sidecar_path = images_directory / f"{image_id}.json"
     with image_lock(images_directory, image_id):
@@ -395,11 +403,12 @@ def handle_request(request):
             "engine": OCR_ENGINE,
             "ocrRevision": OCR_CACHE_VERSION,
             "companionRevision": 1,
+            "previewOcr": True,
             "busy": False,
             "stage": "Mac 原生识别已就绪" if ready else "Mac 原生识别未通过启动自检",
             "protocolVersion": PROTOCOL_VERSION,
         }
-    if operation == "ocr":
+    if operation in ("ocr", "ocr-preview"):
         return handle_ocr(request)
     if operation == "archive":
         return handle_archive(request)

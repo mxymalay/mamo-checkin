@@ -2,6 +2,7 @@ samples/
 archive/
 build/
 node_modules/
+extension/vendor/
 .DS_Store
 __pycache__/
 *.pyc

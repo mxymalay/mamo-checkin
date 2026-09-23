@@ -15,12 +15,14 @@ export function gmailAdapter(command,args={},doc=document) {
   const main=doc.querySelector('[role="main"],main');
   if(!main) return {loading:true};
   const visible=el=>{for(let p=el;p&&p!==main;p=p.parentElement){if(p.hidden||p.getAttribute('aria-hidden')==='true'||doc.defaultView.getComputedStyle(p).display==='none') return false;}return true;};
+  const senderAllowed=(sender,course)=>Boolean(sender&&(!args.senders?.[course]||sender===args.senders[course].trim().toLowerCase()));
   const courseFor=title=>{
     const matches=(args.courses||[]).filter(c=>String(title).toLowerCase().includes(String(args.subjectKeywords?.[c]||c).toLowerCase()));
     if(matches.length>1)throw new Error('多个课程规则同时匹配邮件主题，请修改课程关键词');
     return matches[0];
   };
   if(command==='list') {
+    if(main.matches('[aria-busy="true"]')||Array.from(main.querySelectorAll('[aria-busy="true"]')).some(visible))return {loading:true};
     if(!main.querySelector('[role="grid"]') && !/No messages matched/.test(text(main))) return {loading:true};
     // Gmail's default search ranking is "most relevant", which buries the newest
     // Week N announcement. Best-effort flip to "most recent", at most once per
@@ -39,14 +41,18 @@ export function gmailAdapter(command,args={},doc=document) {
       }catch{}
     }
     const threads=[];
-    for(const row of main.querySelectorAll('[role="row"]')) {
+    for(const row of main.querySelectorAll('[role="row"],[role="grid"] tr')) {
       if(!visible(row)) continue;
-      const item=row.querySelector('[data-legacy-thread-id]');
-      const subject=text(item),course=courseFor(subject);
+      const item=row.matches('[data-legacy-thread-id]')?row:row.querySelector('[data-legacy-thread-id]');
+      // Metadata can be on the row or separate from Gmail's subject span.
+      const subject=text(row.querySelector('.bog')||item),course=courseFor(subject);
       const sender=row.querySelector('[email]')?.getAttribute('email')?.toLowerCase();
-      if(!item||!course||sender!==args.senders[course]) continue;
+      if(!item||!course||!senderAllowed(sender,course)) continue;
       const id=item.getAttribute('data-legacy-thread-id');
-      if(!threads.some(t=>t.id===id)) threads.push({id,subject,course,sender,lastMessageId:item.getAttribute('data-legacy-last-message-id')});
+      const words=args.ruleMode==='builtin'?[]:[args.sourceRules?.courses?.[course]?.gmail?.community].flat().flatMap(rule=>rule?.keywords?.navigation||[]).filter(word=>typeof word==='string');
+      const navigationPriority=words.some(w=>subject.toLowerCase().includes(w.toLowerCase()))?40:0;
+      const lastMessageId=item.getAttribute('data-legacy-last-message-id')||row.getAttribute('data-legacy-last-message-id')||row.querySelector('[data-legacy-last-message-id]')?.getAttribute('data-legacy-last-message-id')||null;
+      if(!threads.some(t=>t.id===id)) threads.push({id,subject,course,sender,lastMessageId,navigationPriority});
     }
     return {email,threads};
   }
@@ -62,26 +68,28 @@ export function gmailAdapter(command,args={},doc=document) {
     if(button) button.click();
     return {expanded:Boolean(button)};
   }
-  if(command==='messages') {
+  if(command==='messages'||command==='builderDescribe') {
     // The thread list truncates long subjects, so the h2 on the conversation
     // page may differ from the list text; the last-message id and the course
     // carried over from the list row are the reliable identity signals.
     const subject=text(main.querySelector('h2'));
-    let course;try{course=courseFor(subject)||args.threadCourse;}catch{course=args.threadCourse;}
+    let course;if(command==='builderDescribe'){course=courseFor(subject);if(course!==args.course)throw new Error('builder-course-mismatch');}
+    else try{course=courseFor(subject)||args.threadCourse;}catch{course=args.threadCourse;}
     const messageNodes=Array.from(main.querySelectorAll('[data-legacy-message-id]'));
     if(args.expectedLastMessageId&&!messageNodes.some(msg=>msg.getAttribute('data-legacy-message-id')===args.expectedLastMessageId))return {loading:true,bodiesReady:false};
     if(!course||!messageNodes.length) return {loading:true,bodiesReady:false};
+    if(command==='builderDescribe')return globalThis.__mamoRulePicker.registerRoots({source:'gmail',course,roots:messageNodes.filter(msg=>senderAllowed(msg.querySelector('[email]')?.getAttribute('email')?.toLowerCase(),course)).map(msg=>({root:msg.querySelector('.a3s'),messageKey:msg.getAttribute('data-legacy-message-id')})).filter(item=>item.root&&visible(item.root))});
     const allBodiesReadable=messageNodes.every(msg=>{
       const sender=msg.querySelector('[email]')?.getAttribute('email')?.toLowerCase();
       const body=msg.querySelector('.a3s');
-      return Boolean(sender&&(sender!==args.senders[course]||(body&&visible(body))));
+      return Boolean(sender&&(!senderAllowed(sender,course)||(body&&visible(body))));
     });
     if(args.requireBodiesReady&&!allBodiesReadable)return {loading:true,bodiesReady:false};
     const messages=[];
     for(const msg of messageNodes) {
       const body=msg.querySelector('.a3s');
       const sender=msg.querySelector('[email]')?.getAttribute('email')?.toLowerCase();
-      if(!body||!visible(body)||sender!==args.senders[course]) continue;
+      if(!body||!visible(body)||!senderAllowed(sender,course)) continue;
       const clone=body.cloneNode(true);
       clone.querySelectorAll('.gmail_quote,blockquote,.gmail_signature').forEach(el=>el.remove());
       const attendanceContext=/attendance|签到/i.test(subject+' '+text(clone));
@@ -116,14 +124,16 @@ export function gmailAdapter(command,args={},doc=document) {
         if(block)flush();
       };
       readLines(body);flush();
-      const candidates=Array.from(body.querySelectorAll('img')).filter(img=>!img.closest('.gmail_quote,blockquote,.gmail_signature')&&visible(img)&&!/avatar|profile|emoji|icon|logo|favicon|badge|ytimg|teaching[-_ ]award/i.test(`${img.className||''} ${img.alt||''} ${img.getAttribute('aria-label')||''}`));
-      if(candidates.some(img=>!img.complete && !img.naturalWidth)) return {loading:true,bodiesReady:false};
-      const images=candidates.filter(img=>img.naturalWidth>=60 && img.naturalHeight>=20 && img.naturalHeight<=2000&&(attendanceContext||(img.naturalWidth/img.naturalHeight>=3&&img.naturalHeight<=350))).map(img=>img.currentSrc||img.src);
-      if(!attendanceContext&&!images.length&&!textRows.some(row=>/\b[A-Z0-9]{5}\b/.test(row)&&/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(row)))continue;
-      if(!images.length&&!textRows.length) continue;
+      if(!globalThis.__mamoSourceRules)throw new Error('Source rule runtime unavailable');
+      const selection=args.sourceRules?.courses?.[course]?.gmail;
+      const located=globalThis.__mamoSourceRules.locate({root:body,source:'gmail',course,rules:selection?[selection.builtin,selection.community].flat().filter(Boolean):undefined,mode:args.ruleMode||'combined',contextText:subject+' '+text(clone),collectTrace:Boolean(args.ruleTrace)});
+      if(located.loading)return {loading:true,bodiesReady:false};
+      const images=located.images.map(i=>i.url);
+      if(!args.ruleTrace&&!attendanceContext&&!images.length&&!textRows.some(row=>/\b[A-Z0-9]{5}\b/.test(row)&&/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(row)))continue;
+      if(!images.length&&!textRows.length&&!args.ruleTrace) continue;
       const timestamp=msg.querySelector('.g3[title],.g3[aria-label],time[datetime],[data-tooltip*="202"],[data-tooltip*="20"]');
       const sentAtText=timestamp?.getAttribute('title')||timestamp?.getAttribute('aria-label')||timestamp?.getAttribute('datetime')||timestamp?.getAttribute('data-tooltip')||text(timestamp);
-      messages.push({messageId:msg.getAttribute('data-legacy-message-id'),subject,course,sender,sentAtText,sourceUrl:doc.location.href,sourceType:'gmail',textRows,images});
+      messages.push({messageId:msg.getAttribute('data-legacy-message-id'),subject,course,sender,sentAtText,sourceUrl:doc.location.href,sourceType:'gmail',textRows,images,imageEvidence:located.images,ruleTrace:located.trace,ruleTruncated:located.truncated});
     }
     return {email,messages,bodiesReady:Boolean(args.requireBodiesReady&&allBodiesReadable)};
   }

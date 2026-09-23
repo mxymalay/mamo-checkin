@@ -31,7 +31,7 @@ export function createLoginPreflight({request,onVerified=()=>{},doc=document}){
     verifiedLogin[sites[i]]={tabId:result.tabId};
     button.disabled=true;
    }
-   complete.hidden=false;complete.textContent='初始化检测通过，开始执行签到…';
+   complete.hidden=false;complete.textContent='登录身份已核对，开始检查课程和签到码…';
    await new Promise(resolve=>doc.defaultView.setTimeout(resolve,900));
    if(ticket===generation)finish({verifiedLogin});
   }

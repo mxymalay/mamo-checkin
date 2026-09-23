@@ -51,6 +51,10 @@ test('same-origin page fallback verifies the visible image URL and preserves ori
  const result=await getImage(gmail,17);
  assert.equal(injections,1);assert.equal(calls,2);assert.equal(result.mimeType,'image/jpeg');assert.deepEqual(Buffer.from(result.imageBase64,'base64'),Buffer.from(bytes));
 });
+test('builder fallback stays pinned to the originally authorized document',async t=>{
+ let target;globals(t,{fetch:async()=>{throw new TypeError('fetch failed');},chrome:{scripting:{executeScript:async request=>{target=request.target;return [{result:{ok:true,mimeType:'image/png',imageBase64:'YWJj'}}];}}}});
+ await getImage(gmail,17,{documentId:'original-document'});assert.deepEqual(target,{tabId:17,documentIds:['original-document']});
+});
 test('page fallback rejects a different page origin or a URL not in page images',async t=>{
  let calls=0;
  globals(t,{fetch:async()=>{calls++;throw new TypeError('Failed to fetch');},document:new JSDOM(`<img src="${gmail}">`,{url:'https://learning.monash.edu/course/view.php?id=1'}).window.document,chrome:{scripting:{executeScript:async request=>[{result:await Function(`return (${request.func.toString()})`)()(...request.args)}]}}});
