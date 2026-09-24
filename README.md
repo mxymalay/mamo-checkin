@@ -1,10 +1,17 @@
 # Mamo Check-in · 马莫签到助手
 
+[![Latest release](https://img.shields.io/github/v/release/mxymalay/mamo-checkin?style=flat-square)](https://github.com/mxymalay/mamo-checkin/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+![Platforms: macOS and Windows](https://img.shields.io/badge/Platforms-macOS%20%7C%20Windows-blue?style=flat-square)
+![Built with OpenAI Codex](https://img.shields.io/badge/Built%20with-OpenAI%20Codex-222222?style=flat-square)
+
 [English](#english) · [中文](#中文)
 
 ## English
 
 Collect attendance codes from Gmail, Monash Moodle and Ed, recognize them locally, and check in to matching Monash Malaysia sessions.
+
+Created by **mxymalay** in collaboration with **OpenAI Codex**.
 
 **Chrome · macOS 12+ · Windows 10/11 x64 · English / 简体中文 / 繁體中文**
 
@@ -29,6 +36,8 @@ Students at other schools are welcome to adapt this project. Its modular design 
 ## 中文
 
 从 Gmail、Monash Moodle 和 Ed 收集签到码，在本机识别并匹配 Monash Malaysia 课程场次完成签到。
+
+本项目由 **mxymalay** 与 **OpenAI Codex** 共同完成。
 
 **Chrome · macOS 12+ · Windows 10/11 x64 · 简体中文 / 繁體中文 / English**
 
