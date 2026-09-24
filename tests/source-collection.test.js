@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSourceCollectors} from '../extension/source-collection.js';
+test('historical Gmail collection paginates and uses the requested dates without forcing OCR',async()=>{
+ let page=0;const navigated=[],received=[],args=[];
+ const collector=createSourceCollectors({tabs:{query:async()=>[],get:async()=>({status:'complete'})},createOwnedTab:async()=>1,
+  navigate:async(id,url)=>navigated.push(url),delay:async()=>{},progress:async()=>{},persistCache:async()=>{},sourceEvent:async()=>{},onDiagnostic:async d=>{throw new Error(d.error);},
+  readAdapter:async(id,fn,command,config)=>{
+   args.push(config);
+   if(command==='identity')return {email:'a@student.monash.edu',url:'https://mail.google.com/mail/u/0/'};
+   if(command==='nextPage'){page++;return {advanced:true};}
+   if(command==='list')return {pageSignature:String(page),hasMore:page===0,threads:[{id:`thread${page}`,lastMessageId:`message${page}`,course:'DEMO1000',subject:'DEMO1000 attendance'}]};
+   if(command==='expand')return {};
+   if(command==='messages')return {bodiesReady:true,messages:[{messageId:config.expectedLastMessageId,course:'DEMO1000'}]};
+   throw new Error(command);
+  },onMessages:async messages=>{received.push(...messages);return {completedMessageIds:messages.map(m=>m.messageId)};}});
+ const cache={seenMessages:{},seenThreads:{},moodleProgress:{}};
+ const result=await collector.collectMail({settings:{courses:['DEMO1000'],email:'a@student.monash.edu',sourceModes:{DEMO1000:'email'},senders:{},subjectKeywords:{}},cache,snapshot:{courses:{}},historyLookup:true,dateRange:{from:'2026-01-01',to:'2026-06-01'}});
+ assert.equal(result.complete,true);assert.equal(received.length,2);assert.equal(page,1);assert.equal(cache.forceOcr,false);
+ assert.ok(navigated.some(url=>decodeURIComponent(url).includes('after:1767196799')));
+ assert.ok(args.every(a=>a.sinceDate==='2026-01-01'&&a.untilDate==='2026-06-01'));
+});
 test('isolated Moodle collector reads through shared navigation without a storage or OCR dependency',async()=>{
   const visited=[],messages=[],writes=[],tabs=new Map(),adapterArgs=[];let next=1;
   const io={tabs:{get:async id=>tabs.get(id),update:async(id,patch)=>Object.assign(tabs.get(id),patch)},

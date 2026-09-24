@@ -5,12 +5,12 @@ import {JSDOM} from 'jsdom';
 import {ruleText} from '../extension/source-rules/strings.js';
 
 const read=name=>readFile(new URL('../extension/'+name,import.meta.url),'utf8');
-test('empty records prompt precedes the run log without a dashed divider',async()=>{
+test('records keep the empty prompt without a duplicate log entry or dashed divider',async()=>{
  const dom=new JSDOM(await read('options.html'));
  try{
   const doc=dom.window.document,style=doc.createElement('style');style.textContent=await read('dashboard.css');doc.head.append(style);
   const empty=doc.querySelector('#empty'),log=doc.querySelector('#run-log');
-  assert.ok(empty.compareDocumentPosition(log)&dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+  assert.ok(empty);assert.equal(log,null);assert.ok(doc.querySelector('#run-events-details'));
   assert.notEqual(dom.window.getComputedStyle(empty).borderTopStyle,'dashed');
  }finally{dom.window.close();}
 });

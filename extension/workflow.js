@@ -2,6 +2,7 @@ import {mergeRecords,parseImageRows,parseMailDate,plausibleCode} from './core.js
 import {messageOutsideWindow} from './recent-window.js';
 import {parseMoodleTableRow} from './moodle-table.js';
 import {messageCacheKey} from './source-rules/cache.js';
+import {sourceWeek} from './source-week.js';
 
 export async function reconcileScanAlarm(settings,alarms) {
   const current=await alarms.get('scan');
@@ -68,31 +69,39 @@ function parseTextRecords(msg,meta) {
 
 export async function processCollectedMessages(state,messages,{getImage,ocr,rescueOcr,save,saveDiagnostics=async()=>{},now=()=>new Date().toISOString(),recentOnly=false,progress=async()=>{},shouldContinue=()=>true,refresh=false}) {
   for(const msg of messages) {
-    if(!shouldContinue(msg))continue;
+    const detailId=JSON.stringify([msg.course,msg.messageId]),detail={id:detailId,course:msg.course,title:msg.subject,sourceUrl:msg.sourceUrl,sentAt:msg.sentAt||msg.sentAtText,sourceType:msg.sourceType||'gmail'};
+    const skip=async(reason,quantity=1,id=detailId)=>progress({message:reason,context:{course:msg.course,subject:msg.subject,sourceUrl:msg.sourceUrl},increment:{skipped:quantity},item:{...detail,id,kind:'skipped',state:'skipped',reason,quantity}});
+    const recordDetails=records=>records.slice(0,50).map(({course,date,time,type,group,code,status,reason})=>({course,date,time,type,group,code,status,reason}));
+    if(!shouldContinue(msg)){await skip('该课程无需继续查找');continue;}
     const cacheKey=messageCacheKey(state,msg);
-    if(state.seenMessages[cacheKey]&&!refresh) continue;
+    if(state.seenMessages[cacheKey]&&!refresh){await skip('此消息已处理');continue;}
     if(refresh)delete state.seenMessages[cacheKey];
     const sentAt=typeof msg.sentAt==='string'&&Number.isFinite(Date.parse(msg.sentAt))?msg.sentAt:parseMailDate(msg.sentAtText);
-    if(recentOnly&&messageOutsideWindow({...msg,sentAt},Date.parse(now()))){state.seenMessages[cacheKey]=now();await progress({message:'跳过超过 7 天的旧内容',increment:{skipped:1}});await save();continue;}
-    await progress({message:'正在读取签到文字和图片',context:{course:msg.course,subject:msg.subject,sourceUrl:msg.sourceUrl},increment:{messages:1}});
+    if(recentOnly&&messageOutsideWindow({...msg,sentAt},Date.parse(now()))){state.seenMessages[cacheKey]=now();await skip('跳过超过 7 天的旧内容');await save();continue;}
+    await progress({message:'正在读取签到文字和图片',context:{course:msg.course,subject:msg.subject,sourceUrl:msg.sourceUrl},increment:{messages:1},item:{...detail,kind:'messages',state:'working'}});
     if(!sentAt) {
       await recordDiagnostic(state,{scope:'message',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,error:`无法识别邮件发送年份：${msg.subject}`},saveDiagnostics,now);
+      await progress({item:{...detail,kind:'messages',state:'failed',reason:'无法确认消息日期'}});
       continue;
     }
     let failed=false,incomplete=false;
     const meta={course:msg.course,messageId:msg.messageId,sourceUrl:msg.sourceUrl,sentAt,subject:msg.subject,...(msg.sourceType&&{sourceType:msg.sourceType}),...(msg.dateBasis&&{dateBasis:msg.dateBasis}),...(msg.dateWindow&&{dateWindow:msg.dateWindow})};
     try{
-      const textRecords=parseTextRecords(msg,meta);
-      if(textRecords.length){const before=state.records.length;state.records=mergeRecords(state.records,textRecords);await save();await progress({message:`已保存 ${textRecords.length} 条文字记录`,increment:{records:state.records.length-before}});}
+      const textRecords=parseTextRecords(msg,meta).map(record=>({...record,sourceWeek:sourceWeek(msg),weekEvidenceChecked:true}));
+      if(textRecords.length){const before=state.records.length;state.records=mergeRecords(state.records,textRecords);await save();await progress({message:`已保存 ${textRecords.length} 条文字记录`,sessions:textRecords,increment:{records:state.records.length-before}});}
     }catch(error){
       failed=true;
       await recordDiagnostic(state,{scope:'text',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,error:error?.message||String(error)},saveDiagnostics,now);
     }
     const images=[...new Set(msg.images||[])];
+    state.discoveredRunImages??=new Set();
+    for(const url of images)state.discoveredRunImages.add(JSON.stringify([msg.course,msg.messageId,url]));
+    const totalImages=state.discoveredRunImages.size;
     for(const [imageIndex,imageUrl] of images.entries()) {
-      if(!shouldContinue(msg)){incomplete=true;await progress({message:'该课程所需场次已找到，跳过剩余图片',increment:{skipped:images.length-imageIndex}});break;}
+      if(!shouldContinue(msg)){incomplete=true;await skip('该课程所需场次已找到，跳过剩余图片',images.length-imageIndex,detailId+':remaining-images');break;}
+      const imageDetail={...detail,kind:'images',id:JSON.stringify([msg.course,msg.messageId,imageUrl]),imageUrl,title:msg.subject,position:imageIndex+1};
       try {
-        await progress({message:`正在下载第 ${imageIndex+1}/${images.length} 张图片（最多 20 秒）`});
+        await progress({message:`正在下载第 ${imageIndex+1}/${images.length} 张图片（总计已发现 ${totalImages} 张，最多 20 秒）`,item:{...imageDetail,state:'working'}});
         const payload=await getImage(imageUrl);
         const result=await ocr(payload,meta);
         let records=parseImageRows(result.observations,{...meta,imageId:result.imageId,imagePath:result.imagePath});
@@ -105,13 +114,14 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,resc
           }catch(error){await recordDiagnostic(state,{scope:'ocr-rescue',course:msg.course,messageId:msg.messageId,error:error?.message||String(error)},saveDiagnostics,now);}
         }
         if(!records.length) records.push(incompleteReview(meta,{imageId:result.imageId,imagePath:result.imagePath,rawText:result.observations.map(o=>o.text).join(' '),reason:'图片未识别出完整签到表格'}));
-        records=checkDateBasis(records,msg).map(record=>({...record,sourceRules:msg.imageEvidence?.find(i=>i.url===imageUrl)?.matches||[]}));
+        const week=sourceWeek({...msg,rawText:result.observations.map(o=>o.text).join('\n')});
+        records=checkDateBasis(records,msg).map(record=>({...record,sourceWeek:week,weekEvidenceChecked:true,sourceRules:msg.imageEvidence?.find(i=>i.url===imageUrl)?.matches||[]}));
         const before=state.records.length;state.records=mergeRecords(state.records,records);
         await save();
-        await progress({message:`第 ${imageIndex+1}/${images.length} 张图片已识别并保存`,increment:{images:1,records:state.records.length-before}});
+        await progress({message:`第 ${imageIndex+1}/${images.length} 张图片已识别并保存（总计已发现 ${totalImages} 张）`,increment:{images:1,records:state.records.length-before},item:{...imageDetail,state:records.some(r=>r.status==='review')?'review':'complete',cached:Boolean(result.cached),records:recordDetails(records)}});
       } catch(error) {
         failed=true;
-        await progress({message:`第 ${imageIndex+1}/${images.length} 张图片失败：${error?.message||String(error)}`,level:'error'});
+        await progress({message:`第 ${imageIndex+1}/${images.length} 张图片失败（总计已发现 ${totalImages} 张）：${error?.message||String(error)}`,level:'error',item:{...imageDetail,state:'failed',reason:error?.message||String(error)}});
         await recordDiagnostic(state,{scope:'image',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,imageIndex,error:error?.message||String(error)},saveDiagnostics,now);
       }
     }
@@ -123,6 +133,8 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,resc
         await recordDiagnostic(state,{scope:'message',course:msg.course,sourceUrl:msg.sourceUrl,messageId:msg.messageId,subject:msg.subject,error:error?.message||String(error)},saveDiagnostics,now);
       }
     }
+    const messageRecords=state.records.filter(record=>record.messageId===msg.messageId&&record.course===msg.course);
+    await progress({item:{...detail,kind:'messages',state:failed?'failed':incomplete?'partial':messageRecords.length?(messageRecords.some(r=>r.status==='review')?'review':'complete'):'empty',records:recordDetails(messageRecords),reason:failed?'部分内容处理失败':incomplete?'剩余内容未继续处理':undefined}});
   }
   return state.diagnostics||[];
 }

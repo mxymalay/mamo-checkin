@@ -20,9 +20,9 @@ export function createSourceCollectors(io){
   const delay=async ms=>{check();await io.delay(ms);check();};
   const navigate=async(tab,url)=>{check();await io.navigate(tab,url);check();};
   const courseNeedsSource=(state,course)=>!context.signal?.aborted&&(context.shouldContinue?.(course)??true);
-  const runFunction=async(tab,func,command,args={})=>{check();const data=await io.readAdapter(tab,func,command,{...args,...(context.dateRange?{sinceDate:context.dateRange.from,untilDate:context.dateRange.to,testDateRange:true}:{}),sourceRules:context.snapshot,ruleMode:context.mode||'combined',ruleTrace:Boolean(context.collectTrace)});check();return data;};
+  const runFunction=async(tab,func,command,args={})=>{check();const data=await io.readAdapter(tab,func,command,{...args,...(context.dateRange?{sinceDate:context.dateRange.from,untilDate:context.dateRange.to,testDateRange:true}:{}),...(context.historyLookup?{historyLookup:true}:{}),sourceRules:context.snapshot,ruleMode:context.mode||'combined',ruleTrace:Boolean(context.collectTrace)});check();return data;};
   const createOwnedTab=async(state,url)=>{check();return io.createOwnedTab(url);};
-  const diagnose=async(state,details)=>{check();if(/上限|最多/.test(details.error||''))truncated=true;await io.onDiagnostic(details);};
+  const diagnose=async(state,details)=>{check();if(/上限|最多/.test(details.error||''))truncated=true;if(details.sourceUrl)await state.progress({item:{kind:'pages',id:details.sourceUrl,sourceUrl:details.sourceUrl,course:details.course,title:details.subject,state:'failed',reason:details.error}});await io.onDiagnostic(details);};
   const poll=async(read,predicate,timeout=25000)=>{const end=Date.now()+timeout;let last;while(Date.now()<end){check();try{last=await read();if(predicate(last))return last;}catch(e){if(context.signal?.aborted||e.message?.includes(LOGIN_REQUIRED)||isClosedPageError(e))throw e;last=e;}await delay(600);}throw last instanceof Error?last:new Error('页面没有及时加载');};
   const deliver=async(state,messages,tabId,extra={})=>{
     check();const result=await io.onMessages(messages,{tabId,...extra});check();
@@ -39,7 +39,7 @@ async function collectMail(state,native,verifiedLogin={}){
     await poll(()=>io.tabs.get(tabId),t=>t.status==='complete');
     return runFunction(tabId,gmailAdapter,'identity',cfg);
   },verifiedTabId});
-  await state.progress({message:'Gmail 账号已确认，正在搜索最近 7 天的邮件',context:{sourceUrl:searchUrl}});
+  await state.progress({message:context.historyLookup?`正在回查 Gmail：${context.dateRange.from} 至 ${context.dateRange.to}`:'Gmail 账号已确认，正在搜索最近 7 天的邮件',context:{sourceUrl:searchUrl}});
   if(context.sourceUrl){
     const target=new URL(context.sourceUrl);if(target.pathname!==new URL(searchUrl).pathname)throw new Error('[LOGIN_REQUIRED] Gmail 来源链接属于另一个账号');
     await navigate(tab,target.href);
@@ -48,13 +48,30 @@ async function collectMail(state,native,verifiedLogin={}){
     const data=await poll(()=>runFunction(tab,gmailAdapter,'messages',{...cfg,requireBodiesReady:true}),r=>r&&!r.loading&&r.bodiesReady);
     await deliver(state,data.messages,tab);await state.progress({increment:{pages:1}});return;
   }
-  mailStarted=Date.now();deadline=mailStarted+100000;
+  mailStarted=Date.now();deadline=mailStarted+(context.historyLookup?900000:100000);
   const initial=await poll(()=>runFunction(tab,gmailAdapter,'list',cfg),r=>r&&!r.loading);
+  if(context.historyLookup){
+    let page=initial,pages=1;
+    const signatures=new Set([page.pageSignature]);
+    try{
+    while(page.hasMore===true&&pages<30&&Date.now()<deadline){
+      const next=await runFunction(tab,gmailAdapter,'nextPage',cfg);
+      if(!next.advanced)break;
+      page=await poll(()=>runFunction(tab,gmailAdapter,'list',cfg),r=>r&&!r.loading&&r.pageSignature!==page.pageSignature);
+      if(signatures.has(page.pageSignature))break;
+      signatures.add(page.pageSignature);pages++;
+      initial.threads=[...new Map([...initial.threads,...page.threads].map(t=>[t.id,t])).values()];
+      await state.progress({message:`Gmail 历史列表已读取 ${pages} 页`,increment:{pages:1},context:{sourceUrl:searchUrl}});
+    }
+    }catch(error){check();await diagnose(state,{scope:'gmail',error:`Gmail 历史分页中断：${error.message}`});}
+    if(page.hasMore!==false)await diagnose(state,{scope:'gmail',error:'Gmail 历史列表分页未能确认读完，结果可能不完整。'});
+  }
   const pending=initial.threads.filter(thread=>state.forceOcr||state.settings.ignoreCompleted||state.seenThreads[threadSourceKey({course:thread.course,...state.sourceRules?.courses?.[thread.course]?.gmail,threadId:thread.id})]!==thread.lastMessageId);
-  if(pending.length>40)await diagnose(state,{scope:'gmail',error:'本轮最多处理 40 个新会话，其余下轮继续'});
+  const threadLimit=context.historyLookup?1000:40;
+  if(pending.length>threadLimit)await diagnose(state,{scope:'gmail',error:`本轮最多处理 ${threadLimit} 个新会话，其余未完成`});
   // Round-robin the best threads per course before falling back to score order,
   // so one noisy unit cannot consume the cap before another course's code mail.
-  const queue=prioritiseThreads(pending,{limit:40,perCourse:4});
+  const queue=prioritiseThreads(pending,{limit:threadLimit,perCourse:4});
   await state.progress({message:`Gmail 列表读取完成（${((Date.now()-mailStarted)/1000).toFixed(1)} 秒），${pending.length} 个待检查会话`,increment:{pages:1}});
   for(const [threadIndex,thread] of queue.entries()){
     if(Date.now()>deadline){await diagnose(state,{scope:'gmail',error:'本轮邮件检查达到时间上限，其余会话下轮继续'});break;}
@@ -64,9 +81,9 @@ async function collectMail(state,native,verifiedLogin={}){
       // Open the thread by URL: deterministic, unlike clicking the list row,
       // which virtualised lists and overlays can silently swallow.
       const threadUrl=`${searchUrl.split('#')[0]}#all/${thread.id}`;
-      await state.progress({message:`检查邮件会话 ${threadIndex+1}/${queue.length}（最多等待 25 秒）`,context:{subject:thread.subject,sourceUrl:threadUrl}});
+      await state.progress({message:`检查邮件会话 ${threadIndex+1}/${queue.length}（最多等待 25 秒）`,context:{course:thread.course,subject:thread.subject,sourceUrl:threadUrl}});
       await navigate(tab,threadUrl);
-      await state.progress({message:'正在等待邮件内容（最多等待 25 秒）',context:{subject:thread.subject,sourceUrl:threadUrl}});
+      await state.progress({message:'正在等待邮件内容（最多等待 25 秒）',context:{course:thread.course,subject:thread.subject,sourceUrl:threadUrl}});
       const messageConfig={...cfg,expectedLastMessageId:thread.lastMessageId,threadCourse:thread.course};
       await poll(()=>runFunction(tab,gmailAdapter,'messages',messageConfig),r=>r&&!r.loading);
       await runFunction(tab,gmailAdapter,'expand',cfg);
@@ -76,12 +93,12 @@ async function collectMail(state,native,verifiedLogin={}){
       if(data.bodiesReady&&data.messages.every(msg=>state.seenMessages[messageCacheKey(state,msg)])){state.seenThreads[threadSourceKey({course:thread.course,...state.sourceRules?.courses?.[thread.course]?.gmail,threadId:thread.id})]=thread.lastMessageId;await io.persistCache({seenThreads:state.seenThreads,seenMessages:state.seenMessages});}
     }catch(error){
       truncated=true;
-      await diagnose(state,{scope:'thread',threadId:thread.id,subject:thread.subject,error:error?.message||String(error)});
+      await diagnose(state,{scope:'thread',threadId:thread.id,course:thread.course,sourceUrl:`${searchUrl.split('#')[0]}#all/${thread.id}`,subject:thread.subject,error:error?.message||String(error)});
     }
   }
 }
 async function collectMoodle(state,native,verifiedLogin={}){
-  const cfg=state.settings,deadline=Date.now()+100000;
+  const cfg=state.settings,deadline=Date.now()+(context.historyLookup?900000:100000);
   const courses=cfg.courses.filter(c=>courseUsesSource(cfg,c,'moodle')&&cfg.moodleUrls?.[c]?.length&&courseNeedsSource(state,c));
   if(!courses.length)return;
   let tab=verifiedLogin.moodle?.tabId;
@@ -90,7 +107,7 @@ async function collectMoodle(state,native,verifiedLogin={}){
   for(let i=0;i<courses.length;i++){
     if(Date.now()>deadline){await diagnose(state,{scope:'moodle',error:'本轮 Moodle 检查达到时间上限，其余课程下轮继续'});break;}
     const index=(start+i)%courses.length,course=courses[index];
-    const frontier=await crawlMoodle({roots:context.sourceUrl?[context.sourceUrl]:cfg.moodleUrls[course],previous:state.forceOcr||state.settings.ignoreCompleted?{}:state.moodleProgress[course],deadline,maxPages:context.sourceUrl?1:4,shouldContinue:()=>courseNeedsSource(state,course),version:sourceFrontierVersion({academicYear:cfg.academicYear,course,...state.sourceRules?.courses?.[course]?.moodle,sinceDate:scanSinceDate()}),persist:async progress=>{state.moodleProgress[course]=progress;await io.persistCache({moodleProgress:state.moodleProgress});},read:async url=>{
+    const frontier=await crawlMoodle({roots:context.sourceUrl?[context.sourceUrl]:cfg.moodleUrls[course],previous:state.forceOcr||state.settings.ignoreCompleted?{}:state.moodleProgress[course],deadline,maxDepth:context.historyLookup?Infinity:3,maxPages:context.sourceUrl?1:context.historyLookup?200:4,shouldContinue:()=>courseNeedsSource(state,course),version:sourceFrontierVersion({academicYear:cfg.academicYear,course,...state.sourceRules?.courses?.[course]?.moodle,sinceDate:context.dateRange?.from||scanSinceDate()}),persist:async progress=>{state.moodleProgress[course]=progress;await io.persistCache({moodleProgress:state.moodleProgress});},read:async url=>{
       try{
         const pageStarted=Date.now();
         await state.progress({message:'正在读取 Moodle 页面内容（最多等待 45 秒）',context:{course,sourceUrl:url}});
@@ -113,7 +130,7 @@ async function collectMoodle(state,native,verifiedLogin={}){
   }
 }
 async function collectEd(state,native,verifiedLogin={}){
-  const cfg=state.settings,deadline=Date.now()+100000;
+  const cfg=state.settings,deadline=Date.now()+(context.historyLookup?900000:100000);
   const courses=cfg.courses.filter(c=>courseUsesSource(cfg,c,'ed')&&cfg.edUrls?.[c]?.length&&courseNeedsSource(state,c));
   if(!courses.length)return;
   let tab,rootCourse=null;
@@ -139,12 +156,14 @@ async function collectEd(state,native,verifiedLogin={}){
         // post); process it before following thread links.
         await deliver(state,data.messages,tab);
         const missing=missingSessions(state,course);
-        const selected=selectEdThreads(data.threads||data.threadLinks||[],missing);
+        const selected=selectEdThreads(data.threads||data.threadLinks||[],missing,{limit:context.historyLookup?500:4});
+        if(context.historyLookup)await diagnose(state,{scope:'ed',course,error:'Ed 回查覆盖当前可访问的帖子列表；未验证更早的懒加载帖子，可能不完整。'});
         if(!context.sourceUrl&&(data.threads||data.threadLinks||[]).length>selected.length)truncated=true;
         await io.sourceEvent({event:'ed-selection',course,missing,discovered:data.threadLinks?.length||0,selected});
         const threads=context.sourceUrl?[]:selected.map(t=>t.url);
         for(const [threadIndex,threadUrl] of threads.entries()){
-          if(Date.now()>deadline||!courseNeedsSource(state,course))break;
+          if(Date.now()>deadline){truncated=true;break;}
+          if(!courseNeedsSource(state,course))break;
           try{
             await state.progress({message:`检查 Ed 讨论帖 ${threadIndex+1}/${threads.length}`,context:{course,sourceUrl:threadUrl}});
             const thread=await read(threadUrl);

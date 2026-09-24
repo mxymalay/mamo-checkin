@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../../extension/style.css"><link rel="stylesheet" href="../../extension/dashboard.css">
+<dialog class="metric-details"><header class="metric-dialog-header"><h2>图片</h2><button class="metric-dialog-close" aria-label="关闭">×</button></header><div class="metric-dialog-content"></div></dialog>
+<script type="module">
+import {renderRunDetails} from '../../extension/run-details.js';
+const dialog=document.querySelector('dialog');
+renderRunDetails(dialog.querySelector('.metric-dialog-content'),{counts:{images:12},items:Array.from({length:12},(_,i)=>({kind:'images',id:String(i),course:'DEMO1000',title:'Week 8 Attendance Code',state:i%2?'review':'complete',cached:!i,sourceUrl:'https://example.com',records:[{code:'ABCDE',date:'2026-09-24',time:'18:00',type:'Workshop',group:'01'}]})),events:[{metrics:['images'],message:'Technical event'}]},'images');
+dialog.querySelector('button').onclick=()=>dialog.close();dialog.showModal();
+</script></html>

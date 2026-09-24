@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {expectedSessions} from '../extension/timetable.js';
 import {readFile} from 'node:fs/promises';
 const event=()=>({addListener(){},removeListener(){}});
+test('history background reads completed courses without changing daily records or submitting',async()=>{
+ await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,true,false,false,{history:true});
+});
 async function runScenario(completed,viaAlarm=false,automatic=false,discovery=false,clear=false,reset=false,enabled=true,savedExpired=false,login=false,options={}){
  const previous=globalThis.chrome,previousFetch=globalThis.fetch,tabs=new Map(),opened=[],queries=[],removed=[],statuses=[],ruleRevisions=[];let nativeClosed=0;
  globalThis.fetch=async url=>String(url).startsWith('file:')?{ok:true,json:async()=>JSON.parse(await readFile(url,'utf8'))}:String(url).includes('/official/latest.json')?new Response(null,{status:503}):previousFetch(url);
@@ -37,7 +40,7 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   }},
   alarms:{onAlarm:{addListener(fn){alarmListener=fn;}},get:async()=>({periodInMinutes:15}),create:async()=>{},clear:async()=>{}},
   action:{onClicked:event(),setBadgeText:async()=>{}},
-  storage:{local:{get:async keys=>Object.fromEntries(keys.map(key=>[key,structuredClone(values[key])])),set:async update=>{Object.assign(values,structuredClone(update));if(update.status){statuses.push(structuredClone(update.status));if(options.parallelLogin&&update.status.waitingSite==='attendance')releasePrefetch();}},clear:async()=>{for(const key of Object.keys(values))delete values[key];}}},
+  storage:{local:{get:async keys=>Object.fromEntries((typeof keys==='string'?[keys]:keys).map(key=>[key,structuredClone(values[key])])),set:async update=>{Object.assign(values,structuredClone(update));if(update.status){statuses.push(structuredClone(update.status));if(options.parallelLogin&&update.status.waitingSite==='attendance')releasePrefetch();}},clear:async()=>{for(const key of Object.keys(values))delete values[key];}}},
   tabs:{create:async({url})=>{const tab={id:tabs.size+1,url:options.discoveryLogin&&url.includes('attendance.monash')?'https://monashuni.okta.com/login':login&&url.startsWith('https://mail.google.com')?'https://accounts.google.com/v3/signin/identifier':url,status:'complete'};tabs.set(tab.id,tab);opened.push(url);return tab;},get:async id=>{if(options.closedAttendance&&id===100)throw new Error('No tab with id: 100.');return tabs.get(id);},update:async(id,update)=>Object.assign(tabs.get(id),update),remove:async id=>{removed.push(id);}},
   scripting:{executeScript:async({args,target,func})=>{
     if(func.name==='installSourceRuleRuntime')return [{result:undefined}];
@@ -60,6 +63,19 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
  globalThis.chrome.tabs.query=async()=>[];
  try{
   await import(`../extension/background.js?scenario=${completed.join('-')}&alarm=${viaAlarm}&auto=${automatic}&discover=${discovery}&clear=${clear}&reset=${reset}&enabled=${enabled}&expired=${savedExpired}&login=${login}&options=${encodeURIComponent(JSON.stringify(options))}`);
+  if(options.history){
+   const before=structuredClone(values.records);
+   const request=message=>new Promise(resolve=>listener(message,{id:'test',url:'chrome-extension://test/options.html'},resolve));
+   assert.equal((await request({type:'historyLookupStart',range:{from:'2026-01-01',to:'2026-12-31'}})).ok,true);
+   assert.equal((await request({type:'historyLookupStart',range:{from:'2026-01-01',to:'2026-12-31'}})).ok,false);
+   const end=Date.now()+10000;while(!values.status?.finishedAt&&Date.now()<end)await new Promise(r=>setTimeout(r,2));
+   assert.ok(values.status?.finishedAt);assert.equal(values.status.jobType,'history');
+   assert.notEqual(values.historyLookup.phase,'failed');
+   assert.deepEqual(values.records,before);assert.deepEqual(values.seenThreads,{});
+   assert.ok(values.historyLookup.rows.length);assert.ok(queries.length);
+   assert.ok(queries.flat().includes('ABC1234'));
+   return;
+  }
   if(options.previewRace){
    values.settings.devMode=true;const request=message=>new Promise(resolve=>listener(message,{id:'test',url:'chrome-extension://test/options.html'},resolve));
    const get=chrome.storage.local.get;let release,entered;const held=new Promise(r=>{release=r;}),reached=new Promise(r=>{entered=r;});let once=true;

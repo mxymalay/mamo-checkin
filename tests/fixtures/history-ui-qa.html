@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../../extension/style.css"><link rel="stylesheet" href="../../extension/dashboard.css">
+<dialog class="history-export" id="preview"></dialog>
+<script type="module">
+import {installHistoryLookup} from '../../extension/history-lookup-ui.js';
+import {translate} from '../../extension/i18n.js';
+const host=document.getElementById('preview');
+installHistoryLookup({host,translate:t=>translate(t,'zh'),storage:{onChanged:{addListener(){},removeListener(){}}},request:async()=>({job:{phase:'partial',range:{from:'2026-07-01',to:'2026-09-24'},rows:Array(40).fill({}),warnings:['有 35 条记录未读取到对应网站场次，不能确认历史签到状态。']}})});
+host.showModal();
+</script></html>

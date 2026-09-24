@@ -88,6 +88,36 @@ test('school email Enter verifies and saves only identity, ignoring IME, repeats
   assert.equal(document.getElementById('email-check-status').dataset.state,'success');
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
+test('semester lookup is placed above course filters as an all-course action',async()=>{
+ const {DEFAULTS}=await import('../extension/settings.js');
+ const originalSetInterval=globalThis.setInterval;
+ const env=installDom(async p=>p.type==='health'?{ok:true}:{settings:{...DEFAULTS,name:'Student'},records:[]});
+ try{
+  await import(`../extension/options.js?history-position=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  const panel=document.getElementById('history-export-panel'),tabs=document.getElementById('record-course-tabs');
+  assert.equal(panel.nextElementSibling,tabs);
+  assert.equal(panel.tagName,'DIALOG');
+  assert.ok(document.querySelector('.section-title #export-history'));
+  assert.ok(document.querySelector('#export-history.history-lookup-trigger .history-lookup-icon[aria-hidden="true"]'));
+  assert.equal(document.querySelector('#export-history span:last-child').textContent,'学期历史回查');
+  document.getElementById('export-history').click();assert.equal(panel.open,true);
+  panel.querySelector('.history-close').click();assert.equal(panel.open,false);assert.equal(panel.hidden,true);
+  await new Promise(r=>setTimeout(r,0));
+  const job={range:{from:'2026-09-01',to:'2026-09-24'},rows:[]};
+  for(const fn of env.listeners)fn({historyLookup:{newValue:{...job,phase:'running'}}},'local');
+  assert.equal(panel.open,false);
+  for(const fn of env.listeners)fn({historyLookup:{newValue:{...job,phase:'complete'}}},'local');
+  assert.equal(panel.open,true);assert.equal(panel.hidden,false);
+  panel.querySelector('.history-close').click();
+  for(const fn of env.listeners)fn({historyLookup:{newValue:{...job,phase:'complete'}}},'local');
+  assert.equal(panel.open,false);
+  document.getElementById('run-events-details').querySelector('summary').click();
+  assert.equal(document.getElementById('live-run-log').open,true);
+  assert.equal(document.getElementById('run-events').closest('dialog').id,'live-run-log');
+  assert.equal(document.getElementById('run-log'),null);
+  assert.equal(document.getElementById('download-run-log').closest('dialog').id,'live-run-log');
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
 
 for(const field of ['year','mail-query','enabled','interval'])test(`card save completion resets when ${field} is edited`,async()=>{
  const {DEFAULTS,normalizeSettings}=await import('../extension/settings.js');
@@ -832,7 +862,14 @@ test('record actions have a spaced group and nonzero counters expose source link
   assert.deepEqual([...document.querySelectorAll('.record-code-actions button')].map(n=>n.textContent),['重试','手动补码']);
   const counters=document.querySelectorAll('#run-counts dd');assert.equal(counters[1].querySelector('button'),null);
   counters[0].querySelector('button').click();assert.equal(document.querySelector('.metric-details a').href,'https://mail.google.com/mail/u/0/');
+  assert.equal(document.querySelector('.metric-dialog-header button').textContent,'×');
+  assert.equal(document.querySelector('.metric-dialog-content button'),null);
   document.querySelector('.metric-details button').click();assert.equal(document.querySelector('.metric-details'),null);
+  counters[0].querySelector('button').click();const detail=document.querySelector('.metric-details');
+  detail.getBoundingClientRect=()=>({left:100,right:500,top:100,bottom:500});
+  const press=(x,y)=>{detail.dispatchEvent(new env.dom.window.MouseEvent('pointerdown',{clientX:x,clientY:y,bubbles:true}));detail.dispatchEvent(new env.dom.window.MouseEvent('click',{clientX:x,clientY:y,bubbles:true}));};
+  press(120,120);assert.ok(document.querySelector('.metric-details'));
+  press(20,20);assert.equal(document.querySelector('.metric-details'),null);
   counters[4].querySelector('button').click();assert.equal(document.body.dataset.page,'records');
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });

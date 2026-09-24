@@ -32,6 +32,7 @@ function courseLine(course){
  const detail=document.createElement('span');
  const parts=[];
  if(course.submitted)parts.push(translate(`签到成功 ${course.submitted} 场`));
+ if(course.completed)parts.push(text(`网站已签到 ${course.completed} 场`,`${course.completed} already checked in`));
  if(course.pending)parts.push(translate(`${course.pending} 场等待签到码`));
  if(course.expired)parts.push(translate(`${course.expired} 场已过期`));
  if(course.unresolved)parts.push(translate(`${course.unresolved} 场待核对`));
@@ -41,7 +42,7 @@ function courseLine(course){
 }
 function render(state){
  latest=state;
- const status=state.status||{},config=state.settings||{},summary=status.summary||{};
+ const status=state.status||{},config=state.settings||{},summary=status.jobType==='history'?{...status.summary,history:true,partial:status.summary?.partial??/部分/.test(status.message||'')}:status.summary||{};
  loginNotice.update(status.running?status:null);
  const configured=Boolean(config.name)&&(config.courses||[]).length;
  const completion=popupCompletion(state);
@@ -50,7 +51,11 @@ function render(state){
  else if(status.error)mode='error';
  else if(status.finishedAt){const outcome=checkinResult(summary,false);mode=outcome.tone==='success'?(completion.active?'success':'idle'):outcome.tone==='error'?'error':'waiting';}
  else if(completion.active)mode='success';
+ if(status.jobType==='history'&&status.finishedAt&&!status.running&&!starting&&!status.error&&!summary.partial)mode='success';
  scene(mode);
+ $('popup-status').hidden=false;
+ if(status.jobType==='history'&&status.running&&status.phase!=='waiting'){$('popup-heading').textContent=translate('正在回查');$('popup-caption').textContent=translate('全部已配置课程 · 仅回查，不提交签到');}
+ if(status.jobType==='history'&&!status.running){$('popup-heading').textContent=translate(checkinResult({...summary,history:true,partial:summary.partial??/部分/.test(status.message||'')},Boolean(status.error)).title);$('popup-caption').textContent=translate('本次仅回查历史，未提交签到。请在学期历史回查中下载结果。');}
  if(mode==='waiting'&&!status.running){$('popup-heading').textContent=translate(checkinResult(summary).title);$('popup-caption').textContent=text('详细结果可在更多设置中查看','See More settings for the details');}
  $('popup-mode').textContent=config.enabled?text('自动签到已开启','Auto check-in on'):text('自动签到已关闭','Auto check-in off');
  $('popup-mode').classList.toggle('on',Boolean(config.enabled));
@@ -86,10 +91,15 @@ function render(state){
   $('popup-status').textContent=translate('尚未检查；点击下方按钮立即签到。');
  }
  $('popup-courses').replaceChildren();
- const courses=summary.courses?.length?summary.courses:(config.courses||[]).map(course=>({course,pending:0,reason:''}));
+ if(status.jobType==='history'){
+  $('popup-status').textContent=translate(status.running?status.message||'正在回查':status.error?status.message||checkinDetail(summary):checkinDetail(summary));
+  if(!status.running&&!status.error&&!summary.partial){$('popup-status').textContent='';$('popup-status').hidden=true;}
+ }
+ const courses=summary.checkedCourses?.length?summary.checkedCourses:summary.courses?.length?summary.courses:(config.courses||[]).map(course=>({course,pending:0,reason:status.running?text('正在检查','Checking'):status.finishedAt||completion.active?text('暂无课程明细，请查看记录','No course details; view records'):''}));
  if(!courses.length){const li=document.createElement('li');li.className='popup-empty';li.textContent=translate('暂无课程；点击“更多设置”添加。');$('popup-courses').append(li);}
  for(const course of courses)$('popup-courses').append(courseLine(course));
  scan.textContent=status.running?translate('正在签到…'):translate('立即签到');
+ if(status.jobType==='history'&&status.running)scan.textContent=translate('正在回查');
  scan.disabled=Boolean(status.running)||starting;
 }
 $('popup-scan').addEventListener('click',async()=>{

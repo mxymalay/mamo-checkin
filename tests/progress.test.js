@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRunProgress} from '../extension/progress.js';
+test('structured run details update by identity without being replaced by heartbeat logs',async()=>{
+ let saved;const progress=createRunProgress(async value=>{saved=value;});
+ await progress.update({item:{kind:'images',id:'image1',state:'working',course:'DEMO1000'}});
+ await progress.update({message:'heartbeat'});
+ await progress.update({item:{kind:'images',id:'image1',state:'complete',cached:true}});
+ assert.equal(saved.items.length,1);assert.equal(saved.items[0].state,'complete');assert.equal(saved.items[0].course,'DEMO1000');assert.equal(saved.item,undefined);
+});
 test('parallel collection preserves the login wait while recording its counts and events',async()=>{
  const saved=[],progress=createRunProgress(async value=>saved.push(value));
  await progress.update({phase:'waiting',waitingSite:'attendance',loginDeadline:12345,message:'Waiting for Attendance',context:{sourceUrl:'attendance'}});

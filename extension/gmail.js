@@ -21,6 +21,12 @@ export function gmailAdapter(command,args={},doc=document) {
     if(matches.length>1)throw new Error('多个课程规则同时匹配邮件主题，请修改课程关键词');
     return matches[0];
   };
+  const olderButton=()=>[...doc.querySelectorAll('[role="button"],button')].find(el=>visible(el)&&['aria-label','data-tooltip','title'].some(key=>/^(Older|Next page|较早|較早|更早|下一页|下一頁)$/i.test((el.getAttribute(key)||'').trim().split(' (')[0])));
+  if(command==='nextPage'){
+    const button=olderButton();
+    if(!button||button.disabled||button.getAttribute('aria-disabled')==='true')return {advanced:false};
+    button.click();return {advanced:true};
+  }
   if(command==='list') {
     if(main.matches('[aria-busy="true"]')||Array.from(main.querySelectorAll('[aria-busy="true"]')).some(visible))return {loading:true};
     if(!main.querySelector('[role="grid"]') && !/No messages matched/.test(text(main))) return {loading:true};
@@ -54,7 +60,8 @@ export function gmailAdapter(command,args={},doc=document) {
       const lastMessageId=item.getAttribute('data-legacy-last-message-id')||row.getAttribute('data-legacy-last-message-id')||row.querySelector('[data-legacy-last-message-id]')?.getAttribute('data-legacy-last-message-id')||null;
       if(!threads.some(t=>t.id===id)) threads.push({id,subject,course,sender,lastMessageId,navigationPriority});
     }
-    return {email,threads};
+    const older=olderButton(),rows=[...main.querySelectorAll('[data-legacy-thread-id]')].filter(visible);
+    return {email,threads,...(args.historyLookup?{pageSignature:rows.map(r=>r.getAttribute('data-legacy-thread-id')).join('|'),hasMore:older?!older.disabled&&older.getAttribute('aria-disabled')!=='true':null}: {})};
   }
   if(command==='openThread') {
     const target=Array.from(main.querySelectorAll('[data-legacy-thread-id]')).find(el=>el.getAttribute('data-legacy-thread-id')===args.threadId && visible(el));

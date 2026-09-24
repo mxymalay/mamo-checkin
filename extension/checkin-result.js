@@ -1,4 +1,5 @@
 export function checkinResult(summary={},error=false){
+ if(summary.history)return {success:false,title:error?'学期历史回查未完成':summary.partial?'学期历史回查结束，结果不完整':'学期历史回查完成',tone:error?'error':summary.partial?'warning':'success'};
  const courses=summary.courses||[],records=summary.records||[];
  const expired=courses.some(c=>c.expired>0)||records.some(r=>r.status==='expired');
  const unresolved=courses.some(c=>c.pending>0||c.unresolved>0)||records.some(r=>['waiting_code','ready','review','uncertain','attempting'].includes(r.status));
@@ -10,6 +11,7 @@ export function checkinResult(summary={},error=false){
 }
 
 export function checkinDetail(summary={}){
+ if(summary.history)return '本次仅回查历史，未提交签到。请在学期历史回查中下载结果。';
  const courses=summary.courses||[],records=summary.records||[],parts=[];
  if(summary.submitted)parts.push(`本轮已确认 ${summary.submitted} 场签到成功。`);
  if(courses.some(c=>c.pending||c.unresolved)||records.some(r=>['waiting_code','ready','review','uncertain','attempting'].includes(r.status)))parts.push('仍有场次待处理，请查看签到记录。');

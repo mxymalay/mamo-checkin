@@ -1,5 +1,9 @@
 // Placeholders are values, not prose: never character-convert names or URLs.
 const rows=`
+有 {0} 条记录未读取到对应网站场次，不能确认历史签到状态。|No matching website session was observed for {0} records; historical attendance cannot be confirmed.|有 {0} 條記錄未讀取到對應網站場次，不能確認歷史簽到狀態。
+第 {0}/{1} 张图片失败（总计已发现 {2} 张）：{3:message}|Image {0}/{1} failed ({2} images found in total): {3:message}|第 {0}/{1} 張圖片失敗（總計已發現 {2} 張）：{3:message}
+正在下载第 {0}/{1} 张图片（总计已发现 {2} 张，最多 {3} 秒）|Downloading image {0}/{1} ({2} images found in total, up to {3} seconds)|正在下載第 {0}/{1} 張圖片（總計已發現 {2} 張，最多 {3} 秒）
+第 {0}/{1} 张图片已识别并保存（总计已发现 {2} 张）|Image {0}/{1} recognized and saved ({2} images found in total)|第 {0}/{1} 張圖片已辨識並儲存（總計已發現 {2} 張）
 {0:number} 场|{0:number} sessions|{0:number} 場
 已检测到 1 门课程。请在下方完善课程来源和课表。|1 course detected. Complete the sources and timetable below.|已偵測到 1 門課程。請在下方完善課程來源和課表。
 已检测到 {0} 门课程。请在下方完善课程来源和课表。|{0} courses detected. Complete the sources and timetable below.|已偵測到 {0} 門課程。請在下方完善課程來源和課表。

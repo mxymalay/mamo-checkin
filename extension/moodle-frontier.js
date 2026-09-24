@@ -1,4 +1,4 @@
-export async function crawlMoodle({roots,previous,read,persist,maxPages=8,deadline=Infinity,version='',shouldContinue=()=>true}){
+export async function crawlMoodle({roots,previous,read,persist,maxPages=8,maxDepth=3,deadline=Infinity,version='',shouldContinue=()=>true}){
   const signature=JSON.stringify([roots,version]);
   const same=previous?.signature===signature;
   const visited=new Set(same?previous.visited:[]);
@@ -11,7 +11,7 @@ export async function crawlMoodle({roots,previous,read,persist,maxPages=8,deadli
     visited.add(item.url);pages++;
     const result=await read(item.url);
     const links=Array.isArray(result)?result:result?.links||[];
-    if(item.depth<3){
+    if(item.depth<maxDepth){
       const extraSlots=maxPages-roots.length;
       const hot=(Array.isArray(result)?[]:result?.priorityLinks||[]).filter(url=>!roots.includes(url)&&!prioritized.has(url)).slice(0,Math.max(0,Math.min(2,extraSlots>1?extraSlots-1:extraSlots)-priorityCount));
       for(const url of hot) {prioritized.add(url);visited.delete(url);const index=queue.findIndex(p=>p.url===url);if(index>=0)queue.splice(index,1);}

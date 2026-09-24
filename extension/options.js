@@ -1,4 +1,7 @@
 import {bindIdentityReader} from './identity-input.js';
+import {groupRunLog,renderRunLog,logSessionLabels} from './run-log.js';
+import {renderRunDetails} from './run-details.js';
+import {sourceWeek} from './source-week.js';
 import {userError} from './user-error.js';
 import {uiRequest} from './ui-request.js';
 import {installIdentityChecks} from './email-input.js';
@@ -28,27 +31,26 @@ import {createDemoRecords} from './demo-records.js';
 import {showRecordLink} from './record-link-dialog.js';
 import {displayStatus} from './record-status.js';
 import {isWindows} from './platform.js';
-import {semesterRows} from './history-export.js';
-import {historyReport} from './history-report.js';
+import {installHistoryLookup} from './history-lookup-ui.js';
 const $=id=>document.getElementById(id);
 const loginNotice=createLoginNotice(document);$('status').after(loginNotice.element);
-const historyExport=document.createElement('section');historyExport.className='history-export source-log';historyExport.id='history-export-panel';historyExport.hidden=true;
-historyExport.innerHTML='<h3>学期报告</h3><form id="history-export-form"><div class="history-range"><label>开始日期<input id="history-from" type="date" required></label><label>结束日期<input id="history-to" type="date" required></label></div><label class="history-projection"><input id="history-projected" type="checkbox">包含按当前课表推算的场次</label><p class="hint">推算场次不代表实际上课或签到。网站记录仅包含助手实际读取过的场次。</p><button type="submit" class="subtle">导出 HTML 报告</button></form>';
-document.querySelector('.records .table-wrap').before(historyExport);
+const historyExport=document.createElement('dialog');historyExport.className='history-export source-log';historyExport.id='history-export-panel';historyExport.hidden=true;
+$('record-course-tabs').before(historyExport);
 const exportActions=document.createElement('div');exportActions.className='record-export-actions';$('export').before(exportActions);exportActions.append($('export'));
-const reportButton=document.createElement('button');reportButton.id='export-history';reportButton.type='button';reportButton.className='subtle';reportButton.textContent='学期报告';reportButton.setAttribute('aria-controls',historyExport.id);reportButton.setAttribute('aria-expanded','false');exportActions.append(reportButton);
-reportButton.onclick=()=>{historyExport.hidden=!historyExport.hidden;reportButton.setAttribute('aria-expanded',String(!historyExport.hidden));if(!historyExport.hidden)$('history-from').focus();};
-$('history-export-form').addEventListener('submit',async event=>{
- event.preventDefault();const button=event.submitter;button.disabled=true;
- try{
-  const state=await request({type:'status'}),{attendanceHistory=[]}=await chrome.storage.local.get('attendanceHistory');
-  const rows=semesterRows({from:$('history-from').value,to:$('history-to').value,records:state.records,history:attendanceHistory,settings:state.settings,includeProjected:$('history-projected').checked});
-  if(!rows.length){notice('所选日期范围内没有记录。','error');return;}
-  const url=URL.createObjectURL(new Blob([historyReport(rows,{from:$('history-from').value,to:$('history-to').value,language:document.documentElement.lang})],{type:'text/html;charset=utf-8'}));
-  const link=document.createElement('a');link.href=url;link.download=`mamo-history-${$('history-from').value}-${$('history-to').value}.html`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  notice('学期记录已导出。','success');
- }catch(error){notice(error.message,'error');}finally{button.disabled=false;}
-});
+ $('export').classList.add('current-csv-export');$('export').innerHTML='<span class="csv-export-icon" aria-hidden="true"></span><span>导出当前CSV</span>';
+const reportButton=document.createElement('button');reportButton.id='export-history';reportButton.type='button';reportButton.className='subtle history-lookup-trigger';reportButton.innerHTML='<span class="history-lookup-icon" aria-hidden="true"></span><span>学期历史回查</span>';reportButton.setAttribute('aria-controls',historyExport.id);reportButton.setAttribute('aria-expanded','false');exportActions.append(reportButton);
+let historyInstalled=false;
+reportButton.onclick=()=>{if(!historyInstalled){installHistoryLookup({host:historyExport,request:uiRequest,storage:chrome.storage,translate});const close=document.createElement('button');close.type='button';close.className='history-close';close.textContent='×';close.setAttribute('aria-label',translate('关闭'));close.title=translate('关闭');close.onclick=()=>{if(historyExport.close)historyExport.close();else historyExport.removeAttribute('open');historyExport.hidden=true;reportButton.setAttribute('aria-expanded','false');};historyExport.prepend(close);historyInstalled=true;}historyExport.hidden=false;reportButton.setAttribute('aria-expanded','true');if(!historyExport.open){if(historyExport.showModal)historyExport.showModal();else historyExport.setAttribute('open','');}historyExport.querySelector('[data-date="from"]').focus();};
+historyExport.addEventListener('close',()=>{historyExport.hidden=true;reportButton.setAttribute('aria-expanded','false');});
+historyExport.addEventListener('history-finished',()=>{if(historyExport.open)return;reportButton.click();const result=historyExport.querySelector('.history-job');result.setAttribute('tabindex','-1');result.focus();});
+const liveLog=document.createElement('dialog');liveLog.id='live-run-log';liveLog.className='live-run-dialog';liveLog.setAttribute('aria-labelledby','live-run-title');
+let autoOpenLiveLog=false;
+liveLog.innerHTML='<div class="live-log-header"><h2 id="live-run-title">查看运行日志</h2><button type="button" class="history-close" aria-label="关闭">×</button></div>';
+liveLog.append($('run-events'));document.body.append(liveLog);
+const logActions=document.createElement('div');logActions.className='run-log-actions';logActions.innerHTML='<button id="download-run-log" type="button" class="subtle">下载日志</button>';liveLog.append(logActions);
+liveLog.querySelector('button').onclick=()=>{if(liveLog.close)liveLog.close();else liveLog.removeAttribute('open');};
+function openLiveLog(){renderProgress(latest.status||{});if(!liveLog.open){if(liveLog.showModal)liveLog.showModal();else liveLog.setAttribute('open','');}}
+$('run-events-details').querySelector('summary').addEventListener('click',event=>{event.preventDefault();openLiveLog();});
 const prettyPath=p=>String(p||'').replace(/([^ ])\//g,'$1 / ');
 $('app-version').textContent=globalThis.chrome?.runtime?.getManifest?.()?.version||'';
 const sourceDivider=document.createElement('div');sourceDivider.id='email-moodle-divider';sourceDivider.className='identity-source-divider';sourceDivider.hidden=true;sourceDivider.setAttribute('aria-hidden','true');$('moodle-login').before(sourceDivider);
@@ -95,16 +97,17 @@ async function discoverCourses(automatic=false){
 let observedRun=false,lastResult=null;
 let selectedRecordCourse='latest',recordViewSnapshot='',demoRecords=null;
 function recordWeek(record){
- const sourceWeek=String(record.subject||'').match(/\bweek\s*(\d{1,2})\b/i);
- if(sourceWeek)return `${(record.date||'').slice(0,4)} · Week ${Number(sourceWeek[1])}（来源标注）`;
+ const week=record.weekEvidenceChecked?record.sourceWeek:sourceWeek(record);
+ if(week)return `${(record.date||'').slice(0,4)} · Week ${week.number}（来源标注）`;
  const date=new Date((record.date||'')+'T12:00:00Z');if(Number.isNaN(date.getTime()))return '日期待核对';
  const monday=new Date(date);monday.setUTCDate(date.getUTCDate()-((date.getUTCDay()+6)%7));
  const sunday=new Date(monday);sunday.setUTCDate(monday.getUTCDate()+6);
  const thursday=new Date(monday);thursday.setUTCDate(monday.getUTCDate()+3);
- const week=Math.ceil((((thursday-Date.UTC(thursday.getUTCFullYear(),0,1))/86400000)+1)/7);
  return `${monday.toISOString().slice(0,10)} — ${sunday.toISOString().slice(0,10)}`;
 }
 function showResult(state){
+ if(state.status?.jobType==='history')return;
+ if(liveLog.open){if(liveLog.close)liveLog.close();else liveLog.removeAttribute('open');}
  const status=state.status||{},summary=status.summary||{},confirm=summary.needsConfirmation??(!(status.counts?.records)||state.settings?.courses?.some(c=>!state.settings.schedules?.[c]?.length));
  if(summary.quiet&&!status.error)return;
  let box=$('result-dialog');if(!box){box=document.createElement('dialog');box.id='result-dialog';box.setAttribute('aria-labelledby','result-title');box.innerHTML='<div id="result-success-icon" aria-hidden="true" hidden><svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h2 id="result-title"></h2><p id="result-message"></p><ul id="result-records"></ul><div id="result-login-links" class="setup-links" hidden><a href="https://attendance.monash.edu.my/student/Units.aspx" target="_blank" rel="noreferrer">登录签到系统 ↗</a><a href="https://mail.google.com/" target="_blank" rel="noreferrer">登录 Gmail ↗</a><a href="https://learning.monash.edu/" target="_blank" rel="noreferrer">登录 Moodle ↗</a></div><div class="result-actions"><button id="result-edit" type="button">核对课程配置</button><button id="result-close" type="button">确认</button></div>';document.body.append(box);const close=()=>{if(box.close)box.close();else box.removeAttribute('open');};$('result-close').onclick=close;$('result-edit').onclick=()=>{close();document.querySelector('.courses-card').scrollIntoView?.({behavior:'smooth'});document.querySelector('[data-field="course"]')?.focus();};}
@@ -140,30 +143,27 @@ function renderProgress(status={}){
  const now=Date.now(),context=status.context||{},parts=[context.course,context.subject,context.page?`第 ${context.page} 页`:null].filter(Boolean);
  $('run-context').textContent=parts.join(' · ')||(status.running?'正在准备下一步…':status.finishedAt?(status.error?'本轮已停止，请查看上方原因':'本轮检查已结束'):'尚未开始处理');if(/^https:\/\//.test(context.sourceUrl||'')){const a=document.createElement('a');a.href=context.sourceUrl;a.target='_blank';a.rel='noreferrer';a.textContent=' · 查看当前来源 ↗';$('run-context').append(a);}
  const startedAt=timestamp(status.startedAt),stepStartedAt=timestamp(status.stepStartedAt),updatedAt=timestamp(status.updatedAt),finishedAt=timestamp(status.finishedAt);const timing=[];if(startedAt)timing.push(`总用时 ${elapsed((status.running?now:finishedAt||now)-startedAt)}`);if(status.running&&stepStartedAt)timing.push(`当前步骤 ${elapsed(now-stepStartedAt)}`);if(updatedAt)timing.push(`${Math.max(0,Math.floor((now-updatedAt)/1000))} 秒前更新`);$('run-timing').textContent=timing.join(' · ');
- // Idle runs keep the full log only in the records tab; this live tail is
- // a run-progress view and hides once the run ends.
- if($('run-events-details'))$('run-events-details').hidden=!status.running;
+ // Keep the single modal entry available after completion while logs exist.
+ if($('run-events-details'))$('run-events-details').hidden=!status.running&&!status.events?.length;
  const keys=['pages','messages','images','cached','records','skipped'],counts=status.counts||{};
  [...$('run-counts').querySelectorAll('dd')].forEach((node,index)=>{
   const key=keys[index],count=counts[key]||0;
-  if(!count){node.textContent='0';return;}
+  const hasDetails=(status.items||[]).some(item=>key==='cached'?item.kind==='images'&&item.cached:item.kind===key);
+  if(!count&&!hasDetails){node.textContent='0';return;}
   let button=node.querySelector('button');if(!button){button=document.createElement('button');button.type='button';button.className='metric-link';node.replaceChildren(button);}
   button.textContent=String(count);button.setAttribute('aria-label',`${translate(node.parentElement.querySelector('dt').textContent)} · ${translate('查看详情')}`);
   button.onclick=()=>{
    if(key==='records'){selectedRecordCourse='latest';recordViewSnapshot='';pageTabs.show('records');render(latest);document.querySelector('.records').scrollIntoView?.({block:'start',behavior:'smooth'});return;}
-   const dialog=document.createElement('dialog');dialog.className='metric-details';const title=document.createElement('h2');title.textContent=translate(node.parentElement.querySelector('dt').textContent);dialog.append(title);
-   const matching=(status.events||[]).filter(event=>event.metrics?.includes(key));
-   const events=matching.length?matching:status.events||[];
-   for(const event of events){const p=document.createElement('p');p.textContent=translate(event.message||'');dialog.append(p);if(/^https:\/\//.test(event.context?.sourceUrl||'')){const a=document.createElement('a');a.href=event.context.sourceUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent=sourceLabel(a.href);dialog.append(a);}}
-   if(!events.length){const p=document.createElement('p');p.textContent=translate('暂无运行明细');dialog.append(p);}
-   const close=document.createElement('button');close.type='button';close.textContent=translate('关闭');close.onclick=()=>dialog.close();dialog.append(close);dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
+   const dialog=document.createElement('dialog');dialog.className='metric-details';const header=document.createElement('div');header.className='metric-dialog-header';const title=document.createElement('h2');title.id='metric-dialog-title';title.textContent=translate(node.parentElement.querySelector('dt').textContent);dialog.setAttribute('aria-labelledby',title.id);header.append(title);const content=document.createElement('div');content.className='metric-dialog-content';dialog.append(header,content);
+   dialog.dataset.metric=key;renderRunDetails(content,status,key,translate);
+   const close=document.createElement('button');close.type='button';close.textContent='×';close.className='metric-dialog-close';close.setAttribute('aria-label',translate('关闭'));close.title=translate('关闭');close.onclick=()=>dialog.close();header.append(close);
+   const outside=event=>{const r=dialog.getBoundingClientRect();return event.target===dialog&&(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom);};let backdropDown=false;
+   dialog.addEventListener('pointerdown',event=>{backdropDown=outside(event);});dialog.addEventListener('click',event=>{if(backdropDown&&outside(event))dialog.close();backdropDown=false;});
+   dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
   };
  });
- const liveTail=$('run-events-details');
- if(liveTail?.hidden){liveTail.querySelector('ol')?.replaceChildren();}
- else{$('run-events').replaceChildren();for(const event of (status.events||[]).slice(-8).reverse()){const li=document.createElement('li'),time=document.createElement('time');time.textContent=event.at?new Date(event.at).toLocaleTimeString('zh-CN',{hour12:false}):'—';li.append(time,document.createTextNode(event.message||'运行状态已更新'));const url=event.context?.sourceUrl;if(/^https:\/\//.test(url||'')){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noreferrer';a.textContent='查看来源 ↗';li.append(a);}$('run-events').append(li);}if(!$('run-events').children.length){const li=document.createElement('li');li.textContent='暂无运行明细';$('run-events').append(li);}
- }
- if($('run-log')?.open){$('full-run-events').replaceChildren();for(const [index,event] of (status.events||[]).entries()){const li=document.createElement('li'),time=document.createElement('time');time.textContent=event.at?new Date(event.at).toLocaleString('zh-CN',{hour12:false}):'—';li.append(time,document.createTextNode(event.message||'运行状态已更新'));if(event.level)li.classList.add(event.level);li.dataset.step=String(index+1);const url=event.context?.sourceUrl;if(/^https:\/\//.test(url||'')){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noreferrer';a.textContent='查看来源 ↗';li.append(a);}$('full-run-events').append(li);}if(!$('full-run-events').children.length){const li=document.createElement('li');li.textContent='暂无运行明细';$('full-run-events').append(li);}}
+ for(const dialog of document.querySelectorAll('dialog.metric-details[open]'))renderRunDetails(dialog.querySelector('.metric-dialog-content'),status,dialog.dataset.metric,translate);
+ renderRunLog($('run-events'),status.events||[],translate);
 }
 function renderHealth(service={}){if(service.fallback)$('ocr-log').textContent=translate('浏览器内置识别无独立日志文件');if(service.ocrLogPath)$('ocr-log').textContent=prettyPath(service.ocrLogPath);}
 function scheduleRow(value={}){
@@ -236,8 +236,10 @@ function courseRule(code='',cfg={}){
  rule.querySelector('button').addEventListener('click',()=>{rule.remove();editing=true;syncSaveButton();});fieldHelp(rule);$('courses').append(rule);syncSaveButton();
 }
 function render(state,settings=false){
+  if(state.status?.jobType==='history')state={...state,status:{...state.status,summary:{...state.status.summary,history:true,partial:state.status.summary?.partial??/部分/.test(state.status.message||'')}}};
   latest=state;guide?.update(state);
   const config=state.settings||{},status=state.status||{};
+  if(autoOpenLiveLog&&status.running){autoOpenLiveLog=false;openLiveLog();}
   loginNotice.update(status.running?status:null);
   document.querySelector('.status-card').dataset.state=status.running?(status.phase==='waiting'?'waiting':'working'):status.error?'error':status.finishedAt?checkinResult(status.summary,false).tone:'idle';
   if(status.running)observedRun=true;
@@ -249,7 +251,7 @@ function render(state,settings=false){
   $('status').textContent=statusText;
   renderProgress(status);if(status.service)renderHealth(status.service);if(status.ocrLogPath)$('ocr-log').textContent=prettyPath(status.ocrLogPath);if(status.running&&healthWarning){healthWarning=false;notice('');}
   $('last-run').textContent=status.running?'正在处理，请稍候':status.finishedAt?'最近检查：'+new Date(status.finishedAt).toLocaleString('zh-CN'):'开启后，工具将按设定间隔自动检查。';
-  $('scan').disabled=Boolean(status.running)||scanPending;$('scan').textContent=status.running?'正在签到…':scanPending?'正在请求…':editing?'保存并立即签到':'立即签到';
+  $('scan').disabled=Boolean(status.running)||scanPending;$('scan').textContent=status.running?(status.jobType==='history'?'正在回查':'正在签到…'):scanPending?'正在请求…':editing?'保存并立即签到':'立即签到';
   if(settings&&!editing){$('recognition-only').checked=Boolean(config.recognitionOnly);$('enabled').checked=Boolean(config.enabled);$('dev-mode').checked=Boolean(config.devMode);$('ignore-completed').checked=Boolean(config.ignoreCompleted);$('email').value=emailPrefix(config.email);$('name').value=config.name||'';$('interval').value=String([0.5,1440,4320,7200,10080].includes(config.intervalMinutes)?config.intervalMinutes:1440);$('year').value=String(config.academicYear||new Date().getFullYear());$('mail-query').value=config.mailQuery??'attendance';$('courses').replaceChildren();for(const c of config.courses||[])courseRule(c,config);savedFormSnapshot=formSnapshot();}
   const snapshot=JSON.stringify([config.email,config.name]);if(identitySnapshot&&snapshot!==identitySnapshot&&!editing)for(const binding of Object.values(identityBindings||{}))binding.reset();identitySnapshot=snapshot;
   syncSaveButton();if(status.archiveDir)$('archive').textContent=prettyPath(status.archiveDir);
@@ -422,10 +424,10 @@ async function startManualCheck(course=null){
   if(course&&!settings.courses.includes(course))throw new Error('课程已被移除，请重新配置');
   notice('');
   const preflight=await loginPreflight.run(course?{...settings,courses:[course]}:settings,{onSiteVerified:async(site,result)=>{identityBindings[site]?.markVerified();if(site==='gmail')await request({type:'prefetchMail',expectedIdentity:{email:settings.email,name:settings.name},verifiedLogin:{gmail:{tabId:result.tabId}}}).catch(()=>{});else if(site==='moodle'||site==='attendance')await request({type:'pauseMailPrefetch'});}});if(!preflight)return;if(preflight.error)throw new Error(preflight.error);
-  notice('正在请求后台开始签到…','scan');await request({type:course?'retry':'scan',...(course?{course}:{}),expectedIdentity:{email:settings.email,name:settings.name},verifiedLogin:preflight.verifiedLogin});
+  notice('正在请求后台开始签到…','scan');autoOpenLiveLog=true;await request({type:course?'retry':'scan',...(course?{course}:{}),expectedIdentity:{email:settings.email,name:settings.name},verifiedLogin:preflight.verifiedLogin});
   if(!course)pageTabs.show('records');
   if(scanNotice)notice(translate('正在启动签到检查，请稍候…'),'scan');await refresh();
- }catch(error){notice(error.message,'error');}finally{scanPending=false;render(latest);}
+ }catch(error){autoOpenLiveLog=false;notice(error.message,'error');}finally{scanPending=false;render(latest);}
 }
 $('scan').addEventListener('click',()=>startManualCheck());
 $('settings').addEventListener('invalid',event=>{
@@ -436,15 +438,18 @@ $('settings').addEventListener('invalid',event=>{
  if(!$('config-alert')?.open)configAlert(translate('无法保存：请检查')+' '+text+'。'+input.validationMessage);
 },true);
 fieldHelp($('settings'));
-$('run-log').addEventListener('toggle',()=>renderProgress(latest.status||{}));
 $('download-run-log').addEventListener('click',async()=>{
  try{
  const events=(latest.status?.events)||[];
  const locale=document.documentElement.lang,lines=[translate(`马莫签到助手 ${$('app-version').textContent} 运行日志`),translate(`生成时间：${new Date().toLocaleString(locale,{hour12:false})}`),translate(`条目数：${events.length}`),''];
- for(const event of events){
+ for(const group of groupRunLog(events,translate)){
+  lines.push('',group.title);
+  for(const event of group.events){
   const at=event.at?new Date(event.at).toLocaleString(locale,{hour12:false}):'—';
   const course=event.context?.course||'',subject=event.context?.subject||'',url=event.context?.sourceUrl||'';
+  for(const session of logSessionLabels(event))lines.push(`  ${session}`);
   lines.push(`[${at}]${event.level&&event.level!=='info'?` [${event.level}]`:''} ${translate(event.message||'')}${course?`（${course}${subject?` · ${subject}`:''}）`:''}${/^https:\/\//.test(url)?` ${url}`:''}`);
+ }
  }
  if(!events.length)lines.push(translate('（暂无日志）'));
  const {diagnosticLog=[]}=await chrome.storage.local.get('diagnosticLog');

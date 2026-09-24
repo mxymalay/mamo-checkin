@@ -21,11 +21,11 @@ Created by **mxymalay** in collaboration with **OpenAI Codex**.
 - [GitHub releases](https://github.com/mxymalay/mamo-checkin/releases/latest): extract the extension ZIP, then use **Load unpacked** in `chrome://extensions`.
 - Browser OCR works on both platforms. Mac users can optionally install the [Apple Vision helper](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-mac.zip).
 
-### New in 2.0.1
+### New in 2.1
 
-- Skip unnecessary code searches after checking website attendance status.
-- Clearer login prompts, setup guidance, completion status and run logs.
-- Fix incorrect expiry labels; preserve recognized codes and caches.
+- Read-only semester history lookup with a date picker and filterable HTML export.
+- Clearer course/session logs, recognition details and popup status.
+- Better week labels from message, page and image context; accurate website date coverage.
 
 Recognition runs locally, without third-party AI uploads. Automatic checks require Chrome to stay running and the computer to remain awake. Review uncertain results before relying on them.
 
@@ -47,11 +47,11 @@ Students at other schools are welcome to adapt this project. Its modular design 
 - [GitHub 发布页](https://github.com/mxymalay/mamo-checkin/releases/latest)：下载扩展 ZIP 并解压，在 `chrome://extensions` 中选择“加载已解压的扩展程序”。
 - 两个平台均支持浏览器 OCR；Mac 可选装 [Apple Vision 配套包](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-mac.zip)。
 
-### 2.0.1 更新
+### 2.1 更新
 
-- 先核对网站签到状态，跳过不必要的签到码检索。
-- 优化登录提醒、配置引导、完成状态和运行日志。
-- 修正过期状态误判，保留已识别签到码与缓存。
+- 新增只读学期历史回查，支持日历选日期、下载可筛选的 HTML 结果。
+- 优化课程场次日志、识别明细和小窗状态。
+- 补全消息、网页与图片中的周次信息，正确区分网站可查日期范围。
 
 识别在本机完成，不上传第三方 AI。自动运行需保持 Chrome 运行且电脑不休眠；不确定的结果请自行核对。
 

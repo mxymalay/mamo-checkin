@@ -60,6 +60,7 @@ export function moodleAdapter(command,args={},doc=document){
     const reliableDate=sentAt&&Number.isFinite(Date.parse(sentAt)),dateWindow=post?null:weekWindow(root)||pageWindow;
     messages.push({messageId:`moodle:${args.course}:${post?.getAttribute('data-post-id')||doc.location.href+':'+(root.id||'main')}`,course:args.course,subject:text(post?.querySelector('h3')||root.querySelector('h3')||doc.querySelector('h1'))||args.course,sourceUrl:doc.location.href,sourceType:'moodle',sentAt:reliableDate?sentAt:dateWindow?dateWindow.to+'T23:59:00+08:00':`${args.academicYear}-01-01T00:00:00+08:00`,dateReferenceOnly:!reliableDate&&!dateWindow,dateWindow,dateBasis:reliableDate?'posted-at':dateWindow?'week-range':'reference-year',textRows,images:[...new Set(images)],imageEvidence:located.images,ruleTrace:located.trace,ruleTruncated:located.truncated});
   }
+  for(const message of messages)message.weekContext=[...doc.querySelectorAll('[aria-label="Breadcrumb"] a')].filter(visible).map(text);
   const safePaths=['/course/view.php','/mod/forum/view.php','/mod/forum/discuss.php','/mod/page/view.php'];
   const currentCourse=new URL(doc.location.href).pathname==='/course/view.php'?new URL(doc.location.href).searchParams.get('id'):null;
   const found=new Map();

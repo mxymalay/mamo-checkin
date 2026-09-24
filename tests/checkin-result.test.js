@@ -16,3 +16,7 @@ test('unconfirmed results and missing data do not show green success',()=>{
 });
 
 test('quiet runs report completion without claiming a new successful check-in',()=>{const result=checkinResult({quiet:true});assert.equal(result.success,false);assert.equal(result.title,'本轮签到流程已完成。');assert.notEqual(checkinResult({quiet:true},true).tone,'success');});
+test('read-only history completion is never presented as a failed check-in',()=>{
+ const result=checkinResult({history:true});assert.equal(result.title,'学期历史回查完成');assert.equal(result.success,false);
+ assert.equal(checkinResult({history:true,partial:true}).tone,'warning');
+});

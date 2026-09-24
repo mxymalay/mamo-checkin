@@ -50,6 +50,9 @@ test('popup lists course outcomes and starts a scan with the saved identity',asy
 
 test('popup distinguishes login waiting, scanning, success, partial and failed results in both languages',async()=>{
  const cases=[
+  [{jobType:'history',running:true,message:'正在回查'},'working'],
+  [{jobType:'history',finishedAt:new Date().toISOString(),summary:{history:true,partial:false}},'success'],
+  [{jobType:'history',finishedAt:new Date().toISOString(),summary:{history:true,partial:true}},'waiting'],
   [{running:true,message:'正在签到…'},'working'],
   [{running:true,phase:'waiting',waitingSite:'moodle',loginDeadline:Date.now()+120000},'waiting'],
   [{finishedAt:new Date().toISOString(),summary:{submitted:2}},'success'],
@@ -64,6 +67,10 @@ test('popup distinguishes login waiting, scanning, success, partial and failed r
   try{
    await import(`../extension/popup.js?state=${language}-${mode}-${Math.random()}`);await new Promise(resolve=>setTimeout(resolve,0));
    assert.equal(document.getElementById('popup-scene').dataset.state,mode);
+   if(status.jobType==='history'){
+    assert.match(document.getElementById('popup-heading').textContent,status.running?/正在回查|Looking up history/:/学期历史回查|Semester history lookup/);
+    if(!status.running&&!status.summary.partial){assert.equal(document.getElementById('popup-status').hidden,true);assert.equal(document.getElementById('popup-status').textContent,'');}
+   }
    assert.equal(document.getElementById('popup-scan').disabled,Boolean(status.running));
    if(status.waitingSite)assert.match(document.getElementById('popup-caption').textContent,/Moodle/);
    if(status.waitingSite)assert.match(document.getElementById('popup-heading').textContent,/正在检查登录状态|Checking sign-in status/);
@@ -83,7 +90,12 @@ test('popup keeps completion after a manual run when auto check-in is off',async
   assert.match(document.getElementById('popup-status').textContent,/上次签到时间：|Last check-in:/);
   assert.match(document.getElementById('popup-heading').textContent,/处理完成|All done/);
   assert.match(document.getElementById('popup-caption').textContent,/可以安心去忙啦|You can get back to your day/);
+  assert.doesNotMatch(document.getElementById('popup-courses').textContent,/尚未检查|Not checked/);
  }finally{env.dom.window.close();cleanDom();}
+});
+test('popup displays course-specific website confirmations',async()=>{
+ const env=installDom(async()=>({settings:{name:'Example',courses:['FIT5122']},status:{finishedAt:new Date().toISOString(),summary:{quiet:true,allCompleted:true,checkedCourses:[{course:'FIT5122',completed:2}]}}}));
+ try{await import(`../extension/popup.js?course-confirmed=${Date.now()}`);await new Promise(r=>setTimeout(r,0));assert.match(document.getElementById('popup-courses').textContent,/网站已签到 2 场|2 already checked in/);}finally{env.dom.window.close();cleanDom();}
 });
 
 test('popup returns to ready when the configured completion interval expires',async()=>{

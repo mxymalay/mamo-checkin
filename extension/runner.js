@@ -14,7 +14,7 @@ export async function submitPending(state,adapter,now=Date.now()) {
     // exhausted candidate list defers to manual review.
     const candidates=[...new Set([r.code,...(r.codeCandidates||[]),...(r.conflicts||[])].filter(c=>/^[A-Z0-9]{5}$/.test(c||'')))];
     if(!candidates.length) continue;
-    await adapter.progress?.({message:`核对 ${r.course} ${r.date} ${r.time} ${r.type}`,context:{course:r.course,subject:`${r.date} ${r.time} ${r.type}`}});
+    await adapter.progress?.({message:`核对 ${r.course} ${r.date} ${r.time} ${r.type}`,context:{course:r.course,date:r.date,time:r.time,type:r.type,group:r.group}});
     const matches=activities.filter(a=>matchActivity(r,a));
     if(matches.length!==1) continue;
     const activity=matches[0];

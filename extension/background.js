@@ -4,6 +4,7 @@ import {createRuleLibrary} from './source-rules/library.js';
 import {installSourceRuleRuntime} from './source-rules/runtime.js';
 import {messageCacheKey,pruneRuleCache} from './source-rules/cache.js';
 import {createSourceCollectors} from './source-collection.js';
+import {runHistoryLookup,validateHistoryRange,attendanceDateRange} from './history-lookup.js';
 import {createBackgroundRules} from './background-rules.js';
 import {userError} from './user-error.js';
 import {localizeNotification} from './notification-i18n.js';
@@ -11,7 +12,7 @@ import {syncSessionRecords,repairLocalExpiry} from './session-records.js';
 import {repairOcrState} from './ocr-migration.js';
 import {resolveRecord} from './record-resolution.js';
 import {checkinResult} from './checkin-result.js';
-import {parseActivity,siteDate,matchActivity} from './core.js';
+import {parseActivity,siteDate,matchActivity,mergeRecords} from './core.js';
 import {gmailAdapter} from './gmail.js';
 import {attendanceAdapter} from './attendance.js';
 import {submitPending} from './runner.js';
@@ -92,6 +93,7 @@ const emailCheckAdapters={tabs:loginTabs.tabs,readIdentity:tabId=>runFunction(ta
 
 async function loadState(){const s=await chrome.storage.local.get(['settings','records','seenMessages','seenThreads','moodleProgress','nextCourse','diagnostics','status','ownedTabIds','ocrPreference','ocrRepairVersion']);return {...s,settings:{...DEFAULTS,...s.settings},records:repairLocalExpiry(s.records||[]),seenMessages:s.seenMessages||{},seenThreads:s.seenThreads||{},moodleProgress:s.moodleProgress||{},diagnostics:s.diagnostics||[],ownedTabIds:s.ownedTabIds||[]};}
 async function loadCollectionState(){const state=await loadState(),repair=repairOcrState(state);if(repair){await chrome.storage.local.set(repair);Object.assign(state,repair);}state.sourceRules=await (await getRuleLibrary()).snapshot(state.settings);return state;}
+const needsSource=(state,course)=>state.historyRange?state.settings.courses.includes(course):courseNeedsSource(state,course);
 async function schedule(){const s=await loadState();await reconcileScanAlarm(s.settings,chrome.alarms);await scheduleOfficialRules(chrome.alarms);}
 async function runFunction(tabId,func,command,args={}){const read=async()=>{
   if((func===gmailAdapter&&command==='messages')||((func===moodleAdapter||func===edAdapter)&&command==='read')){
@@ -131,6 +133,7 @@ async function save(state,native){
   pruneRuleCache(state.seenMessages,state.sourceRules);pruneRuleCache(state.seenThreads,state.sourceRules);
   // Chrome storage is the durable submission checkpoint. Downloading an extra
   // snapshot can fail independently without stranding a not-yet-clicked row.
+  if(state.historyRange){await chrome.storage.local.set({historyLookupRecords:state.records});return;}
   await chrome.storage.local.set({records:state.records,seenMessages:state.seenMessages,seenThreads:state.seenThreads,diagnostics:state.diagnostics});
   // The extra JSON download is written once at run end; submission checkpoints
   // and every extracted code are already durable in extension storage.
@@ -145,7 +148,7 @@ const collectionAdapter=(state,native,readImage=getImage)=>({getImage:(...args)=
 },rescueOcr:state.usingBrowserOcr?undefined:async(payload,meta)=>{
  const rescue=await browserOcrService({onProgress:state.progress});
  try{return await prefetchCall(state.prefetchSignal,()=>rescue.call({op:'ocr',...payload,meta,force:Boolean(state.forceOcr)}));}finally{if(state.prefetchSignal?.aborted)void rescue.close().catch(()=>{});else await rescue.close();}
-},save:()=>save(state,native),saveDiagnostics:()=>chrome.storage.local.set({diagnostics:state.diagnostics}),recentOnly:true,refresh:Boolean(state.forceOcr||state.settings.ignoreCompleted),progress:event=>state.progress(event),shouldContinue:msg=>courseNeedsSource(state,msg.course)});
+},save:()=>save(state,native),saveDiagnostics:()=>state.historyRange?Promise.resolve():chrome.storage.local.set({diagnostics:state.diagnostics}),recentOnly:!state.historyRange,refresh:Boolean(state.forceOcr||state.settings.ignoreCompleted),progress:event=>state.progress(event),shouldContinue:msg=>needsSource(state,msg.course)});
 async function diagnose(state,details){
  details={...details,error:userError(details.error,['gmail','thread'].includes(details.scope)?'Gmail':details.scope==='moodle'?'Moodle':details.scope==='ed'?'Ed':details.scope==='archive'?'归档':'Attendance 签到系统')};
  const source=['gmail','thread'].includes(details.scope)?'Gmail':details.scope==='moodle'?'Moodle':details.scope==='ed'?'Ed':'Attendance 签到系统';
@@ -168,11 +171,11 @@ async function recoverCollectorGmail(tabId,email,progress){
 }
 async function collectSource(method,state,native,verifiedLogin={}){
  const collector=createSourceCollectors({tabs:chrome.tabs,readAdapter:(...args)=>prefetchCall(state.prefetchSignal,()=>runFunction(...args)),navigate:(...args)=>prefetchCall(state.prefetchSignal,()=>navigate(...args)),createOwnedTab:url=>createOwnedTab(state,url),delay:ms=>prefetchCall(state.prefetchSignal,()=>delay(ms)),now:Date.now,recoverGmail:recoverCollectorGmail,
-  progress:state.progress,persistCache:patch=>chrome.storage.local.set(patch),onDiagnostic:details=>diagnose(state,details),sourceEvent:details=>appendDiagnostic(chrome.storage.local,details),
+  progress:state.progress,persistCache:patch=>state.historyRange?Promise.resolve():chrome.storage.local.set(patch),onDiagnostic:details=>diagnose(state,details),sourceEvent:details=>appendDiagnostic(chrome.storage.local,details),
   onMessages:async(messages,{tabId,fingerprintImages})=>{
    const completed=[];
    for(const original of messages){
-    if(!courseNeedsSource(state,original.course))break;
+    if(!needsSource(state,original.course))break;
     const msg={...original},payloads=new Map();
     const scheduled=fingerprintImages&&expectedSessions(state.settings,msg.course)!==null;
     if(fingerprintImages&&!scheduled){
@@ -189,7 +192,7 @@ async function collectSource(method,state,native,verifiedLogin={}){
    }
    return {completedMessageIds:completed};
   }});
- return collector[method]({settings:state.settings,snapshot:state.sourceRules,cache:state,verifiedLogin,signal:state.prefetchSignal,forceRead:Boolean(state.forceOcr||state.settings.ignoreCompleted),shouldContinue:course=>courseNeedsSource(state,course)});
+ return collector[method]({settings:state.settings,snapshot:state.sourceRules,cache:state,verifiedLogin,signal:state.prefetchSignal,forceRead:Boolean(state.forceOcr||state.settings.ignoreCompleted),shouldContinue:course=>needsSource(state,course),...(state.historyRange?{dateRange:state.historyRange,historyLookup:true}:{})});
 }
 const collectMail=(state,native,login)=>collectSource('collectMail',state,native,login);
 const collectMoodle=(state,native,login)=>collectSource('collectMoodle',state,native,login);
@@ -243,12 +246,13 @@ async function readWebsiteActivities(state,tab,identityVerified=false){
   await state.progress({message:'正在核对网站已有签到（最多等待 25 秒）',context:{sourceUrl:UNITS}});
   let data;try{const current=await chrome.tabs.get(tab);if(current.url!==UNITS)await navigate(tab,UNITS);data=await poll(()=>runFunction(tab,attendanceAdapter,'activities',{...state.settings,identityVerified}),r=>Array.isArray(r?.activities));}catch(error){throw new Error('Attendance 课表检查失败：'+userError(error,'Attendance 签到系统'));}
   const activities=data.activities.map(a=>({...a,...parseActivity(a.rawText,siteDate(a.dateToken))}));
+  state.attendanceRange=attendanceDateRange(data.dateTokens);
   const {attendanceHistory=[]}=await chrome.storage.local.get(['attendanceHistory']);
   await chrome.storage.local.set({attendanceHistory:mergeHistory(attendanceHistory,activities)});
   state.activities=activities;await state.progress({message:`网站签到状态读取完成（${activities.length} 场）`,increment:{pages:1}});
   for(const activity of activities.filter(a=>state.settings.courses.includes(a.course))){
    const status={completed:'已签到，不重复提交',available:'未签到，网站可录入',expired:'网站已关闭录入',waiting:'网站暂未开放录入'}[activity.state]||'网站状态尚未确认';
-   await state.progress({message:`Attendance 检测：${activity.course} ${activity.date||'日期待核对'} ${activity.time||''} ${activity.type||''} ${activity.group||''}：${status}`,context:{course:activity.course,sourceUrl:UNITS}});
+   await state.progress({message:`Attendance 检测：${activity.course} ${activity.date||'日期待核对'} ${activity.time||''} ${activity.type||''} ${activity.group||''}：${status}`,context:{course:activity.course,date:activity.date,time:activity.time,type:activity.type,group:activity.group,sourceUrl:UNITS}});
   }
   return activities;
 }
@@ -331,7 +335,7 @@ async function submit(state,native){
   await submitPending(configuredState,{list,progress:event=>state.progress(event),beforeAttempt:settingsStillActive,save:()=>save(state,native),submit:async(record,activity)=>{
     const target=new URL(activity.href);
     if(siteDate(target.searchParams.get('d'))!==record.date)throw new Error('签到链接日期不匹配');
-    await state.progress({message:`正在核对并填写 ${record.course} ${record.date} ${record.time}`,context:{course:record.course,sourceUrl:activity.href}});
+    await state.progress({message:`正在核对并填写 ${record.course} ${record.date} ${record.time}`,context:{course:record.course,date:record.date,time:record.time,type:record.type,group:record.group,sourceUrl:activity.href}});
     await navigate(tab,activity.href);
     const form=await poll(()=>runFunction(tab,attendanceAdapter,'form',{}),r=>r?.inputPresent&&r.submitPresent);
     const detail=parseActivity(form.heading,siteDate(new URL(form.url).searchParams.get('d')));
@@ -352,6 +356,43 @@ function createBackgroundProgress(){
   const last=status.events.at(-1);
   if(last&&JSON.stringify(last)!==loggedEvents){loggedEvents=JSON.stringify(last);await appendDiagnostic(chrome.storage.local,{event:'run',...last});}
  });
+}
+async function historyLookup(range){
+ const progress=createBackgroundProgress();let state,native;
+ try{
+  await chrome.storage.local.set({historyLookup:{range,phase:'running',rows:[],warnings:[],startedAt:new Date().toISOString()}});
+  await progress.update({jobType:'history',message:'正在开始学期历史回查；本次不会提交签到',context:{}});
+  await pauseMailPrefetch('开始只读学期历史回查');
+  state=await loadCollectionState();
+  if(!state.settings.courses.length)throw new Error('请先配置课程');
+  const {historyLookupRecords=[]}=await chrome.storage.local.get('historyLookupRecords');
+  state.records=mergeRecords(state.records,historyLookupRecords).filter(r=>state.settings.courses.includes(r.course));
+  state.historyRange=range;state.manualRun=true;state.forceOcr=false;
+  state.settings={...state.settings,ignoreCompleted:false,recognitionOnly:true};
+  state.seenMessages={};state.seenThreads={};state.moodleProgress={};state.nextCourse=0;state.diagnostics=[];
+  state.progress=event=>progress.update(event);
+  const result=await runHistoryLookup(state,range,{
+   enabledSources:['gmail','moodle','ed'].filter(source=>state.settings.courses.some(course=>courseUsesSource(state.settings,course,source==='gmail'?'email':source))),
+   now:()=>new Date().toISOString(),progress:state.progress,
+   persist:job=>chrome.storage.local.set({historyLookup:job}),
+   history:async()=>{const {attendanceHistory=[]}=await chrome.storage.local.get('attendanceHistory');return attendanceHistory.filter(r=>state.settings.courses.includes(r.course));},
+   readAttendance:async()=>{const tab=await createOwnedTab(state,UNITS);await readWebsiteActivities(state,tab);return state.attendanceRange;},
+   collect:async source=>{
+    if(!native)({native}=await connectOcr(state));
+    const count=state.diagnostics.length;
+    const result=await ({gmail:collectMail,moodle:collectMoodle,ed:collectEd}[source])(state,native);
+    return {...result,complete:Boolean(result?.complete)&&state.diagnostics.length===count};
+   }
+  });
+  await progress.finish({message:result.phase==='partial'?'学期历史回查结束，部分来源未完成':'学期历史回查完成，可下载结果',summary:{history:true,partial:result.phase==='partial'},error:false,context:{}});
+ }catch(error){
+  const {historyLookup:previous}=await chrome.storage.local.get('historyLookup');
+  await chrome.storage.local.set({historyLookup:{...(previous?.phase==='running'?previous:{range,rows:[]}),phase:'failed',warnings:[error.message],finishedAt:new Date().toISOString()}});
+  await progress.finish({message:error.message,error:true,context:{}});
+ }finally{
+  if(state)try{await cleanOwnedTabs(state);}catch{}
+  try{await native?.close();}catch{}
+ }
 }
 async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin={},preflight=false){
   await pauseMailPrefetch();
@@ -412,7 +453,7 @@ async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin=
       const activities=(state.activities||[]).filter(a=>a.course===course&&!outsideAttendanceWindow(a)&&recordInSchedule(state.settings,a));
       const records=notificationRecords.filter(r=>r.course===course);
       const submitted=records.filter(r=>r.status==='submitted'&&state.runSubmittedIds.has(r.id)).length;
-      const completed=0;
+      const completed=activities.filter(a=>a.state==='completed').length;
       const pending=activities.filter(a=>a.state==='available'&&!currentRecords.some(r=>r.status==='submitted'&&matchActivity(r,a))).length;
       const expired=records.filter(r=>r.status==='expired').length;
       const unresolved=records.filter(r=>['ready','review','uncertain','attempting'].includes(r.status)).length;
@@ -420,6 +461,7 @@ async function run(manual=false,course=null,expectedIdentity=null,verifiedLogin=
       return {course,submitted,completed,pending,expired,unresolved,reason,diagnostics:state.diagnostics.filter(d=>d.course===course).slice(-5)};
     });
     summary.loginRequired=[...new Set(state.diagnostics.filter(d=>d.error?.includes(LOGIN_REQUIRED)).map(d=>d.error.replace(LOGIN_REQUIRED+' ','')))];
+    summary.checkedCourses=summary.courses;
     summary.courses=summary.courses.filter(c=>c.submitted||c.pending||c.expired||c.unresolved);
     if(summary.loginRequired.length)for(const c of summary.courses)if(c.pending)c.reason='网站登录未完成，签到码来源尚未检查完整。请先登录，再重试。';
     summary.quiet=!failures&&!summary.issues.length&&!summary.needsConfirmation&&!summary.records.length&&!summary.courses.length;
@@ -483,6 +525,16 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('')))return false;
   const guarded=['scan','retry','redetect','prefetchMail','identity','identityField','reset','clearCourses','confirmRecord','fillMissingCode','resolveRecord','readIdentity','checkEmail','checkMoodle','listGmailAccounts','health','settings','preferBrowserOcr','resetOcrPreference'].includes(message.type);
   const handleProduction=async()=>{
+    if(message.type==='historyLookupStart'){
+      if(activeRun||activeDetection||pendingOperations||ruleControl.busy||builderControl.busy||practiceControl.busy)throw new Error('正在运行，请等待本轮结束');
+      const range=validateHistoryRange(message.range);
+      activeRun=historyLookup(range).finally(()=>{activeRun=null;});return {ok:true};
+    }
+    if(message.type==='historyLookupStatus'){
+      const {historyLookup:job}=await chrome.storage.local.get('historyLookup');
+      if(job?.phase==='running'&&!activeRun){job.phase='partial';job.warnings=[...(job.warnings||[]),'回查已中断，保留已收集结果，请重新回查。'];await chrome.storage.local.set({historyLookup:job});}
+      return {ok:true,job};
+    }
     if(message.type==='pauseMailPrefetch'){await pauseMailPrefetch(message.site==='moodle'?'Moodle 登录验证完成，优先核对签到状态':'优先核对 Attendance 签到状态');return {ok:true};}
     if(message.type==='checkEmail')return checkEmailLogin(message,emailCheckAdapters);
     if(message.type==='listGmailAccounts')return listGmailAccounts(emailCheckAdapters,message);
@@ -542,7 +594,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     if(message.type==='clearCourses'){
       if(activeRun||activeDetection||activeMailPrefetch)throw new Error('正在运行，请等待检查结束再清空课程');
       const state=await loadState();
-      await chrome.storage.local.set({settings:{...state.settings,enabled:false,autoDiscover:false,courses:[],sourceModes:{},senders:{},subjectKeywords:{},moodleUrls:{},edUrls:{},schedules:{}},records:[],attendanceHistory:[],diagnosticLog:[],seenMessages:{},seenThreads:{},diagnostics:[],status:{running:false,message:'课程和收集记录已清空'},moodleProgress:{},nextCourse:0});
+      await chrome.storage.local.set({settings:{...state.settings,enabled:false,autoDiscover:false,courses:[],sourceModes:{},senders:{},subjectKeywords:{},moodleUrls:{},edUrls:{},schedules:{}},records:[],attendanceHistory:[],historyLookup:null,historyLookupRecords:[],diagnosticLog:[],seenMessages:{},seenThreads:{},diagnostics:[],status:{running:false,message:'课程和收集记录已清空'},moodleProgress:{},nextCourse:0});
       await chrome.storage.local.set({sourceRuleBindings:{},sourceRuleRevisions:{}});
       await schedule();return {ok:true};
     }

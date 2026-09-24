@@ -34,7 +34,8 @@ export function attendanceAdapter(command,args={},doc=document) {
       const state=/\/tick\.png$/.test(icon)?'completed':/\/absent_code\.png$/.test(icon)?'expired':href?'available':'waiting';
       activities.push({rawText,dateToken:panel.id.slice('dayPanel_'.length),href,state});
     }
-    return {activities};
+    const dateTokens=[...new Set([...panels.map(panel=>panel.id.slice('dayPanel_'.length)),...Array.from(doc.querySelectorAll('select option')).map(option=>option.value.replace(/^dayPanel_/,''))].filter(value=>/^\d{1,2}_[A-Za-z]{3}_\d{2}$/.test(value)))];
+    return {activities,dateTokens};
   }
   if(command==='form' || command==='submit') {
     const inputs=doc.querySelectorAll('#ctl00_ContentPlaceHolder1_sessionCode');

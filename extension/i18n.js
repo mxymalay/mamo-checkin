@@ -2,6 +2,76 @@ import {ruleText} from './source-rules/strings.js';
 import {dynamicText} from './i18n-dynamic.js';
 import {installHeaderMenu} from './personal-settings-menu.js';
 const entries=`
+导出当前CSV|Export current CSV|匯出目前CSV
+检查登录与身份|Sign-in and identity checks|檢查登入與身分
+提交与确认签到|Submit and confirm check-ins|提交與確認簽到
+本轮结果|Run results|本輪結果
+协调来源检测|Coordinate source checks|協調來源檢測
+识别图片与读取缓存|Recognize images and read cache|識別圖片與讀取快取
+查找 Gmail 邮件|Find Gmail messages|尋找 Gmail 郵件
+查找 Moodle 内容|Find Moodle content|尋找 Moodle 內容
+查找 Ed 帖子|Find Ed posts|尋找 Ed 貼文
+读取 Attendance 场次|Read Attendance sessions|讀取 Attendance 場次
+运行准备与进度|Preparation and progress|執行準備與進度
+已跳过|Skipped|已略過
+数量|Quantity|數量
+仅保留最近 500 项明细，计数包含更早项目|Only the latest 500 detail items are retained; counts include earlier items.|僅保留最近 500 項明細，計數包含更早項目
+来源仅返回跳过数量，未提供逐项原因|The source returned a skipped count without individual reasons.|來源僅回傳略過數量，未提供逐項原因
+本轮计数|Run count|本輪計數
+已保留明细|Retained details|已保留明細
+明细尚未生成|Details are not available yet|明細尚未產生
+该次运行未保存此类明细，可重新检查|This run did not save these details. Run another check to collect them.|該次執行未儲存此類明細，可重新檢查
+处理中|Processing|處理中
+处理完成|Processed|處理完成
+处理失败|Processing failed|處理失敗
+部分处理|Partially processed|部分處理
+未提取到签到码|No check-in code extracted|未擷取到簽到碼
+状态未记录|Status not recorded|狀態未記錄
+来源未记录|Source not recorded|來源未記錄
+来源图片|Source image|來源圖片
+预览不可用，查看原图|Preview unavailable. Open original.|預覽不可用，查看原圖
+复用识别缓存|Reused OCR cache|重用識別快取
+查看技术详情|Technical details|查看技術詳情
+该课程无需继续查找|No further lookup needed for this course|該課程無需繼續查找
+此消息已处理|This message has already been processed|此訊息已處理
+无法确认消息日期|Message date could not be confirmed|無法確認訊息日期
+部分内容处理失败|Some content could not be processed|部分內容處理失敗
+剩余内容未继续处理|Remaining content was not processed|剩餘內容未繼續處理
+该课程所需场次已找到，跳过剩余图片|Required sessions found; remaining images skipped|該課程所需場次已找到，略過剩餘圖片
+学期历史回查|Semester history lookup|學期歷史回查
+超出 Attendance 可查范围|Outside the Attendance date range|超出 Attendance 可查範圍
+Attendance 可查范围|Attendance date range|Attendance 可查範圍
+全部已配置课程 · 仅回查，不提交签到|All configured courses · Read-only, no check-ins|全部已設定課程 · 僅回查，不提交簽到
+最近两周|Last two weeks|最近兩週
+最近一个月|Last 30 days|最近一個月
+选择日期|Choose date|選擇日期
+月份|Month|月份
+年份|Year|年份
+上个月|Previous month|上個月
+下个月|Next month|下個月
+查看未完成原因|View incomplete items|查看未完成原因
+关闭弹窗后仍会继续回查|The lookup continues when you close this dialog.|關閉彈窗後仍會繼續回查
+重新回查|Run again|重新回查
+下载结果|Download results|下載結果
+记录数|Records|記錄數
+学期历史回查完成|Semester history lookup complete|學期歷史回查完成
+学期历史回查未完成|Semester history lookup failed|學期歷史回查未完成
+学期历史回查结束，结果不完整|Semester history lookup finished with incomplete results|學期歷史回查結束，結果不完整
+本次仅回查历史，未提交签到。请在学期历史回查中下载结果。|History lookup only; no check-ins were submitted. Download the results from Semester history lookup.|本次僅回查歷史，未提交簽到。請在學期歷史回查中下載結果。
+已提取签到码|Code extracted|已擷取簽到碼
+未找到签到码|Code not found|未找到簽到碼
+未读取到对应网站场次|No matching website session observed|未讀取到對應網站場次
+时间升序，点击切换为降序|Oldest first; click for newest first|時間升序，點擊切換為降序
+时间降序，点击切换为升序|Newest first; click for oldest first|時間降序，點擊切換為升序
+回查范围：全部已配置课程及其已启用来源，不受下方课程标签影响；不包含未配置的课程。|Scope: All configured courses and their enabled sources, regardless of the course tabs below. Unconfigured courses are not included.|回查範圍：全部已設定課程及其已啟用來源，不受下方課程標籤影響；不包含未設定的課程。
+请填写开始日期和结束日期。|Enter the start and end dates.|請填寫開始日期和結束日期。
+只读回查，不会提交签到。关闭此页面后仍会继续。|Read-only lookup. No check-ins will be submitted. You can close this page.|唯讀回查，不會提交簽到。關閉此頁面後仍會繼續。
+开始回查|Start lookup|開始回查
+正在回查|Looking up history|正在回查
+回查完成|Lookup complete|回查完成
+回查结束，结果不完整|Lookup finished with incomplete results|回查結束，結果不完整
+回查未完成|Lookup failed|回查未完成
+下载回查结果|Download results|下載回查結果
 语言|Language|語言
 跟随系统|System language|跟隨系統
 个人配置|Personal settings|個人設定

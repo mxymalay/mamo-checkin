@@ -2,6 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {cleanupOwnedTabs,processCollectedMessages,reconcileScanAlarm} from '../extension/workflow.js';
 import {submitPending} from '../extension/runner.js';
+test('image logs include the running discovered total across messages without double counting refreshes',async()=>{
+ const state={records:[],seenMessages:{},diagnostics:[]},events=[];
+ const messages=[1,2].map(n=>({course:'FIT5122',messageId:'m'+n,sentAt:'2026-09-16T19:00:00+08:00',images:['image'+n]}));
+ const io={getImage:async()=>({}),save:async()=>{},progress:async event=>events.push(event.message),ocr:async()=>({imageId:'i',observations:[]})};
+ await processCollectedMessages(state,messages,io);
+ assert.ok(events.some(message=>message?.includes('总计已发现 2 张')));
+ await processCollectedMessages(state,messages,{...io,refresh:true});
+ assert.equal(state.discoveredRunImages.size,2);
+});
+test('message body week and structured cached image outcomes are retained',async()=>{
+ const state={records:[],seenMessages:{},diagnostics:[]},events=[];
+ await processCollectedMessages(state,[{course:'FIT5122',messageId:'week',subject:'Attendance',textRows:['Week 8'],sentAt:'2026-09-16T19:00:00+08:00',images:['https://example.com/a.png']}],{getImage:async()=>({}),save:async()=>{},progress:async event=>events.push(event),ocr:async()=>({cached:true,imageId:'i',observations:[{text:'ABCDE',x:0,y:0,width:1,height:1,confidence:1}]})});
+ assert.equal(state.records[0].sourceWeek.number,8);assert.equal(state.records[0].sourceWeek.evidence[0].source,'body');
+ assert.ok(events.some(e=>e.item?.kind==='images'&&e.item.cached&&e.item.records[0].code==='ABCDE'));
+ assert.ok(events.some(e=>e.item?.kind==='messages'&&e.item.state==='review'));
+});
 test('prefetched OCR of an older session remains awaiting portal matching',async()=>{
  const state={records:[],seenMessages:{},diagnostics:[]};
  await processCollectedMessages(state,[{course:'FIT5122',messageId:'recent-mail',sentAt:'2026-09-23T19:00:00+08:00',images:['image']}],{

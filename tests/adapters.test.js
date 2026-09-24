@@ -4,6 +4,10 @@ import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {gmailAdapter} from '../extension/gmail.js';
 import {attendanceAdapter} from '../extension/attendance.js';
+test('attendance exposes empty day panels and selectable future dates as coverage',()=>{
+ const page=new JSDOM('<span>Example Student</span><div id="dayPanel_13_Sep_26"></div><div id="dayPanel_24_Sep_26"></div><select><option value="dayPanel_27_Sep_26">Sunday</option><option value="unrelated">Other</option></select>',{url:'https://attendance.monash.edu.my/student/Units.aspx'});
+ try{const result=attendanceAdapter('activities',{name:'Example Student'},page.window.document);assert.deepEqual(result.activities,[]);assert.deepEqual(result.dateTokens,['13_Sep_26','24_Sep_26','27_Sep_26']);}finally{page.window.close();}
+});
 const dom=html=>new JSDOM(html,{url:'https://mail.google.com/mail/u/2/#search/attendance'}).window.document;
 const config={email:'abcd1234@student.monash.edu',name:'Example Student',courses:['FIT5120','FIT5122'],senders:{FIT5120:'lms@example.edu',FIT5122:'teacher@example.edu'}};
 test('keyword-only Gmail accepts matching threads and waits for all message bodies',()=>{

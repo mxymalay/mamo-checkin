@@ -63,6 +63,8 @@ export function edAdapter(command,args={},doc=document){
     }
   }
   }
+  // A thread heading can sit outside an individual timestamp subtree.
+  if(threadId)for(const message of messages)message.weekContext=[...main.querySelectorAll('h1')].filter(visible).map(text);
   const found=new Map();
   const labels=new Map();
   const hints=args.ruleMode==='builtin'?[]:[selection?.community].flat().flatMap(rule=>rule?.keywords?.navigation||[]).filter(word=>typeof word==='string');
