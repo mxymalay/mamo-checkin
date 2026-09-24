@@ -59,6 +59,21 @@ Students at other schools are welcome to adapt this project. Its modular design 
 
 [安装指南](INSTALL.md) · [使用指南](USER-GUIDE.md#中文) · [Mac OCR 说明](OCR-INSTALL.md) · [共享规则](https://github.com/mxymalay/mamo-checkin-rules)
 
+## Screenshots / 界面预览
+
+Popup / 签到小窗
+
+<img src="docs/screenshots/popup.png" alt="签到小窗，顶部插件列表已打码" width="300">
+
+<details>
+<summary>Setup and dashboard / 配置引导与主页面</summary>
+
+![English setup guide](docs/screenshots/setup-en.png)
+
+![繁體中文主页面](docs/screenshots/dashboard-zh-tw.png)
+
+</details>
+
 ## License / 协议
 
 [MIT](LICENSE) · Copyright (c) 2026 [mxymalay](https://github.com/mxymalay).
