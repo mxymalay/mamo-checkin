@@ -22,6 +22,8 @@ Collect attendance codes from Gmail, Monash Moodle and Ed, recognize them locall
 
 Recognition runs locally, without third-party AI uploads. Automatic checks require Chrome to stay running and the computer to remain awake. Review uncertain results before relying on them.
 
+Students at other schools are welcome to adapt this project. Its modular design separates website adapters, recognition rules and the check-in flow, making it easier to customize school branding and integrate your own systems. Keep the original author attribution; adapting another school may require code changes, not just replacing a logo.
+
 [Installation](INSTALL.md) · [User guide](USER-GUIDE.md#english) · [Mac OCR setup](OCR-INSTALL.md) · [Shared rules](https://github.com/mxymalay/mamo-checkin-rules)
 
 ## 中文
@@ -43,6 +45,8 @@ Recognition runs locally, without third-party AI uploads. Automatic checks requi
 - 修正过期状态误判，保留已识别签到码与缓存。
 
 识别在本机完成，不上传第三方 AI。自动运行需保持 Chrome 运行且电脑不休眠；不确定的结果请自行核对。
+
+欢迎其他学校有需要的同学基于本项目改造。项目采用模块化设计，将网站适配、识别规则与签到流程分离，便于调整学校名称、标识并接入自己的学校系统。改造时请保留原作者署名；适配其他学校可能需要修改代码，并非只换标志即可使用。
 
 [安装指南](INSTALL.md) · [使用指南](USER-GUIDE.md#中文) · [Mac OCR 说明](OCR-INSTALL.md) · [共享规则](https://github.com/mxymalay/mamo-checkin-rules)
 
