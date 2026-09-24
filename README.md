@@ -46,6 +46,14 @@ Recognition runs locally, without third-party AI uploads. Automatic checks requi
 
 [安装指南](INSTALL.md) · [使用指南](USER-GUIDE.md#中文) · [Mac OCR 说明](OCR-INSTALL.md) · [共享规则](https://github.com/mxymalay/mamo-checkin-rules)
 
+## License / 协议
+
+[MIT](LICENSE) · Copyright (c) 2026 [mxymalay](https://github.com/mxymalay).
+
+Free to download, use, modify and redistribute, including commercially. Retain the original author's copyright notice and the MIT license. Third-party components retain their own licenses.
+
+允许自由下载、使用、修改和再分发，包括商业用途；须保留原作者 **mxymalay** 的版权署名及 MIT 许可声明。第三方组件遵循各自协议。
+
 ## Development / 开发
 
 ```sh
