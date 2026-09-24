@@ -9,14 +9,17 @@ test('GitHub extension also points users to the separate OCR package',()=>{
  installCompanionDownload(box,{doc});
  assert.ok(box.querySelector('#download-companion'));
  assert.ok(box.querySelector('a[href$="mamo-ocr-mac.zip"]'));
+ const help=box.querySelector('h2 .help-button'),tip=box.querySelector('h2 [role=tooltip]');
+ assert.equal(help.textContent,'?');assert.equal(help.type,'button');assert.equal(help.getAttribute('aria-describedby'),tip.id);
+ assert.match(tip.textContent,/Apple Vision/);assert.doesNotMatch(translate(tip.textContent,'en'),/[\u3400-\u9fff]/);
 });
 test('store installation links to the Mac helper only',()=>{
  const dom=new JSDOM(markup),doc=dom.window.document,box=doc.querySelector('section');
  installCompanionDownload(box,{doc,extensionId:STORE_ID});
  const link=doc.querySelector('#download-companion');assert.ok(link.href.endsWith('mamo-ocr-mac.zip'));
  assert.equal(link.closest('li'),doc.querySelector('.setup-instructions').firstElementChild);assert.equal(link.parentElement.className,'companion-download-row');
- assert.match(link.closest('li').querySelector('.authorization-title').textContent,/第一步：下载/);assert.equal(doc.querySelector('.setup-instructions').children[1].querySelector('.authorization-title').textContent,'第二步：打开解压后的 OCR 包。');assert.equal(doc.querySelector('.setup-instructions').children[2].querySelector('.authorization-title').textContent,'第三步：回到此页面，等待检测通过，自动进入下一步。');
- assert.equal(doc.querySelectorAll('[role=status]').length,0);assert.equal(doc.querySelector('.companion-download-hint').textContent,'请下载后解压。随后进行以下步骤。');assert.equal(link.parentElement.nextElementSibling,doc.querySelector('.companion-download-hint'));assert.doesNotMatch(translate(link.textContent,'en'),/[\u3400-\u9fff]/);assert.doesNotMatch(translate(link.closest('li').querySelector('.authorization-title').textContent,'en'),/[\u3400-\u9fff]/);assert.doesNotMatch(translate(doc.querySelector('.setup-instructions').children[1].querySelector('.authorization-title').textContent,'en'),/[\u3400-\u9fff]/);
+ assert.equal(link.closest('li').querySelector('.authorization-title').textContent,'下载 Mac OCR 配套包');assert.equal(doc.querySelector('.setup-instructions').children[1].querySelector('.authorization-title').textContent,'打开解压后的 OCR 包。');assert.equal(doc.querySelector('.setup-instructions').children[2].querySelector('.authorization-title').textContent,'回到此页面，等待检测通过，自动进入下一步。');
+ assert.equal(doc.querySelectorAll('[role=status]').length,0);assert.equal(doc.querySelector('.companion-download-hint').textContent,'请下载后解压。随后进行以下步骤。');assert.equal(link.nextElementSibling,doc.querySelector('.companion-download-hint'));assert.doesNotMatch(translate(link.textContent,'en'),/[\u3400-\u9fff]/);assert.doesNotMatch(translate(link.closest('li').querySelector('.authorization-title').textContent,'en'),/[\u3400-\u9fff]/);assert.doesNotMatch(translate(doc.querySelector('.setup-instructions').children[1].querySelector('.authorization-title').textContent,'en'),/[\u3400-\u9fff]/);
  dom.window.close();
 });
 test('Windows does not offer a companion OCR package',()=>{

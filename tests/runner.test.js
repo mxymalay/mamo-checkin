@@ -4,6 +4,11 @@ import {submitPending} from '../extension/runner.js';
 const record={id:'one',course:'FIT5122',date:'2026-09-07',type:'Workshop',group:'01',time:'18:00',code:'ABCDE',confidence:1,status:'ready'};
 const anchor=Date.parse('2026-09-08T00:00:00+08:00');
 const activity={...record,state:'available',href:'https://attendance.monash.edu.my/student/Entry.aspx?s=123&d=7_Sep_26'};
+test('a local lookback limit skips submission without claiming the portal expired',async()=>{
+ const state={records:[{...record}]};let submissions=0;
+ await submitPending(state,{list:async()=>[activity],save:async()=>{},submit:async()=>{submissions++;}},anchor+8*86400000);
+ assert.equal(submissions,0);assert.equal(state.records[0].status,'ready');
+});
 test('complete low confidence review tries candidates only after explicit rejection',async()=>{
  const state={records:[{...record,status:'review',confidence:.1,codeCandidates:['8YG3G']}]};const tried=[];let completed=false;
  await submitPending(state,{list:async()=>[{...activity,state:completed?'completed':'available'}],save:async()=>{},submit:async r=>{tried.push(r.code);completed=r.code==='8YG3G';return {rejected:!completed};}},anchor);

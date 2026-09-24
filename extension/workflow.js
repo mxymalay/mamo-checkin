@@ -1,5 +1,5 @@
 import {mergeRecords,parseImageRows,parseMailDate,plausibleCode} from './core.js';
-import {messageOutsideWindow,outsideAttendanceWindow} from './recent-window.js';
+import {messageOutsideWindow} from './recent-window.js';
 import {parseMoodleTableRow} from './moodle-table.js';
 import {messageCacheKey} from './source-rules/cache.js';
 
@@ -106,7 +106,6 @@ export async function processCollectedMessages(state,messages,{getImage,ocr,resc
         }
         if(!records.length) records.push(incompleteReview(meta,{imageId:result.imageId,imagePath:result.imagePath,rawText:result.observations.map(o=>o.text).join(' '),reason:'图片未识别出完整签到表格'}));
         records=checkDateBasis(records,msg).map(record=>({...record,sourceRules:msg.imageEvidence?.find(i=>i.url===imageUrl)?.matches||[]}));
-        if(recentOnly)records=records.map(r=>r.status==='ready'&&outsideAttendanceWindow(r,Date.parse(now()))?{...r,status:'expired',reason:'课程已超过 7 天，不再补签'}:r);
         const before=state.records.length;state.records=mergeRecords(state.records,records);
         await save();
         await progress({message:`第 ${imageIndex+1}/${images.length} 张图片已识别并保存`,increment:{images:1,records:state.records.length-before}});

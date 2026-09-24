@@ -26,7 +26,7 @@ test('popup honours explicit and automatic Traditional Chinese across scene and 
  for(const saved of ['zh_TW','auto']){
   const env=installDom(async()=>({settings:{enabled:false,name:'Example',courses:['FIT5122']},status:{finishedAt:'now'}}),{language:'zh-TW'});
   env.dom.window.localStorage.setItem('mamo-language',saved);globalThis.chrome.i18n={getUILanguage:()=> 'zh-TW'};
-  try{await import(`../extension/popup.js?traditional=${saved}`);await new Promise(r=>setTimeout(r,0));assert.equal(document.documentElement.lang,'zh-TW');assert.equal(document.querySelector('#popup-settings').textContent,'更多設定');assert.match(document.querySelector('#popup-status').textContent,/自動簽到未開啟/);}finally{env.dom.window.close();cleanDom();}
+  try{await import(`../extension/popup.js?traditional=${saved}`);await new Promise(r=>setTimeout(r,0));assert.equal(document.documentElement.lang,'zh-TW');assert.equal(document.querySelector('#popup-settings').textContent,'更多設定');assert.match(document.querySelector('#popup-status').textContent,/沒有可確認的簽到結果/);}finally{env.dom.window.close();cleanDom();}
  }
 });
 
@@ -52,9 +52,10 @@ test('popup distinguishes login waiting, scanning, success, partial and failed r
  const cases=[
   [{running:true,message:'正在签到…'},'working'],
   [{running:true,phase:'waiting',waitingSite:'moodle',loginDeadline:Date.now()+120000},'waiting'],
-  [{finishedAt:'now',summary:{submitted:2}},'success'],
-  [{finishedAt:'now',message:'本轮签到流程已完成。：本轮签到流程已完成',summary:{quiet:true}},'success'],
+  [{finishedAt:new Date().toISOString(),summary:{submitted:2}},'success'],
+  [{finishedAt:new Date().toISOString(),message:'本轮签到流程已完成。：本轮签到流程已完成',summary:{quiet:true}},'success'],
   [{finishedAt:'now',summary:{submitted:1,courses:[{pending:1}]}},'waiting'],
+  [{finishedAt:new Date().toISOString(),summary:{submitted:1,courses:[{expired:1}]}},'waiting'],
   [{finishedAt:'now',error:true},'error']
  ];
  for(const language of ['zh-CN','en-US'])for(const [status,mode] of cases){
@@ -66,21 +67,44 @@ test('popup distinguishes login waiting, scanning, success, partial and failed r
    assert.equal(document.getElementById('popup-scan').disabled,Boolean(status.running));
    if(status.waitingSite)assert.match(document.getElementById('popup-caption').textContent,/Moodle/);
    if(status.waitingSite)assert.match(document.getElementById('popup-heading').textContent,/正在检查登录状态|Checking sign-in status/);
-   if(status.summary?.quiet)assert.match(document.getElementById('popup-status').textContent,/本次无需补签|No additional check-ins/);
+   if(status.summary?.quiet)assert.match(document.getElementById('popup-status').textContent,/上次签到时间：|Last check-in:/);
    assert.match(document.getElementById('popup-mode').textContent,/自动签到已开启|Auto check-in on/);
    if(language==='en-US')assert.doesNotMatch(document.getElementById('popup-scene').textContent,/[\u3400-\u9fff]/);
   }finally{env.dom.window.close();cleanDom();}
  }
 });
 
-test('popup returns to ready state after a manual run when auto check-in is off',async()=>{
- const state={settings:{enabled:false,name:'Example',courses:['ABC1234']},records:[],status:{finishedAt:'now',summary:{submitted:2}}};
+test('popup keeps completion after a manual run when auto check-in is off',async()=>{
+ const state={settings:{enabled:false,name:'Example',courses:['ABC1234']},records:[],status:{finishedAt:new Date().toISOString(),summary:{submitted:2}}};
  const env=installDom(async()=>state);
  try{
   await import(`../extension/popup.js?manual-complete=${Date.now()}`);await new Promise(resolve=>setTimeout(resolve,0));
-  assert.equal(document.getElementById('popup-scene').dataset.state,'idle');
-  assert.match(document.getElementById('popup-status').textContent,/自动签到未开启|Auto check-in is off/);
-  assert.doesNotMatch(document.getElementById('popup-heading').textContent,/处理完成|All done/);
+  assert.equal(document.getElementById('popup-scene').dataset.state,'success');
+  assert.match(document.getElementById('popup-status').textContent,/上次签到时间：|Last check-in:/);
+  assert.match(document.getElementById('popup-heading').textContent,/处理完成|All done/);
+  assert.match(document.getElementById('popup-caption').textContent,/可以安心去忙啦|You can get back to your day/);
+ }finally{env.dom.window.close();cleanDom();}
+});
+
+test('popup returns to ready when the configured completion interval expires',async()=>{
+ const state={settings:{enabled:true,intervalMinutes:30,name:'Example',courses:['ABC1234']},status:{finishedAt:new Date(Date.now()-31*60000).toISOString(),summary:{submitted:1}}};
+ const env=installDom(async()=>state);
+ try{await import(`../extension/popup.js?expired=${Date.now()}`);await new Promise(r=>setTimeout(r,0));assert.equal(document.getElementById('popup-scene').dataset.state,'idle');assert.match(document.getElementById('popup-heading').textContent,/准备好|Ready when/);}finally{env.dom.window.close();cleanDom();}
+});
+test('quiet completed manual checks show their time on the lower status line',async()=>{
+ const env=installDom(async()=>({settings:{enabled:false,name:'Example',courses:['FIT5120']},status:{finishedAt:new Date().toISOString(),summary:{quiet:true,allCompleted:true}}}));
+ globalThis.chrome.i18n={getUILanguage:()=>'zh-CN'};
+ try{await import(`../extension/popup.js?quiet-manual=${Date.now()}`);await new Promise(r=>setTimeout(r,0));assert.match(document.getElementById('popup-status').textContent,/上次签到时间：/);assert.match(document.getElementById('popup-caption').textContent,/可以安心去忙啦/);assert.doesNotMatch(document.getElementById('popup-status').textContent,/自动签到未开启/);}finally{env.dom.window.close();cleanDom();}
+});
+
+test('popup exposes confirmed sign-out instead of a generic waiting message',async()=>{
+ const env=installDom(async()=>({settings:{name:'Example',courses:['FIT5120']},status:{running:true,phase:'waiting',waitingSite:'gmail',loginRequired:true,loginTabId:7,loginDeadline:Date.now()+180000}}));
+ globalThis.chrome.i18n={getUILanguage:()=>'zh-CN'};
+ try{
+  await import(`../extension/popup.js?signout=${Date.now()}`);await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.getElementById('popup-heading').textContent,'需要完成网页登录');
+  assert.equal(document.querySelector('.login-required-notice').hidden,false);
+  assert.equal(document.querySelector('.login-required-notice button').textContent,'前往登录');
  }finally{env.dom.window.close();cleanDom();}
 });
 
@@ -90,6 +114,7 @@ test('an unconfigured popup routes the main button to the full settings page',as
  try{
   await import(`../extension/popup.js?setup=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
   assert.match(document.getElementById('popup-status').textContent,/初始设置|Finish setup/);
+  assert.match(document.getElementById('popup-scan').textContent,/继续完成配置|Continue setup/);
   document.getElementById('popup-scan').click();await new Promise(r=>setTimeout(r,0));
   assert.equal(sent.find(p=>p.type==='scan'),undefined);
   assert.equal(env.opened,1);

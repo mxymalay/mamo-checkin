@@ -273,7 +273,7 @@ Gmail 账号已改变，请重新检测目标邮箱；尚未搜索邮件。|The 
 已恢复本机识别优先；请在上方引导第 1 步安装配套程序。|On-device OCR is preferred again. Install the companion in step 1 of the guide above.|已恢復本機辨識優先；請在上方引導第 1 步安裝配套程式。
 不想麻烦？先尝试下内置识别。|Prefer to keep it simple? Try the built-in recognition first.|不想麻煩？先嘗試下內建辨識。
 下载 Mac OCR 配套程序|Download Mac OCR helper|下載 Mac OCR 配套程式
-第一步：下载 Mac OCR 配套包|Step 1: Download the Mac OCR helper|第一步：下載 Mac OCR 配套包
+下载 Mac OCR 配套包|Download the Mac OCR helper|下載 Mac OCR 配套包
 请下载后解压。随后进行以下步骤。|Download and extract it. Then follow the steps below.|請下載後解壓。隨後進行以下步驟。
 助手连接已失效。请关闭助手页面，从 Chrome 扩展图标重新打开后重试。|The assistant connection expired. Close this page and reopen it from the Chrome extension icon, then retry.|助手連線已失效。請關閉助手頁面，從 Chrome 擴充功能圖示重新開啟後重試。
 读取权限不足。请在 Chrome 扩展管理中允许助手访问对应网站，然后重试。|cannot be read without site permission. Allow access in Chrome extension settings, then retry.|讀取權限不足。請在 Chrome 擴充功能管理中允許助手訪問對應網站，然後重試。
@@ -433,7 +433,7 @@ attendance-ocr 自检|attendance-ocr self-check|attendance-ocr 自檢
 仍要打开|Open Anyway|仍要開啟
 安全性|Security|安全性
 第|Step|第
-自动检测或手动填写。默认无需填写：先从签到页面读取最近 7 天的场次并保存成固定周课表，再查找待签到场次的签到码。信息不全或组别不唯一时请确认；也可手动填写课表。已设课表时，已完成或已取得有效签到码的场次不再查询。|Detect automatically or enter sessions manually. Recent sessions become a recurring timetable. Review incomplete or ambiguous groups. Completed sessions and sessions with usable codes are skipped.|自動偵測或手動填寫。預設無需填寫：先從簽到頁面讀取最近 7 天的場次並儲存成固定周課表，再查詢待簽到場次的簽到碼。資訊不全或組別不唯一時請確認；也可手動填寫課表。已設課表時，已完成或已取得有效簽到碼的場次不再查詢。
+自动检测或手动填写。默认无需填写：先从签到页面读取最近 14 天的场次并保存成固定周课表，再查找待签到场次的签到码。信息不全或组别不唯一时请确认；也可手动填写课表。已设课表时，已完成或已取得有效签到码的场次不再查询。|Detect automatically or enter sessions manually. Recent sessions become a recurring timetable. Review incomplete or ambiguous groups. Completed sessions and sessions with usable codes are skipped.|自動偵測或手動填寫。預設無需填寫：先從簽到頁面讀取最近 14 天的場次並儲存成固定周課表，再查詢待簽到場次的簽到碼。資訊不全或組別不唯一時請確認；也可手動填寫課表。已設課表時，已完成或已取得有效簽到碼的場次不再查詢。
 检测期间请勿关闭浏览器页面。|Keep the browser page open while detection is running.|偵測期間請勿關閉瀏覽器頁面。
 保持 Chrome 运行并登录学校 Gmail、Moodle 和签到系统。电脑睡眠或登录过期时，检查会延后。缺少日期、组别或识别不确定的内容会保存为|Keep Chrome running and sign in to school Gmail, Moodle and attendance. Runs are delayed while the computer sleeps or login expires. Incomplete or uncertain results are marked|保持 Chrome 執行並登入學校 Gmail、Moodle 和簽到系統。電腦睡眠或登入過期時，檢查會延後。缺少日期、組別或辨識不確定的內容會儲存為
 填写 Moodle 课程、Week 栏目或公告网址，每行一个。两种来源都填时先查 Gmail，再从 Moodle 补齐缺少的场次。|Enter Moodle course, weekly section or announcement URLs, one per line. With both sources selected, Gmail is searched first, then Moodle for remaining sessions.|填寫 Moodle 課程、Week 欄目或公告網址，每行一個。兩種來源都填時先查 Gmail，再從 Moodle 補齊缺少的場次。
@@ -462,7 +462,7 @@ attendance-ocr 自检|attendance-ocr self-check|attendance-ocr 自檢
 并完成登录，确认学校邮箱和姓名与设置一致，再返回助手重试。|and sign in. Verify that the email and name match your settings, then retry.|並完成登入，確認學校信箱和姓名與設定一致，再返回助手重試。
 已有签到记录，请使用独立的 Chrome 配置文件切换账号|Attendance records exist. Use a separate Chrome profile for another account.|已有簽到記錄，請使用獨立的 Chrome 設定檔案切換帳號
 已有记录时请使用单独的 Chrome 配置文件切换账号|Records exist. Use a separate Chrome profile for another account.|已有記錄時請使用單獨的 Chrome 設定檔案切換帳號
-已将最近 7 天的课程场次保存为固定周课表，下次直接复用|Recent sessions were saved as a recurring weekly timetable.|已將最近 7 天的課程場次儲存為固定周課表，下次直接複用
+已将最近 14 天的课程场次保存为固定周课表，下次直接复用|Recent sessions were saved as a recurring weekly timetable.|已將最近 14 天的課程場次儲存為固定周課表，下次直接複用
 请填写 Monash Moodle 课程、公告或页面网址|Enter a Monash Moodle course, announcement or page URL.|請填寫 Monash Moodle 課程、公告或頁面網址
 请先在 Chrome 加载此扩展，再从扩展图标打开设置|Load the extension in Chrome, then open settings from its icon.|請先在 Chrome 載入此擴充功能，再從擴充功能圖示開啟設定
 本轮 Moodle 检查达到时间上限，其余课程下轮继续|Moodle time limit reached; remaining courses will continue next run.|本輪 Moodle 檢查達到時間上限，其餘課程下輪繼續
@@ -470,7 +470,7 @@ attendance-ocr 自检|attendance-ocr self-check|attendance-ocr 自檢
 网站待签到场次与已保存课表不一致，请核对或重新检测课程|The site's pending sessions differ from your timetable. Review it or detect courses again.|網站待簽到場次與已儲存課表不一致，請核對或重新偵測課程
 填写学校课程代码，用于匹配邮件、课程页面及签到场次。|Enter the course code to match emails, course pages and attendance sessions.|填寫學校課程代碼，用於匹配郵件、課程頁面及簽到場次。
 页面没有及时加载，请确认 Chrome 中的登录状态|The page did not load in time. Check your Chrome sign-in.|頁面沒有及時載入，請確認 Chrome 中的登入狀態
-信息不完整、组别冲突或近 7 天没有场次，请核对课表|Incomplete details, conflicting groups or no recent sessions. Review the timetable.|資訊不完整、組別衝突或近 7 天沒有場次，請核對課表
+信息不完整、组别冲突或近 14 天没有场次，请核对课表|Incomplete details, conflicting groups or no recent sessions. Review the timetable.|資訊不完整、組別衝突或近 14 天沒有場次，請核對課表
 门课程。请为每门课选择签到码来源，核对课表后保存。|courses. Choose sources, review the timetable and save.|門課程。請為每門課選擇簽到碼來源，核對課表後儲存。
 只填写 4 个英文字母加 4 个数字，后缀固定为|Enter 4 letters followed by 4 digits. The fixed suffix is|只填寫 4 個英文字母加 4 個數字，字尾固定為
 识别服务未就绪，请运行 Mac 识别服务安装命令。|Recognition service is not ready. Run the Mac recognition installer.|辨識服務未就緒，請執行 Mac 辨識服務安裝命令。
@@ -587,7 +587,23 @@ attendance-ocr 自检|attendance-ocr self-check|attendance-ocr 自檢
 自动运行中|Auto-run on|自動執行中
 已暂停|Paused|已暫停
 先完成初始设置：填写姓名并配置课程。|Finish setup first: enter your name and configure courses.|先完成初始設定：填寫姓名並設定課程。
-打开设置完成配置|Open settings to finish setup|開啟設定完成設定
+继续完成配置|Continue setup|繼續完成設定
+请在签到系统完成登录，课程检测会自动继续。|Sign in to Attendance. Course detection will resume automatically.|請在簽到系統完成登入，課程偵測會自動繼續。
+登录尚未完成。请完成登录后点击重新检测课程。|Sign-in is not complete. Sign in, then select Detect courses again.|登入尚未完成。請完成登入後點擊重新偵測課程。
+最近 14 天未检测到课程，可稍后重新检测或手动添加。|No courses were found in the last 14 days. Try again later or add a course manually.|最近 14 天未偵測到課程，可稍後重新偵測或手動新增。
+请输入签到码。|Enter the check-in code.|請輸入簽到碼。
+签到码需为 5 位英文字母或数字，且至少包含一个字母。|Use exactly 5 letters (A-Z) or digits, including at least one letter.|簽到碼需為 5 位英文字母或數字，且至少包含一個字母。
+这看起来是时间而非签到码，请核对原始签到码。|This looks like a time rather than a check-in code. Check the original code.|這看起來是時間而非簽到碼，請核對原始簽到碼。
+签到成功，有过期场次提醒|Check-in successful; expired sessions noted|簽到成功，有過期場次提醒
+检查完成，有过期场次提醒|Check complete; expired sessions noted|檢查完成，有過期場次提醒
+仍有场次待处理，请查看签到记录。|Some sessions still need attention. Check the attendance records.|仍有場次待處理，請查看簽到記錄。
+已过期场次仅作提醒，无法补签。|Expired sessions are reminders only and cannot be checked in retroactively.|已過期場次僅作提醒，無法補簽。
+需要完成网页登录|Sign-in required|需要完成網頁登入
+需要网页登录|Sign-in required|需要網頁登入
+前往登录|Go to sign-in|前往登入
+检测已暂停等待登录，不是系统故障。完成登录后会自动继续。|Waiting for you to sign in, not a system error. Checks will resume automatically after sign-in.|偵測已暫停等待登入，不是系統故障。完成登入後會自動繼續。
+完成登录后会自动继续。|Checks will resume automatically after sign-in.|完成登入後會自動繼續。
+登录页面已关闭，请重新发起检测。|The sign-in page is closed. Start the check again.|登入頁面已關閉，請重新發起偵測。
 正在签到…|Checking in…|正在簽到…
 上次检查未完成，请重试|The last check did not finish; please retry|上次檢查未完成，請重試
 尚未检查；点击下方按钮立即签到。|Not checked yet; click the button below to check in now.|尚未檢查；點選下方按鈕立即簽到。
@@ -702,10 +718,12 @@ Mac 原生图片识别|Mac text recognition|Mac 原生圖片辨識
 安装识别服务|Install recognition service|安裝辨識服務
 填写身份|Enter your details|填寫身分
 登录并配置课程|Sign in and configure courses|登入並設定課程
-先安装 Mac 识别服务|Install Mac recognition service|先安裝 Mac 辨識服務
+安装 Mac 识别服务|Install Mac recognition service|安裝 Mac 辨識服務
+Mac 识别服务说明|About Mac recognition|Mac 辨識服務說明
+使用 Apple Vision，识别速度极快、准确率极高，带来最佳识别体验。|Powered by Apple Vision for exceptionally fast, highly accurate recognition and the best experience.|使用 Apple Vision，辨識速度極快、準確率極高，帶來最佳辨識體驗。
 打开下载并解压的安装包。|Open the downloaded and extracted package.|開啟下載並解壓的安裝包。
 打开解压后的 OCR 包。|Open the extracted OCR package.|開啟解壓後的 OCR 包。
-第二步：打开解压后的 OCR 包。|Step 2: Open the extracted OCR package.|第二步：開啟解壓後的 OCR 包。
+打开解压后的 OCR 包。|Open the extracted OCR package.|開啟解壓後的 OCR 包。
 双击|Double-click|雙擊
 Install Mac Recognition.command|Install Mac Recognition.command|Install Mac Recognition.command
 安装 Mac 识别服务.command|Install Mac Recognition.command|Install Mac Recognition.command
@@ -718,7 +736,7 @@ Install Mac Recognition.command|Install Mac Recognition.command|Install Mac Reco
 回到此页面，等待检测通过，再点击|Return here, wait for verification, then click|回到此頁面，等待偵測通過，再點選
 刷新并继续|Reload and continue|重新整理並繼續
 回到此页面，等待检测通过，自动进入下一步。|Return here and wait for verification; the next step opens automatically.|回到此頁面，等待偵測通過，自動進入下一步。
-第三步：回到此页面，等待检测通过，自动进入下一步。|Step 3: Return here and wait for verification; the next step opens automatically.|第三步：回到此頁面，等待偵測通過，自動進入下一步。
+回到此页面，等待检测通过，自动进入下一步。|Return here and wait for verification; the next step opens automatically.|回到此頁面，等待偵測通過，自動進入下一步。
 上一步|Previous step|上一步
 下一步|Next step|下一步
 安装步骤|Installation steps|安裝步驟
@@ -745,7 +763,7 @@ Install Mac Recognition.command|Install Mac Recognition.command|Install Mac Reco
 登录学校网站，再检测课程|Sign in, then detect your courses|登入學校網站，再偵測課程
 课程配置|Course setup|課程設定
 正在检测课程，请稍候。|Detecting courses. Please wait.|正在偵測課程，請稍候。
-正在自动读取课程，请保持签到系统登录；检测期间请勿关闭浏览器页面。|Reading courses automatically. Keep Attendance signed in and the browser page open while detection runs.|正在自動讀取課程，請保持簽到系統登入；偵測期間請勿關閉瀏覽器頁面。
+正在读取最近 14 天的课程和课表，请保持签到系统登录；检测期间请勿关闭浏览器页面。|Reading courses and timetables from the last 14 days. Keep Attendance signed in and the browser page open while detection runs.|正在讀取最近 14 天的課程和課表，請保持簽到系統登入；偵測期間請勿關閉瀏覽器頁面。
 已检测到课程，请在下方完善课程来源和课表。|Courses detected. Complete the sources and timetable below.|已偵測到課程，請在下方完善課程來源和課表。
 未检测到课程，请检查签到系统登录状态后重试，或手动添加课程。|No courses found. Check your Attendance sign-in and retry, or add a course manually.|未偵測到課程，請檢查簽到系統登入狀態後重試，或手動新增課程。
 需要修改姓名？|Need to change your name?|需要修改姓名？
@@ -805,16 +823,16 @@ Install Mac Recognition.command|Install Mac Recognition.command|Install Mac Reco
 默认使用课程代码|Defaults to course code|預設使用課程代碼
 每行一个网址，最多 3 个|One URL per line, up to 3|每行一個網址，最多 3 個
 课程、Week 栏目或公告网址|course, weekly section or announcement URLs|課程、Week 欄目或公告網址
-默认无需填写：先从签到页面读取最近 7 天的场次并保存成固定周课表，再查找待签到场次的签到码。|Detect recent sessions and save a recurring timetable before searching for codes.|預設無需填寫：先從簽到頁面讀取最近 7 天的場次並儲存成固定周課表，再查詢待簽到場次的簽到碼。
+默认无需填写：先从签到页面读取最近 14 天的场次并保存成固定周课表，再查找待签到场次的签到码。|Detect recent sessions and save a recurring timetable before searching for codes.|預設無需填寫：先從簽到頁面讀取最近 14 天的場次並儲存成固定周課表，再查詢待簽到場次的簽到碼。
 课表按马来西亚时间（UTC+8）运行。默认自动读取签到页面的待签到场次，无需填写每周课表。|Timetables use Malaysia time (UTC+8). Pending sessions are detected automatically.|課表按馬來西亞時間（UTC+8）執行。預設自動讀取簽到頁面的待簽到場次，無需填寫每週課表。
-首次自动检测课程和周课表，再选择签到码来源。课表可修改，也可重新检测后核对保存。|Detect courses and weekly sessions, then choose code sources. You can edit the timetable or detect it again.|首次自動偵測課程和周課表，再選擇簽到碼來源。課表可修改，也可重新偵測後核對儲存。
+自动读取最近 14 天的课程和周课表，再选择签到码来源。|Read courses and weekly sessions from the last 14 days, then choose code sources.|自動讀取最近 14 天的課程和周課表，再選擇簽到碼來源。
 立即签到可单独使用，无需开启自动运行。开启并保存自动运行后可关闭本页面，Chrome 会在后台定时检查。请保持 Chrome 运行、电脑唤醒并登录学校账号。|Check in now works independently. Enable and save scheduled check-in to run with this page closed. Keep Chrome running, your computer awake and your school account signed in.|立即簽到可單獨使用，無需開啟自動執行。開啟並儲存自動執行後可關閉本頁面，Chrome 會在後臺定時檢查。請保持 Chrome 執行、電腦喚醒並登入學校帳號。
 课程中的签到码会按场次整理在这里。|Your attendance sessions and codes will appear here.|課程中的簽到碼會按場次整理在這裡。
 在本机识别与归档，无需额外 AI 账号。|On-device recognition and archiving. No extra AI account required.|在本機辨識與歸檔，無需額外 AI 帳號。
 确定清空所有课程、来源、课表及收集记录吗？此操作不可撤销，自动运行会暂停。本机已归档的图片文件不受影响。|Clear all courses, sources, timetables and attendance records? This cannot be undone. Scheduled runs will pause; archived images remain on this Mac.|確定清空所有課程、來源、課表及收集記錄嗎？此操作不可撤銷，自動執行會暫停。本機已歸檔的圖片檔案不受影響。
 确定清空助手的姓名、邮箱、课程、签到记录和浏览器内缓存吗？此操作不可撤销，自动运行会停止。|Clear your name, email, courses, attendance records and app cache? This cannot be undone. Scheduled runs will stop.|確定清空助手的姓名、信箱、課程、簽到記錄和瀏覽器內快取嗎？此操作不可撤銷，自動執行會停止。
-重新检测最近 7 天的课程和课表？检测结果会填入编辑区，保存后替换原课表。|Detect courses from the last 7 days again? Review and save the results to replace your timetable.|重新偵測最近 7 天的課程和課表？偵測結果會填入編輯區，儲存後替換原課表。
-是否检测课程信息？确认后将打开已登录的签到页面，读取最近 7 天的课程并生成可编辑课表。此步骤不会提交签到。|Detect courses now? The signed-in attendance page will open to read the last 7 days and create an editable timetable. This does not submit attendance.|是否偵測課程資訊？確認後將開啟已登入的簽到頁面，讀取最近 7 天的課程並生成可編輯課表。此步驟不會提交簽到。
+重新检测最近 14 天的课程和课表？检测结果会填入编辑区，保存后替换原课表。|Detect courses from the last 14 days again? Review and save the results to replace your timetable.|重新偵測最近 14 天的課程和課表？偵測結果會填入編輯區，儲存後替換原課表。
+是否检测课程信息？确认后将打开已登录的签到页面，读取最近 14 天的课程并生成可编辑课表。此步骤不会提交签到。|Detect courses now? The signed-in attendance page will open to read the last 14 days and create an editable timetable. This does not submit attendance.|是否偵測課程資訊？確認後將開啟已登入的簽到頁面，讀取最近 14 天的課程並生成可編輯課表。此步驟不會提交簽到。
 未开始|Not started|未開始
 本周|This week|本週
 上周|Last week|上週

@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {cleanupOwnedTabs,processCollectedMessages,reconcileScanAlarm} from '../extension/workflow.js';
 import {submitPending} from '../extension/runner.js';
+test('prefetched OCR of an older session remains awaiting portal matching',async()=>{
+ const state={records:[],seenMessages:{},diagnostics:[]};
+ await processCollectedMessages(state,[{course:'FIT5122',messageId:'recent-mail',sentAt:'2026-09-23T19:00:00+08:00',images:['image']}],{
+  recentOnly:true,now:()=> '2026-09-24T04:00:00.000Z',getImage:async()=>({}),save:async()=>{},
+  ocr:async()=>({imageId:'i',observations:[{text:'Applied Wednesday, 16 Sep 01 6:00PM 8YG3G',x:0,y:.5,width:1,height:.1,confidence:1}]})
+ });
+ assert.equal(state.records.length,1);assert.equal(state.records[0].status,'ready');
+});
 test('incomplete OCR uses one rescue pass and preserves archive identity',async()=>{
  const msg={course:'FIT5122',messageId:'m',sentAt:'2026-09-16T19:00:00+08:00',images:['image']};
  const state={records:[],seenMessages:{},diagnostics:[]};let rescues=0;

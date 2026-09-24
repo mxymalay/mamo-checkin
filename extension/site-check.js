@@ -5,6 +5,7 @@ export async function checkSiteLogin(message,{tabs,readIdentity},site){
  const url=origin+(moodle?'/my/':'/student/Default.aspx');
  const pending=tab=>({ok:true,tabId:tab?.id,needsLogin:true,message:`请在新打开的 ${site} 标签页完成学校账号登录，检测会自动继续；请勿关闭页面。`});
  async function inspect(tab){
+  if(loginRedirect(tab.pendingUrl||tab.url))return {...pending(tab),loginRequired:true};
   if(tab.status!=='complete')return pending(tab);
   const page=new URL(tab.url||url);
   if(page.origin!==origin||loginRedirect(page.href))return pending(tab);
@@ -12,10 +13,10 @@ export async function checkSiteLogin(message,{tabs,readIdentity},site){
   try{
    const result=await readIdentity(tab.id);
    if(!result?.name)return pending(tab);
-   if(moodle&&result.name!==message.name)return {...pending(tab),message:'Moodle 姓名与配置不一致，请登录配置的学校账号后继续检测。'};
+   if(moodle&&result.name!==message.name)return {...pending(tab),loginRequired:true,message:'Moodle 姓名与配置不一致，请登录配置的学校账号后继续检测。'};
    return {ok:true,tabId:tab.id,name:result.name,matched:true};
   }catch(error){
-   if(error.message?.includes(LOGIN_REQUIRED))return pending(tab);
+   if(error.message?.includes(LOGIN_REQUIRED))return {...pending(tab),loginRequired:true};
    throw pageError(error,site);
   }
  }

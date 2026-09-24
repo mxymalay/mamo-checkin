@@ -13,11 +13,19 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
  const prefetchHeld=new Promise(resolve=>{releasePrefetch=resolve;});
  const settings={enabled,email:'abcd1234@student.monash.edu',name:'Example Student',academicYear:2026,intervalMinutes:15,courses:['ABC1234','DEF1234'],senders:{ABC1234:'a@example.edu',DEF1234:'d@example.edu'},subjectKeywords:{ABC1234:'ABC1234',DEF1234:'DEF1234'},moodleUrls:{ABC1234:['https://learning.monash.edu/course/view.php?id=1'],DEF1234:['https://learning.monash.edu/course/view.php?id=2']},schedules:{ABC1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}],DEF1234:[{weekday:1,time:'18:00',type:'Workshop',group:'01'}]}};
  const values={settings,records:savedExpired?[{id:'old-expired',course:'ABC1234',date:'2020-01-01',time:'18:00',status:'expired'}]:[],seenMessages:{},seenThreads:{}};let listener,alarmListener;
+ if(options.priorStatus)values.status=options.priorStatus;
  const activities=settings.courses.flatMap(course=>expectedSessions(settings,course).map(slot=>{
-   const [year,month,day]=slot.date.split('-');
+   const date=options.previousWeekOnly?new Date(Date.parse(slot.date+'T12:00:00Z')-7*86400000).toISOString().slice(0,10):slot.date;
+   const [year,month,day]=date.split('-');
    return {rawText:`${course} Workshop 01 6:00PM`,dateToken:`${+day}_${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+month-1]}_${year.slice(2)}`,state:completed.includes(course)?'completed':'available'};
  }));
  if(automatic)settings.schedules={};
+ if(options.olderDiscovery){
+  for(const [course,days] of [['OLDWEEK1000',10],['TOOOLD1000',16]]){
+   const date=new Date(Date.now()+8*3600000-days*86400000);
+   activities.push({rawText:`${course} Workshop 01 6:00PM`,dateToken:`${date.getUTCDate()}_${date.toLocaleString('en-US',{month:'short',timeZone:'UTC'})}_${String(date.getUTCFullYear()).slice(2)}`,state:'completed'});
+  }
+ }
  if(options.noMail){settings.senders={};settings.email='';}
  if(options.edOnly){settings.senders={};settings.email='';settings.moodleUrls={};settings.edUrls={ABC1234:['https://edstem.org/au/courses/123'],DEF1234:['https://edstem.org/au/courses/456']};}
  if(clear){settings.sourceModes={ABC1234:'all'};settings.edUrls={ABC1234:['https://edstem.org/au/courses/123']};}
@@ -30,7 +38,7 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   alarms:{onAlarm:{addListener(fn){alarmListener=fn;}},get:async()=>({periodInMinutes:15}),create:async()=>{},clear:async()=>{}},
   action:{onClicked:event(),setBadgeText:async()=>{}},
   storage:{local:{get:async keys=>Object.fromEntries(keys.map(key=>[key,structuredClone(values[key])])),set:async update=>{Object.assign(values,structuredClone(update));if(update.status){statuses.push(structuredClone(update.status));if(options.parallelLogin&&update.status.waitingSite==='attendance')releasePrefetch();}},clear:async()=>{for(const key of Object.keys(values))delete values[key];}}},
-  tabs:{create:async({url})=>{const tab={id:tabs.size+1,url:login&&url.startsWith('https://mail.google.com')?'https://accounts.google.com/v3/signin/identifier':url,status:'complete'};tabs.set(tab.id,tab);opened.push(url);return tab;},get:async id=>{if(options.closedAttendance&&id===100)throw new Error('No tab with id: 100.');return tabs.get(id);},update:async(id,update)=>Object.assign(tabs.get(id),update),remove:async id=>{removed.push(id);}},
+  tabs:{create:async({url})=>{const tab={id:tabs.size+1,url:options.discoveryLogin&&url.includes('attendance.monash')?'https://monashuni.okta.com/login':login&&url.startsWith('https://mail.google.com')?'https://accounts.google.com/v3/signin/identifier':url,status:'complete'};tabs.set(tab.id,tab);opened.push(url);return tab;},get:async id=>{if(options.closedAttendance&&id===100)throw new Error('No tab with id: 100.');return tabs.get(id);},update:async(id,update)=>Object.assign(tabs.get(id),update),remove:async id=>{removed.push(id);}},
   scripting:{executeScript:async({args,target,func})=>{
     if(func.name==='installSourceRuleRuntime')return [{result:undefined}];
     const [command,cfg]=args;
@@ -64,7 +72,17 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
   }
   if(reset){const result=await new Promise(resolve=>listener({type:'reset'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);assert.deepEqual(values,{});return result;}
   if(clear){values.attendanceHistory=[{course:'ABC1234'}];values.diagnosticLog=[{event:'test'}];values.records=[{id:'saved-record',code:'ABC12'}];const result=await new Promise(resolve=>listener({type:'clearCourses'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(result.ok,true);assert.deepEqual(values.attendanceHistory,[]);assert.deepEqual(values.diagnosticLog,[]);return {settings:values.settings,records:values.records};}
-  if(discovery){const result=await new Promise(resolve=>listener({type:'redetect'},{id:'test',url:'chrome-extension://test/options.html'},resolve));assert.equal(values.status,undefined);assert.equal(values.settings.courses.length,0);return result;}
+  if(discovery){
+   const request=payload=>new Promise(resolve=>listener(payload,{id:'test',url:'chrome-extension://test/options.html'},resolve));
+   const result=await request({type:'redetect'});assert.equal(values.status,undefined);assert.equal(values.settings.courses.length,0);
+   if(options.discoveryLogin){
+    assert.equal(result.ok,true);assert.equal(result.loginRequired,true);assert.equal(removed.includes(result.tabId),false);
+    const pending=await request({type:'redetect',tabId:result.tabId});assert.equal(pending.loginRequired,true);assert.equal(opened.length,1);
+    tabs.get(result.tabId).url='https://attendance.monash.edu.my/student/Default.aspx';
+    const resumed=await request({type:'redetect',tabId:result.tabId});assert.equal(resumed.ok,true);assert.deepEqual(resumed.courses,['ABC1234','DEF1234']);return resumed;
+   }
+   return result;
+  }
   if(options.holdPrefetch){
    const result=await new Promise(resolve=>listener({type:'prefetchMail',expectedIdentity:{email:settings.email,name:settings.name},verifiedLogin:{gmail:{tabId:101}}},{id:'test',url:'chrome-extension://test/options.html'},resolve));
    assert.equal(result.ok,true);
@@ -88,18 +106,25 @@ async function runScenario(completed,viaAlarm=false,automatic=false,discovery=fa
    const deadline=Date.now()+2000;
    while(!values.status?.running&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,1));
    startupStatus=structuredClone(values.status);
-   releasePrefetch();
   }
   const deadline=Date.now()+10000;
-  while(!values.status?.finishedAt&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,1));
+  while((!values.status?.finishedAt||values.status.finishedAt===options.priorStatus?.finishedAt)&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,1));
   assert.ok(values.status?.finishedAt,'run must finish');
+  if(options.holdPrefetch)releasePrefetch();
   assert.equal(values.status.error,Boolean(options.closedAttendance),JSON.stringify(values.diagnostics));
   await new Promise(resolve=>setTimeout(resolve,5));
-  return {opened,queries,removed,settings:values.settings,summary:values.status.summary,records:values.records,status:values.status,startupStatus,statuses,ruleRevisions};
+  return {opened,queries,removed,settings:values.settings,summary:values.status.summary,records:values.records,status:values.status,startupStatus,statuses,ruleRevisions,diagnosticLog:values.diagnosticLog||[]};
  }finally{globalThis.chrome=previous;globalThis.fetch=previousFetch;}
 }
 test('a pending production request reserves execution before a preview can start',async()=>{
  await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,true,false,false,{previewRace:true});
+});
+test('logs distinguish portal session status and Gmail pause and skip decisions',async()=>{
+ const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,true,false,false,{holdPrefetch:true});
+ const log=result.diagnosticLog.map(e=>e.message||'').join('\n');
+ assert.match(log,/开始 Gmail 预读取/);assert.match(log,/暂停 Gmail 检测/);
+ assert.match(log,/Gmail 预读取已暂停/);assert.match(log,/ABC1234.*已签到/);
+ assert.match(log,/无需恢复 Gmail 检测/);
 });
 test('an abandoned prefetch cannot replace the next run rule snapshot',async()=>{
  const result=await runScenario([],false,false,false,false,false,true,false,false,{stalePrefetch:true});
@@ -124,8 +149,19 @@ test('completed timetable slots skip both Gmail and Moodle in an actual backgrou
  assert.deepEqual(result.opened,['https://attendance.monash.edu.my/student/Units.aspx']);
  assert.deepEqual(result.queries,[]);assert.equal(result.summary.allCompleted,true);assert.equal(result.summary.courses.length,0);assert.deepEqual(result.summary.records,[]);assert.equal(result.summary.quiet,true);
 });
+test('last week completed portal rows do not trigger collection for unpublished weekly predictions',async()=>{
+ const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,true,false,false,{previousWeekOnly:true});
+ assert.deepEqual(result.queries,[]);
+ assert.deepEqual(result.opened,['https://attendance.monash.edu.my/student/Units.aspx']);
+ assert.equal(result.status.counts.images,0);
+ assert.match(result.diagnosticLog.map(e=>e.message||'').join('\n'),/网站未出现该场次，不查找签到码/);
+});
 test('only the missing course searches Gmail and then its own Moodle source',async()=>{
  const result=await runScenario(['ABC1234']);
+ const log=result.diagnosticLog.map(e=>e.message||'').join('\n');
+ assert.match(log,/ABC1234.*已签到/);assert.match(log,/DEF1234.*未签到/);
+ assert.match(log,/开始或恢复 Gmail 检测：DEF1234/);
+ assert.match(log,/开始检查 Moodle 签到码来源/);assert.match(log,/Moodle 来源检查结束/);
  assert.deepEqual(result.queries,[['DEF1234']]);
  assert.equal(result.opened.some(url=>url.includes('course/view.php?id=1')),false);
  assert.equal(result.opened.some(url=>url.includes('course/view.php?id=2')),true);
@@ -153,6 +189,18 @@ test('alarm runs the background scan without an options page or scan message',as
 test('automatic timetable reads pending website sessions without manual weekly settings',async()=>{const result=await runScenario(['ABC1234'],false,true);assert.deepEqual(result.queries,[['DEF1234']]);assert.equal(result.settings.schedules.ABC1234.length,1);assert.equal(result.settings.schedules.DEF1234.length,1);});
 
 test('first-time discovery returns all recent courses after identity setup without configured courses or submitting',async()=>{const result=await runScenario([],false,false,true);assert.equal(result.ok,true);assert.deepEqual(result.courses,['ABC1234','DEF1234']);assert.equal(result.schedules.ABC1234.length,1);});
+test('setup discovery keeps a signed-out tab open and resumes after login',async()=>{await runScenario([],false,false,true,false,false,true,false,false,{discoveryLogin:true});});
+test('course detection includes the second week but not older activity',async()=>{
+ const result=await runScenario([],false,false,true,false,false,true,false,false,{olderDiscovery:true});
+ assert.ok(result.courses.includes('OLDWEEK1000'));assert.ok(!result.courses.includes('TOOOLD1000'));assert.equal(result.schedules.OLDWEEK1000.length,1);
+});
+test('automatic alarms start regardless of a previous success, error or incomplete result',async()=>{
+ for(const previous of [{summary:{submitted:1}},{error:true},{summary:{needsConfirmation:true}}]){
+  const priorStatus={...previous,running:false,finishedAt:new Date(Date.now()-1000).toISOString()};
+  const result=await runScenario(['ABC1234','DEF1234'],true,false,false,false,false,true,false,false,{priorStatus});
+  assert.ok(result.statuses.some(status=>status.running));assert.notEqual(result.status.finishedAt,priorStatus.finishedAt);
+ }
+});
 
 test('clearing courses also deletes collected records and pauses automation',async()=>{const result=await runScenario([],false,false,false,true);assert.deepEqual(result.settings.courses,[]);assert.deepEqual(result.settings.schedules,{});assert.deepEqual(result.settings.sourceModes,{});assert.deepEqual(result.settings.edUrls,{});assert.equal(result.settings.enabled,false);assert.equal(result.settings.autoDiscover,false);assert.deepEqual(result.records,[]);});
 
@@ -160,20 +208,21 @@ test('fresh-start reset removes identity, courses, records and local state',asyn
 
 test('manual check runs with automatic scheduling disabled and keeps it disabled',async()=>{const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,false);assert.equal(result.settings.enabled,false);assert.ok(result.opened.length);});
 
-test('first run shows Gmail prefetch while the background scan waits for it',async()=>{
+test('Attendance completes without waiting for an unfinished Gmail prefetch',async()=>{
  const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,false,false,false,{holdPrefetch:true});
- assert.match(result.startupStatus?.message||'',/Gmail/);
+ assert.match(result.startupStatus?.message||'',/启动签到/);
  assert.equal(result.startupStatus?.running,true);
+ assert.equal(result.summary.quiet,true);
+ assert.equal(result.queries.length,1,'completed courses must not restart Gmail collection');
 });
 test('popup Gmail prefetch cannot replace Attendance login waiting state',async()=>{
  const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,false,false,false,{parallelLogin:true});
  const start=result.statuses.findIndex(s=>s.phase==='waiting'&&s.waitingSite==='attendance');
  assert.ok(start>=0);
  const waiting=result.statuses.slice(start,result.statuses.findIndex((s,i)=>i>start&&s.phase==='collecting'));
- assert.ok(waiting.length>1,'Gmail must report progress during the login wait: '+JSON.stringify(result.statuses.map(s=>({phase:s.phase,site:s.waitingSite,message:s.message}))));
+ assert.ok(waiting.length>=1);
  assert.ok(waiting.every(s=>s.phase==='waiting'&&s.waitingSite==='attendance'));
- assert.ok(waiting.at(-1).counts.pages>0,'parallel collection counters are retained');
- assert.ok(result.status.counts.pages>0,'final state retains prefetch counters');
+ assert.ok(result.status.counts.pages>0,'Attendance progress is retained');
 });
 
 test('unchanged expired history stays in collection records without reopening a completion warning',async()=>{const result=await runScenario(['ABC1234','DEF1234'],false,false,false,false,false,true,true);assert.equal(result.summary.submitted,0);assert.equal(result.summary.quiet,true);assert.deepEqual(result.summary.courses,[]);assert.deepEqual(result.summary.records,[]);assert.ok(result.records.some(r=>r.id==='old-expired'&&r.status==='expired'));});

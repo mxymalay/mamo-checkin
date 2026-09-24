@@ -1,13 +1,17 @@
 import {eligible,matchActivity,recordKey} from './core.js';
 const DAY=86400000,WEEK=7*DAY;
-export function detectSessions(activities,course,now=Date.now()){
- const pending=activities.filter(a=>a.course===course&&a.state==='available').filter(a=>{const start=Date.parse(`${a.date}T${a.time}:00+08:00`);return !Number.isFinite(start)||(start<=now&&start>=now-WEEK);});
+const inWindow=(activity,now,span)=>{const start=Date.parse(`${activity.date}T${activity.time}:00+08:00`);return !Number.isFinite(start)||(start<=now&&start>=now-span);};
+export function discoveredCourses(activities,now=Date.now()){
+ return [...new Set(activities.filter(a=>inWindow(a,now,2*WEEK)).map(a=>a.course).filter(Boolean))];
+}
+export function detectSessions(activities,course,now=Date.now(),span=WEEK){
+ const pending=activities.filter(a=>a.course===course&&a.state==='available'&&inWindow(a,now,span));
  const complete=pending.filter(a=>['course','date','time','type','group'].every(k=>a[k]));
  const ambiguous=a=>complete.some(b=>a.date===b.date&&a.time===b.time&&a.type===b.type&&a.group!==b.group);
  return {sessions:complete.filter(a=>!ambiguous(a)).map(({course,date,time,type,group})=>({course,date,time,type,group})),needsConfirmation:complete.length!==pending.length||complete.some(ambiguous)};
 }
 export function detectWeeklySchedule(activities,course,now=Date.now()){
- const detected=detectSessions(activities.map(a=>({...a,state:'available'})),course,now);
+ const detected=detectSessions(activities.map(a=>({...a,state:'available'})),course,now,2*WEEK);
  const rules=new Map();for(const slot of detected.sessions){const rule={weekday:new Date(slot.date+'T12:00:00Z').getUTCDay()||7,time:slot.time,type:slot.type,group:slot.group};rules.set(JSON.stringify(rule),rule);}
  return {schedule:[...rules.values()].sort((a,b)=>a.weekday-b.weekday||a.time.localeCompare(b.time)),needsConfirmation:detected.needsConfirmation};
 }
@@ -29,6 +33,9 @@ export function expectedSessions(settings,course,now=Date.now()){
 export function matchesSession(slot,record){return ['course','date','time'].every(key=>record[key]===slot[key])&&['type','group'].every(key=>!slot[key]||record[key]===slot[key]);}
 function covered(state,slot,now){
  if(state.settings?.ignoreCompleted===true)return false;
+ // A weekly rule predicts a slot; only the portal establishes that it exists.
+ // Keep ambiguous type/group matches unresolved rather than treating them as done.
+ if(Array.isArray(state.activities)&&!state.activities.some(a=>a.course===slot.course&&a.date===slot.date&&a.time===slot.time))return true;
  const activities=(state.activities||[]).filter(a=>matchesSession(slot,a));
  if(activities.length&&activities.every(a=>['completed','expired'].includes(a.state)))return true;
  const matching=state.records.filter(r=>matchesSession(slot,r));

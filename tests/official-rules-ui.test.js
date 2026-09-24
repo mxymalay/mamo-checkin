@@ -19,6 +19,7 @@ test('official status and controls appear only in the builtin panel, localized i
   const h=setup(t,{lang});await h.manager.refresh();
   assert.equal(h.doc.querySelector('[data-library-tab=builtin]').textContent,label);
   const row=h.doc.querySelector('.rule-official-status');assert.ok(row);assert.equal(row.closest('[data-library-panel]').dataset.libraryPanel,'builtin');
+  assert.ok(row.querySelector('.rule-official-heading strong'));assert.ok(row.querySelector('.rule-official-heading .rule-official-source'));assert.ok(row.querySelector('.rule-official-checked'));
   assert.ok(row.textContent.includes(ruleText('rules.official-bundled-version',lang)));assert.ok(row.textContent.includes(ruleText('rules.official-never-checked',lang)));
   assert.equal(row.querySelector('.rule-official-source').textContent,ruleText('rules.official-source-bundled',lang));
   assert.equal(h.button('official-check').disabled,false);assert.equal(h.button('official-rollback').disabled,true);

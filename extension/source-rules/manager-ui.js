@@ -157,10 +157,11 @@ export function installRuleManager({root,bindingsRoot,bindingsNoticeRoot,request
  }
  function renderOfficial(){
   const official=state.official||{},row=el('div',undefined,'rule-official-status'),meta=el('div',undefined,'rule-official-meta');
-  const version=el('span',`${t('official-version')}: ${!official.version||official.version==='bundled'?t('official-bundled-version'):official.version}`),checked=el('span',t('official-last-checked')+': ');
-  if(official.lastChecked!=null){const date=new Date(official.lastChecked),time=el('time',date.toLocaleString(doc.documentElement.lang||'en'));time.dateTime=date.toISOString();checked.append(time);}else checked.append(t('official-never-checked'));
-  const source=el('small',t(official.source==='remote'?'official-source-remote':'official-source-bundled'),'rule-official-source muted');
-  meta.append(version,source,checked);
+  const heading=el('div',undefined,'rule-official-heading'),version=el('strong',!official.version||official.version==='bundled'?t('official-bundled-version'):'v'+official.version),checked=el('div',undefined,'rule-official-checked');
+  checked.append(el('span',t('official-last-checked')));
+  if(official.lastChecked!=null){const date=new Date(official.lastChecked),time=el('time',date.toLocaleString(doc.documentElement.lang||'en',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}));time.dateTime=date.toISOString();time.title=date.toLocaleString(doc.documentElement.lang||'en');checked.append(time);}else checked.append(el('span',t('official-never-checked')));
+  const source=el('span',t(official.source==='remote'?'official-source-remote':'official-source-bundled'),'rule-official-source');
+  heading.append(el('span',t('official-version'),'rule-official-label'),version,source);meta.append(heading,checked);
   const actions=el('div',undefined,'rule-actions'),check=button('official-check'),rollback=button('official-rollback');
   for(const [control,icon] of [[check,'check'],[rollback,'rollback']]){const image=el('span',undefined,'rule-official-icon rule-official-icon-'+icon);image.setAttribute('aria-hidden','true');control.prepend(image);}
   rollback.disabled=!official.canRollback;rollback.dataset.unavailable=String(!official.canRollback);

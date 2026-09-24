@@ -779,6 +779,48 @@ test('first visit discovers course drafts before source selection without saving
  }finally{env.dom.window.close();cleanDom(originalSetInterval);}
 });
 
+test('redetection can refill removed course drafts without saving unrelated edits',async()=>{
+ const originalSetInterval=globalThis.setInterval;let discoveries=0,saves=0,confirmation='';
+ const env=installDom(async p=>{if(p.type==='redetect'){discoveries++;return {courses:['ABC1234'],schedules:{}};}if(p.type==='settings')saves++;return p.type==='health'?{ok:true}:{settings:{courses:['FIT5120'],name:'Original'},records:[]};});
+ try{
+  env.dom.window.confirm=message=>{confirmation=message;return true;};
+  await import(`../extension/options.js?refill=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  document.getElementById('name').value='Unsaved name';document.getElementById('name').dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
+  document.querySelector('#courses > * button').click();
+  document.getElementById('redetect').click();await new Promise(r=>setTimeout(r,0));
+  assert.equal(discoveries,1);assert.equal(saves,0);assert.match(confirmation,/14/);
+  assert.deepEqual([...document.querySelectorAll('[data-field="course"]')].map(input=>input.value),['ABC1234']);
+  assert.equal(document.getElementById('name').value,'Unsaved name');
+  assert.equal(document.getElementById('config-alert')?.open||false,false);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('redetection does not overwrite edits made while detection is running',async()=>{
+ const originalSetInterval=globalThis.setInterval;let finish;
+ const env=installDom(async p=>p.type==='redetect'?new Promise(resolve=>{finish=resolve;}):p.type==='health'?{ok:true}:{settings:{courses:['FIT5120']},records:[]});
+ try{
+  env.dom.window.confirm=()=>true;
+  await import(`../extension/options.js?refill-race=${Date.now()}`);await new Promise(r=>setTimeout(r,0));
+  document.querySelector('#courses > * button').click();document.getElementById('redetect').click();
+  document.getElementById('add-course').click();document.querySelector('[data-field="course"]').value='NEW1234';
+  finish({courses:['ABC1234'],schedules:{}});await new Promise(r=>setTimeout(r,0));
+  assert.equal(document.querySelector('[data-field="course"]').value,'NEW1234');
+  assert.equal(document.getElementById('config-alert').open,true);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
+test('historical expired sessions show a warning instead of a contradictory failure',async()=>{
+ const originalSetInterval=globalThis.setInterval;
+ const state={settings:{name:'Example',courses:['FIT5120']},records:[],status:{finishedAt:new Date().toISOString(),error:false,summary:{submitted:1,courses:[{course:'FIT5120',submitted:1,expired:1}]}}};
+ const env=installDom(async p=>p.type==='health'?{ok:true}:state);
+ try{
+  await import(`../extension/options.js?expired-reminder=${Date.now()}`);await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.querySelector('.status-card').dataset.state,'warning');
+  assert.equal(document.getElementById('status').textContent,'签到成功，有过期场次提醒');
+  assert.doesNotMatch(document.getElementById('status').textContent,/未完成|流程已完成/);
+ }finally{env.dom.window.close();cleanDom(originalSetInterval);}
+});
+
 test('record actions have a spaced group and nonzero counters expose source links',async()=>{
  const originalSetInterval=globalThis.setInterval;
  const state={settings:{},records:[{id:'pending',course:'FIT5122',date:'2026-09-16',time:'18:00',type:'Applied',group:'01',status:'waiting_code'}],status:{counts:{pages:2,records:1},events:[{message:'页面读取完成',metrics:['pages'],context:{sourceUrl:'https://mail.google.com/mail/u/0/'}}]}};

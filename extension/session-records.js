@@ -1,7 +1,15 @@
 import {recordKey,matchActivity} from './core.js';
 import {outsideAttendanceWindow} from './recent-window.js';
 import {recordInSchedule} from './timetable.js';
+export function repairLocalExpiry(records){
+ return records.map(record=>{
+  if(record.status!=='expired'||!['课程已超过 7 天，不再补签','课程已超过 7 天，无法补签'].includes(record.reason))return record;
+  const complete=['course','date','time','type','group','code'].every(k=>record[k]);
+  return {...record,status:record.attemptedAt?'uncertain':complete?'ready':record.sessionOnly?'waiting_code':'review',reason:''};
+ });
+}
 export function syncSessionRecords(state,now=Date.now()){
+ state.records=repairLocalExpiry(state.records);
  for(const activity of state.activities||[]){
   if(!state.settings.courses.includes(activity.course)||!['course','date','time','type','group'].every(k=>activity[k]))continue;
   const start=Date.parse(`${activity.date}T${activity.time}:00+08:00`);
@@ -36,5 +44,4 @@ export function syncSessionRecords(state,now=Date.now()){
    if(evidence.length)record.sources=[...new Map([...(record.sources||[]),...evidence.map(r=>({sourceUrl:r.sourceUrl,messageId:r.messageId,imagePath:r.imagePath}))].map(s=>[[s.sourceUrl,s.messageId,s.imagePath].join('|'),s])).values()];
   }
  }
- for(const record of state.records){if(state.settings.courses.includes(record.course)&&['waiting_code','review','ready'].includes(record.status)&&outsideAttendanceWindow(record,now)){record.status='expired';record.reason='课程已超过 7 天，无法补签';}}
 }

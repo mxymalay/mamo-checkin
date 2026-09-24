@@ -29,7 +29,7 @@ Recognition stays on this computer and is not sent to third-party AI services. I
 
 ### Source rules (2.0.0)
 
-Version **2.0.0** adds declarative JSON image-location rules. Use the GitHub 2.0.0 package for these features; the Chrome Web Store version follows its separate review process. Open **Recognition and rules** in Settings. Its tabs are **OCR method**, **Recognition rule repository**, **Rule matching test**, and **Assign rules to courses**. Windows hides the OCR method tab and uses browser OCR. Testing is available in normal mode; switching developer mode preserves the current page.
+Version **2.0.0** adds declarative JSON image-location rules. Use the latest GitHub package for these features; the Chrome Web Store version follows its separate review process. Open **Recognition and rules** in Settings. Its tabs are **OCR method**, **Recognition rule repository**, **Rule matching test**, and **Assign rules to courses**. Windows hides the OCR method tab and uses browser OCR. Testing is available in normal mode; switching developer mode preserves the current page.
 
 The repository sidebar separates **Official rules**, **Shared rules**, **Create rule**, and **Import rules**. Shared rules includes browsing, contribution guidance and an author directory. Course filters apply to both downloaded and available rules. Synthetic examples stay hidden, including under All courses, until **Expand examples** is selected; closing any example-course chip hides them all. Author icons open attribution details, repository icons open rule-file links, and supported courses appear as tags.
 
@@ -84,9 +84,9 @@ In Attendance records, use **Download log** for recent run events and up to 500 
 
 图片匹配和点选不再自动排除 `blockquote` 或 `.gmail_quote` 引用区域；引用结构本身不代表签到码过期。用户规则中明确填写的 `excludeSelectors` 仍然生效，来源域名、隐藏元素、签名、图片尺寸等其他校验不变。
 
-**2.0.0** 支持声明式图片定位 JSON；这些功能请使用 GitHub 的 2.0.0 安装包，Chrome 商店版本需经过独立审核流程。从设置页的**识别与规则**卡片进入，一级菜单为 **OCR识图方案、规则识别仓库、规则匹配测试、规则匹配课程**。Windows 不显示 OCR识图方案，使用浏览器 OCR。规则匹配测试在正常模式下即可使用；切换开发者模式不会跳离当前页面。
+**2.0.0** 支持声明式图片定位 JSON；这些功能请使用 GitHub 的最新安装包，Chrome 商店版本需经过独立审核流程。从设置页的**识别与规则**卡片进入，一级菜单为 **OCR识图方案、规则识别仓库、规则匹配测试、规则匹配课程**。Windows 不显示 OCR识图方案，使用浏览器 OCR。规则匹配测试在正常模式下即可使用；切换开发者模式不会跳离当前页面。
 
-规则识别仓库的侧边菜单分为**官方规则、共享规则、创建规则、导入规则**。共享规则下有**查看共享、我要共享、共享名单**，按课程筛选已下载和可下载规则。未点击**展开样例**时，“全部课程”也不展示样例规则；点击任一样例课程标签的关闭图标可全部收起。作者图标打开详情弹窗，仓库图标跳转规则源文件，适配课程以标签展示。
+规则识别仓库的侧边菜单分为**官方规则、共享规则、创建规则、导入规则**。共享规则下有**查看共享、我要共享、谁在共享**，按课程筛选已下载和可下载规则。未点击**展开样例**时，“全部课程”也不展示样例规则；点击任一样例课程标签的关闭图标可全部收起。作者图标打开详情弹窗，仓库图标跳转规则源文件，适配课程以标签展示。
 
 **创建规则**提供**模拟创建、实际创建**，采用一致的分步布局。模拟创建会新开合成示例页面，练习课程及匹配与真实课程隔离。实际创建使用已配置课程和验证后的 Gmail / Moodle 页面，可选择多张图片、标记包含或排除、检查匹配、按需测试本机 OCR 后保存。保存草稿提供“查看导入”入口；继续到规则匹配课程也不会自动替用户选择或启用规则。由于暂不能可靠确认 Ed 登录账号，Ed 点选创建暂不开放。创建会话十分钟后失效，不会提交签到或写入正式记录。
 

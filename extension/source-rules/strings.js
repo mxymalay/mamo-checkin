@@ -1,6 +1,6 @@
 import {WIZARD_STRINGS} from './practice/wizard-strings.js';
 const rows=`
-shared-authors|Contributors|共享名单|共享名單
+shared-authors|Who's sharing|谁在共享|誰在共享
 shared-author-count|{count} rules|{count} 条规则|{count} 條規則
 shared-authors-empty|No rule authors listed yet.|暂无规则作者。|暫無規則作者。
 draft-test-notice|Imported drafts not yet tested: {count}.|你有 {count} 个已导入草稿尚未测试。|你有 {count} 個已匯入草稿尚未測試。

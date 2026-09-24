@@ -66,6 +66,7 @@ test('Ed selection promotes a missing date beyond the old four-post limit',()=>{
 });
 test('missing session week uses matching-week evidence, not an invented semester calendar',()=>{
  const state={settings:{courses:['FIT5120'],detectedSessions:{FIT5120:[{course:'FIT5120',date:'2026-09-11',time:'18:00',type:'Studio',group:'01'}]}},activities:[],records:[{course:'FIT5120',date:'2026-09-08',subject:'Attendance Week 7'}]};
+ state.activities=state.settings.detectedSessions.FIT5120.map(slot=>({...slot,state:'available'}));
  assert.equal(missingSessions(state,'FIT5120',Date.parse('2026-09-11T22:00:00+08:00'))[0].week,7);
  state.records[0].date='2026-09-01';assert.equal(missingSessions(state,'FIT5120')[0].week,undefined);
 });

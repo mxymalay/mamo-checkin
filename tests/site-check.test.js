@@ -18,7 +18,12 @@ test('site checks name closed pages and never inject into sign-in redirects',asy
  await assert.rejects(checkSiteLogin({tabId:99},{tabs,readIdentity:async()=>{}},'Attendance 签到系统'),/Attendance 签到系统 页面已被关闭/);
  tabs.get=async()=>({id:99,url:'https://monashuni.okta.com/login',status:'complete'});
  let reads=0;const result=await checkSiteLogin({tabId:99},{tabs,readIdentity:async()=>{reads++;}},'Moodle');
- assert.equal(result.needsLogin,true);assert.equal(reads,0);assert.match(result.message,/Moodle.*请勿关闭/);
+ assert.equal(result.needsLogin,true);assert.equal(result.loginRequired,true);assert.equal(reads,0);assert.match(result.message,/Moodle.*请勿关闭/);
+});
+
+test('a loading school page is not reported as confirmed signed out',async()=>{
+ const result=await checkSiteLogin({tabId:1},{tabs:{get:async()=>({id:1,status:'loading',url:'https://learning.monash.edu/my/'})},readIdentity:async()=>{throw new Error('must not inject');}},'Moodle');
+ assert.equal(result.loginRequired,undefined);
 });
 
 test('wrong Moodle identities remain pending and permission errors remain actionable',async()=>{

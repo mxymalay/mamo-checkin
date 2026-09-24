@@ -64,7 +64,7 @@ Gmail 列表读取完成（{0} 秒），{1} 个待检查会话|Gmail list loaded
 本次签到成功 {0} 场{1:message}|Checked in to {0} sessions this run{1:message}|本次簽到成功 {0} 場{1:message}
 ；网站显示已签到 {0} 场|; the website shows {0} sessions attended|；網站顯示已簽到 {0} 場
 网站显示 {0} 场已签到，本次无需重复签到或查找签到码|The website shows {0} sessions attended. No duplicate check-ins or code search are needed.|網站顯示 {0} 場已簽到，本次無需重複簽到或查詢簽到碼
-{0} 信息不完整、组别冲突或近 7 天没有场次，请核对课表|{0}: Incomplete details, conflicting groups or no sessions in the last 7 days. Review the timetable.|{0} 資訊不完整、組別衝突或近 7 天沒有場次，請核對課表
+{0} 信息不完整、组别冲突或近 14 天没有场次，请核对课表|{0}: Incomplete details, conflicting groups or no sessions in the last 14 days. Review the timetable.|{0} 資訊不完整、組別衝突或近 14 天沒有場次，請核對課表
 第{0}步|Step {0}|第{0}步
 同一行包含多个{0}|Multiple {0} values in the same row|同一行包含多個{0}
 [LOGIN_REQUIRED] Gmail 当前账号是 {0}，目标账号是 {1}。请切换或登录目标邮箱后重试；尚未搜索邮件。|[LOGIN_REQUIRED] Gmail is signed in as {0}, but {1} is required. Switch accounts and retry. No mail has been searched.|[LOGIN_REQUIRED] Gmail 目前帳號是 {0}，目標帳號是 {1}。請切換或登入目標信箱後重試；尚未搜尋郵件。

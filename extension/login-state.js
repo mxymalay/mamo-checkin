@@ -11,12 +11,12 @@ export function loginRedirect(url){
 export function loginMessage(site){return `${LOGIN_REQUIRED} ${site} 需要登录。请打开 ${site}，完成学校账号登录及验证；请勿关闭浏览器页面，再返回助手重试。本轮尚未完成该网站的检查。`;}
 export async function readAuthenticatedPage(tabs,tabId,site,read){
  let tab;try{tab=await tabs.get(tabId);}catch(error){throw pageError(error,site);}
- if(loginRedirect(tab.url||tab.pendingUrl))throw new Error(loginMessage(site));
+ if(loginRedirect(tab.pendingUrl||tab.url))throw new Error(loginMessage(site));
  try{return await read();}catch(error){
   if(isClosedPageError(error))throw pageError(error,site);
   // A redirect can occur between checking the URL and injecting the adapter.
   let current;try{current=await tabs.get(tabId);}catch(error){throw pageError(error,site);}
-  if(loginRedirect(current.url||current.pendingUrl))throw new Error(loginMessage(site));
+  if(loginRedirect(current.pendingUrl||current.url))throw new Error(loginMessage(site));
   throw error;
  }
 }

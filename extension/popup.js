@@ -1,6 +1,9 @@
 import {translate,detectLanguage,setLanguage} from './i18n.js';
-import {checkinResult} from './checkin-result.js';
+import {checkinResult,checkinDetail} from './checkin-result.js';
+import {popupCompletion,checkinAgo} from './popup-completion.js';
+import {createLoginNotice} from './login-notice.js';
 const $=id=>document.getElementById(id);
+const loginNotice=createLoginNotice(document);$('popup-status').after(loginNotice.element);
 // Auto-detect the UI language, honouring the picker chosen on the options page
 // (both pages share the extension origin, hence the same localStorage).
 let choice='auto';try{choice=window.localStorage.getItem('mamo-language')||'auto';}catch{}
@@ -39,20 +42,23 @@ function courseLine(course){
 function render(state){
  latest=state;
  const status=state.status||{},config=state.settings||{},summary=status.summary||{};
+ loginNotice.update(status.running?status:null);
  const configured=Boolean(config.name)&&(config.courses||[]).length;
+ const completion=popupCompletion(state);
  let mode='idle';
  if(status.running||starting)mode=status.phase==='waiting'?'waiting':'working';
  else if(status.error)mode='error';
- else if(status.finishedAt&&config.enabled){const outcome=checkinResult(summary,false);mode=outcome.tone==='success'?'success':outcome.tone==='error'?'error':'waiting';}
+ else if(status.finishedAt){const outcome=checkinResult(summary,false);mode=outcome.tone==='success'?(completion.active?'success':'idle'):outcome.tone==='error'?'error':'waiting';}
+ else if(completion.active)mode='success';
  scene(mode);
- if(mode==='waiting'&&!status.running){$('popup-heading').textContent=text('还有一点待完成','A little more to do');$('popup-caption').textContent=text('详细结果可在更多设置中查看','See More settings for the details');}
+ if(mode==='waiting'&&!status.running){$('popup-heading').textContent=translate(checkinResult(summary).title);$('popup-caption').textContent=text('详细结果可在更多设置中查看','See More settings for the details');}
  $('popup-mode').textContent=config.enabled?text('自动签到已开启','Auto check-in on'):text('自动签到已关闭','Auto check-in off');
  $('popup-mode').classList.toggle('on',Boolean(config.enabled));
  const scan=$('popup-scan');
  if(!configured){
   $('popup-status').textContent=translate('先完成初始设置：填写姓名并配置课程。');
   $('popup-courses').replaceChildren();
-  scan.textContent=translate('打开设置完成配置');
+  scan.textContent=translate('继续完成配置');
   scan.disabled=starting;
   return;
  }
@@ -63,9 +69,14 @@ function render(state){
    const seconds=Math.max(0,Math.ceil((status.loginDeadline-Date.now())/1000));
    $('popup-caption').textContent=text(`正在检测 ${site} · 剩余 ${seconds} 秒`,`Checking ${site} · ${seconds}s remaining`);
    $('popup-status').textContent=text('如需登录，请在打开的网页中完成。','If sign-in is needed, complete it in the opened tab.');
+   if(status.loginRequired){$('popup-heading').textContent=translate('需要完成网页登录');$('popup-status').textContent=translate('完成登录后会自动继续。');}
   }
  }else if(status.error){
   $('popup-status').textContent=translate(status.message||'上次检查未完成，请重试');
+ }else if(mode==='waiting'){
+  $('popup-status').textContent=translate(checkinDetail(summary));
+ }else if(completion.completedAt){
+  $('popup-status').textContent=checkinAgo(completion.completedAt,language);
  }else if(status.finishedAt&&config.enabled){
   const outcome=checkinResult(summary,Boolean(status.error));
   $('popup-status').textContent=summary.submitted?translate(`本轮已确认 ${summary.submitted} 场签到成功。`):summary.quiet?text('本次无需补签。','No additional check-ins needed this time.'):translate(outcome.title);

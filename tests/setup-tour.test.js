@@ -11,6 +11,24 @@ function fixture(options={}){
  return {dom,doc,tour,close(){tour.destroy();dom.window.close();}};
 }
 const settle=()=>new Promise(resolve=>setTimeout(resolve,60));
+test('email guidance follows the course step without interrupting smooth scrolling',()=>{
+ const env=fixture(),{doc,tour}=env;
+ try{
+  const input=doc.createElement('input');input.id='email';doc.body.append(input);
+  input.getBoundingClientRect=()=>({left:30,right:230,top:1200,bottom:1240,width:200,height:40});
+  let jumps=0;input.scrollIntoView=()=>jumps++;
+  doc.body.dataset.setup='courses';tour.update({setupGuide:true,settings:{name:'User'}});
+  doc.querySelector('#setup-tour-next').click();tour.showEmail();
+  assert.equal(tour.active,true);assert.equal(doc.querySelector('#setup-tour-title').textContent,'填写学校邮箱');
+  assert.equal(doc.querySelector('#setup-tour-progress').textContent,'步骤 3 / 4');
+  assert.match(doc.querySelector('#setup-tour-text').textContent,/邮件.*abcd1234/);assert.equal(jumps,0);
+  doc.documentElement.lang='en';tour.update({setupGuide:true,settings:{name:'User'}});
+  assert.equal(doc.querySelector('#setup-tour-title').textContent,'Enter your school email');
+  doc.documentElement.lang='zh-TW';tour.update({setupGuide:true,settings:{name:'User'}});
+  assert.equal(doc.querySelector('#setup-tour-title').textContent,'填寫學校信箱');
+  tour.emailVerified();assert.equal(tour.active,false);
+ }finally{env.close();}
+});
 test('setup tour switches all visible copy to Traditional Chinese',()=>{
  const env=fixture();try{env.doc.documentElement.lang='zh-TW';env.tour.update({setupGuide:true,settings:{}});assert.equal(env.doc.querySelector('#setup-tour-title').textContent,'先選擇辨識方式');assert.match(env.doc.querySelector('#setup-tour-text').textContent,/內建辨識/);assert.equal(env.doc.querySelector('#setup-tour-skip').textContent,'略過引導');}finally{env.close();}
 });

@@ -1,3 +1,4 @@
+import {scrollGuideTarget} from './guide-scroll.js';
 const STORAGE_KEY='mamo-setup-tour-v1';
 
 const copy={
@@ -9,6 +10,8 @@ const copy={
   identityText:'登录 Attendance 后，助手会自动读取姓名。核对无误后继续。',
   coursesTitle:'检测并配置课程',
   coursesText:'课程会自动读取。为每门课选择 Gmail、Moodle 或其他来源后保存。',
+  emailTitle:'填写学校邮箱',
+  emailText:'你选择的来源包含邮件，需要验证用于读取签到码的学校邮箱。填写邮箱前缀（例如 abcd1234），再点击“登录并检测”；完成后继续配置下方课程。',
   completeTitle:'准备开始签到',
   completeText:'初始化完成。点击这里开始第一次自动检查。'
  },
@@ -20,6 +23,8 @@ const copy={
   identityText:'登入 Attendance 後，助手會自動讀取姓名。核對無誤後繼續。',
   coursesTitle:'偵測並設定課程',
   coursesText:'課程會自動讀取。為每門課選擇 Gmail、Moodle 或其他來源後儲存。',
+  emailTitle:'填寫學校信箱',
+  emailText:'你選擇的來源包含郵件，需要驗證用於讀取簽到碼的學校信箱。填寫信箱前綴（例如 abcd1234），再點擊「登入並偵測」；完成後繼續設定下方課程。',
   completeTitle:'準備開始簽到',
   completeText:'初始化完成。點擊這裡開始第一次自動檢查。'
  },
@@ -31,6 +36,8 @@ const copy={
   identityText:'Sign in to Attendance and the assistant will read your name automatically. Check it before continuing.',
   coursesTitle:'Detect and configure courses',
   coursesText:'Courses are detected automatically. Choose Gmail, Moodle or another source for each course, then save.',
+  emailTitle:'Enter your school email',
+  emailText:'Your selected source includes email. Enter your school email prefix (for example, abcd1234), then use the sign-in and check button beside it. After verification, continue configuring your courses below.',
   completeTitle:'Ready to check in',
   completeText:'Setup is complete. Click here to start your first automatic check.'
  }
@@ -54,13 +61,15 @@ export function createSetupTour({doc=document,windows=false,storage}={}){
  const stages=windows?['identity','courses','complete']:['install','identity','courses','complete'];
  let state=null,current='',target=null,previousFocus=null,frame=0,observer=null,started=false,dismissed=readFlag(saved),destroyed=false;
  const acknowledged=new Set();
+ let emailRequested=false;
  const lang=()=>/^zh-(?:TW|HK|Hant)/i.test(doc.documentElement?.lang||'')?'zh_TW':/^zh/i.test(doc.documentElement?.lang||'')?'zh':'en';
  const targetFor=stage=>{
+  if(stage==='email'){const node=doc.querySelector('#email');return isHidden(node)?null:node;}
   const selectors=stage==='install'?['#setup-skip-ocr']:stage==='identity'?['#setup-name','#setup-identity']:stage==='courses'?['#courses [data-field="source-mode"]','.setup-course-header','#setup-course-message']:['#scan'];
   for(const selector of selectors){const node=doc.querySelector(selector);if(!isHidden(node)){const rect=node.getBoundingClientRect();if(rect.width>0&&rect.height>0)return node;}}
   return null;
  };
- const indexOf=stage=>Math.max(0,stages.indexOf(stage));
+ const indexOf=stage=>Math.max(0,stages.indexOf(stage==='email'?'courses':stage));
  function position(){
   if(root.hidden||!target)return;
   const rect=target.getBoundingClientRect(),margin=12,gap=18,bubbleWidth=Math.min(380,doc.defaultView.innerWidth-margin*2);
@@ -105,7 +114,10 @@ export function createSetupTour({doc=document,windows=false,storage}={}){
  function show(stage){
   const node=targetFor(stage);if(!node){hide();return false;}
   const changed=target!==node,rect=node.getBoundingClientRect();
-  if(changed&&(rect.top<12||rect.bottom>doc.defaultView.innerHeight-220))node.scrollIntoView?.({block:'center',behavior:'auto'});
+  if(stage!=='email'&&changed&&(rect.top<12||rect.bottom>doc.defaultView.innerHeight-220)){
+   if(stage==='courses')scrollGuideTarget(node);
+   else node.scrollIntoView?.({block:'center',behavior:'auto'});
+  }
   const c=copy[lang()];target=node;current=stage;
   const setText=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
   setText(progress,`${c.step} ${indexOf(stage)+1} / ${stages.length}`);setText(title,c[`${stage}Title`]);setText(text,c[`${stage}Text`]);setText(skip,c.skip);setText(next,stage==='complete'?c.finish:c.next);
@@ -114,6 +126,7 @@ export function createSetupTour({doc=document,windows=false,storage}={}){
  }
  function stageFromState(value){
   const stage=doc.body.dataset.setup;
+  if(stage==='courses'&&emailRequested)return 'email';
   if(stage&&stages.includes(stage))return stage;
   if(value?.setupGuide!==true)return '';
   const settings=value.settings||{};
@@ -122,7 +135,7 @@ export function createSetupTour({doc=document,windows=false,storage}={}){
   return settings.courses?.length?'complete':'courses';
  }
  function update(value={}){
-  state=value||{};
+  value=value||{};state=value;
   if(destroyed||dismissed||readFlag(saved)||value.setupGuide!==true){hide();return;}
   const config=value.settings||{};
   if(!started&&config.name&&config.courses?.length&&config.courses.every(course=>config.senders?.[course]||config.moodleUrls?.[course]?.length||config.edUrls?.[course]?.length)){hide();return;}
@@ -141,5 +154,5 @@ export function createSetupTour({doc=document,windows=false,storage}={}){
  const reposition=()=>schedulePosition();
  doc.defaultView.addEventListener('resize',reposition);doc.defaultView.addEventListener('scroll',reposition,true);
  if(doc.defaultView.MutationObserver){observer=new doc.defaultView.MutationObserver(mutations=>{if(mutations.some(item=>!root.contains(item.target)))schedulePosition();});observer.observe(doc.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class','style','data-setup','open']});observer.observe(doc.documentElement,{attributes:true,attributeFilter:['lang']});}
- return {update,hide,reset(){hide();try{saved?.removeItem(STORAGE_KEY);}catch{}dismissed=false;started=false;current='';acknowledged.clear();},get active(){return !root.hidden;},destroy(){destroyed=true;doc.defaultView.clearTimeout(frame);observer?.disconnect();doc.removeEventListener('keydown',onKey);doc.defaultView.removeEventListener('resize',reposition);doc.defaultView.removeEventListener('scroll',reposition,true);hide();root.remove();}};
+ return {update,hide,showEmail(){if(doc.body.dataset.setup!=='courses')return;emailRequested=true;update(state);},emailVerified(){emailRequested=false;update(state);},reset(){hide();try{saved?.removeItem(STORAGE_KEY);}catch{}dismissed=false;started=false;current='';emailRequested=false;acknowledged.clear();},get active(){return !root.hidden;},destroy(){destroyed=true;doc.defaultView.clearTimeout(frame);observer?.disconnect();doc.removeEventListener('keydown',onKey);doc.defaultView.removeEventListener('resize',reposition);doc.defaultView.removeEventListener('scroll',reposition,true);hide();root.remove();}};
 }

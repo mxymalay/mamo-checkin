@@ -1,8 +1,15 @@
 import {schoolEmail} from './school-email.js';
 import {googleAccountChooser} from './google-account.js';
-import {isClosedPageError,pageError} from './login-state.js';
+import {isClosedPageError,pageError,loginRedirect} from './login-state.js';
 export async function checkEmailLogin(message,{tabs,readIdentity,selectAccount}){
- try{return await checkEmailSession(message,{tabs,readIdentity,selectAccount});}
+ try{
+  const result=await checkEmailSession(message,{tabs,readIdentity,selectAccount});
+  if(!result.matched&&Number.isInteger(result.tabId)){
+   const tab=await tabs.get(result.tabId);
+   if(loginRedirect(tab.pendingUrl||tab.url)||result.email)result.loginRequired=true;
+  }
+  return result;
+ }
  catch(error){throw pageError(error,'Gmail');}
 }
 

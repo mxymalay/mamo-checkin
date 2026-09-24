@@ -23,7 +23,7 @@ export async function submitPending(state,adapter,now=Date.now()) {
     }
     if(activity.state==='expired') {r.status='expired';r.reason='网站已关闭该场次录入';await adapter.save();continue;}
     if(r.status==='review'&&r.attemptedAt)continue;
-    if(outsideAttendanceWindow(r,now)){if(r.status==='ready'){r.status='expired';r.reason='课程已超过 7 天，不再补签';await adapter.save();}continue;}
+    if(outsideAttendanceWindow(r,now))continue;
     if(activity.state!=='available') continue;
     let submitted=false,pausedStop=false;const tried=[];
     for(const [candidateIndex,code] of candidates.entries()) {

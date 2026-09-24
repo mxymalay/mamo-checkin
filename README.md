@@ -14,11 +14,11 @@ Collect attendance codes from Gmail, Monash Moodle and Ed, recognize them locall
 - [GitHub releases](https://github.com/mxymalay/mamo-checkin/releases/latest): extract the extension ZIP, then use **Load unpacked** in `chrome://extensions`.
 - Browser OCR works on both platforms. Mac users can optionally install the [Apple Vision helper](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-mac.zip).
 
-### New in 2.0.0
+### New in 2.0.1
 
-- Create, import and share image-recognition rules with a guided practice flow.
-- Test rules before assigning them to courses; default search covers the latest two weeks.
-- Receive signed official rule updates without reinstalling the extension.
+- Skip unnecessary code searches after checking website attendance status.
+- Clearer login prompts, setup guidance, completion status and run logs.
+- Fix incorrect expiry labels; preserve recognized codes and caches.
 
 Recognition runs locally, without third-party AI uploads. Automatic checks require Chrome to stay running and the computer to remain awake. Review uncertain results before relying on them.
 
@@ -36,11 +36,11 @@ Recognition runs locally, without third-party AI uploads. Automatic checks requi
 - [GitHub 发布页](https://github.com/mxymalay/mamo-checkin/releases/latest)：下载扩展 ZIP 并解压，在 `chrome://extensions` 中选择“加载已解压的扩展程序”。
 - 两个平台均支持浏览器 OCR；Mac 可选装 [Apple Vision 配套包](https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-mac.zip)。
 
-### 2.0.0 更新
+### 2.0.1 更新
 
-- 分步创建、导入与共享图片识别规则，提供模拟练习。
-- 规则先测试、再匹配课程，默认搜索最近两周。
-- 官方规则支持签名自动更新，无需为规则调整反复安装扩展。
+- 先核对网站签到状态，跳过不必要的签到码检索。
+- 优化登录提醒、配置引导、完成状态和运行日志。
+- 修正过期状态误判，保留已识别签到码与缓存。
 
 识别在本机完成，不上传第三方 AI。自动运行需保持 Chrome 运行且电脑不休眠；不确定的结果请自行核对。
 

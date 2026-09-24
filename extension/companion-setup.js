@@ -6,23 +6,30 @@ export function installCompanionDownload(box,{doc=document,isWindows=false,downl
  const instructions=section.querySelector('.setup-instructions');
  const download=section.querySelector('a[href="https://github.com/mxymalay/mamo-checkin/releases/latest"]');
  if(!download||!instructions)return;
+ const heading=section.querySelector('h2');
+ if(heading&&!heading.querySelector('.help-wrap')){
+  const wrap=doc.createElement('span');wrap.className='help-wrap companion-vision-help';
+  const button=doc.createElement('button');button.type='button';button.className='help-button';button.textContent='?';button.setAttribute('aria-label','Mac 识别服务说明');button.setAttribute('aria-describedby','companion-vision-tooltip');
+  const tooltip=doc.createElement('span');tooltip.id='companion-vision-tooltip';tooltip.className='tooltip';tooltip.setAttribute('role','tooltip');tooltip.textContent='使用 Apple Vision，识别速度极快、准确率极高，带来最佳识别体验。';
+  wrap.append(button,tooltip);heading.append(wrap);
+ }
  download.id='download-companion';download.className='identity-check companion-download';
  download.href='https://github.com/mxymalay/mamo-checkin/releases/latest/download/mamo-ocr-'+(isWindows?'windows':'mac')+'.zip';
  download.textContent='下载 Mac OCR 配套程序';
  const downloadsApi=downloads||globalThis.chrome?.downloads;
  const title=(text)=>{const element=doc.createElement('strong');element.className='authorization-title';element.textContent=text;return element;};
  const panel=(text,number)=>{const element=doc.createElement('li');element.className='setup-step-panel';element.dataset.stepPanel=String(number);element.append(title(text));return element;};
- const first=panel('第一步：下载 Mac OCR 配套包',1);
+ const first=panel('下载 Mac OCR 配套包',1);
  const row=doc.createElement('div');row.className='companion-download-row';
  const hint=doc.createElement('span');hint.className='muted companion-download-hint';hint.textContent='请下载后解压。随后进行以下步骤。';
- download.remove();row.append(download);first.append(row,hint);
- const second=panel('第二步：打开解压后的 OCR 包。',2);
+ download.remove();row.append(download,hint);first.append(row);
+ const second=panel('打开解压后的 OCR 包。',2);
  const authorizationSteps=[...instructions.children].filter(element=>element.classList.contains('authorization-step'));
  if(authorizationSteps.length){const authorizationList=doc.createElement('ol');authorizationList.className='setup-authorization-list';authorizationList.append(...authorizationSteps);second.append(authorizationList);}
  const installDivider=section.querySelector('.setup-install-divider'),platformHelp=section.querySelector('details');
  if(installDivider)second.append(installDivider);
  if(platformHelp)second.append(platformHelp);
- const third=panel('第三步：回到此页面，等待检测通过，自动进入下一步。',3);
+ const third=panel('回到此页面，等待检测通过，自动进入下一步。',3);
  for(const id of ['setup-health','setup-check','setup-reload']){const element=section.querySelector('#'+id);if(element)third.append(element);}
  instructions.replaceChildren(first,second,third);instructions.classList.add('setup-step-track');
  const viewport=doc.createElement('div');viewport.className='setup-step-viewport';instructions.replaceWith(viewport);viewport.append(instructions);

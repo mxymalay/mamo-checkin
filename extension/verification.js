@@ -1,4 +1,5 @@
 import {courseUsesSource} from './course-sources.js';
+import {createLoginNotice} from './login-notice.js';
 export const LOGIN_WAIT_MS=180000;
 
 export function configuredLoginSites(settings={}){
@@ -8,13 +9,14 @@ export function configuredLoginSites(settings={}){
 
 export function bindVerification({button,status,prepare=()=>({}),check,onVerified=async()=>{},onError=()=>{},success='登录检测通过。',idleText='登录并检测',verifiedText='重新登录并检测',doc=button.ownerDocument,timeout=LOGIN_WAIT_MS,interval=3000}){
  const clock=doc.defaultView;
+ const loginNotice=createLoginNotice(doc);status.after(loginNotice.element);
  const activity=doc.createElement('span');activity.className='verification-activity';activity.hidden=true;
  const spinner=doc.createElement('span');spinner.className='verification-spinner';spinner.setAttribute('aria-hidden','true');
  const countdown=doc.createElement('span');countdown.className='verification-countdown';activity.append(spinner,countdown);button.after(activity);
  let generation=0,pollTimer,tickTimer,endTimer,resolveRun,running=false,verified=false,saving=false,locked=false;
  function render(){button.disabled=running||locked;button.classList.toggle('verified',verified);button.textContent=verified?verifiedText:idleText;button.setAttribute('aria-busy',String(running));activity.hidden=!running||saving;}
  function clearTimers(){clock.clearTimeout(pollTimer);clock.clearInterval(tickTimer);clock.clearTimeout(endTimer);}
- function finish(value){generation++;clearTimers();running=false;saving=false;const resolve=resolveRun;resolveRun=null;render();resolve?.(value);}
+ function finish(value){generation++;clearTimers();running=false;saving=false;status.hidden=false;loginNotice.update(null);const resolve=resolveRun;resolveRun=null;render();resolve?.(value);}
  function stop(){finish(null);}
  function reset(){stop();verified=false;status.textContent='';delete status.dataset.state;render();}
  function markVerified(){verified=true;render();}
@@ -30,6 +32,8 @@ export function bindVerification({button,status,prepare=()=>({}),check,onVerifie
    try{
     const result=await check(context,open);
     if(ticket!==generation)return;
+    loginNotice.update(result);
+    status.hidden=Boolean(result?.loginRequired);
     if(result?.verified){
      clearTimers();saving=true;status.textContent='正在保存检测结果…';render();
      await onVerified(result);if(ticket!==generation)return;
@@ -53,6 +57,6 @@ export function loginRequest(site,settings,initialContext={}){
   if(result.tabId!=null)context.tabId=result.tabId;
   for(const flag of ['switchAttempted','accountSelected'])if(result[flag])context[flag]=true;
   const verified=site==='gmail'?result.matched&&result.email===settings.email:site==='moodle'?result.matched&&result.name===settings.name:result.name===settings.name;
-  return {...result,verified,message:site==='attendance'&&result.name&&!verified?'Attendance 姓名与配置不一致，请登录配置的学校账号后继续检测。':result.message};
+  return {...result,verified,loginRequired:!verified&&(result.loginRequired||Boolean(result.name)),message:site==='attendance'&&result.name&&!verified?'Attendance 姓名与配置不一致，请登录配置的学校账号后继续检测。':result.message};
  };
 }

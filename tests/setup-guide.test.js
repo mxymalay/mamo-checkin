@@ -17,6 +17,8 @@ test('Windows starts with identity and has no Mac installer or helper download',
 });
 test('setup import and reset share the row above the separator',()=>{
  const e=make(),doc=e.dom.window.document;e.guide.update({setupGuide:true,settings:{}});
+ assert.equal(doc.querySelector('.setup-install-title').firstChild.textContent,'安装 Mac 识别服务');
+ assert.ok(doc.querySelector('.setup-install-title .help-button'));
  const toolbar=doc.querySelector('.setup-toolbar-row');
  assert.ok(toolbar);
  assert.equal(toolbar.firstElementChild.id,'setup-import');
@@ -86,9 +88,9 @@ test('install guide uses one waiting health indicator and separates the macOS he
  assert.equal(doc.querySelector('.setup-toolbar').hidden,true);
  assert.doesNotMatch(section.textContent,/完成这一步后，才能识别签到图片/);
  assert.equal(section.querySelector('a[href$="mamo-ocr-mac.zip"]').textContent,'下载 Mac OCR 配套程序');
- assert.equal(section.querySelector('.setup-instructions').firstElementChild.querySelector('.authorization-title').textContent,'第一步：下载 Mac OCR 配套包');
- assert.equal(section.querySelector('.setup-instructions').children[1].querySelector('.authorization-title').textContent,'第二步：打开解压后的 OCR 包。');
- assert.match(section.querySelector('.setup-instructions').lastElementChild.querySelector('.authorization-title').textContent,/第三步：回到此页面/);
+ assert.equal(section.querySelector('.setup-instructions').firstElementChild.querySelector('.authorization-title').textContent,'下载 Mac OCR 配套包');
+ assert.equal(section.querySelector('.setup-instructions').children[1].querySelector('.authorization-title').textContent,'打开解压后的 OCR 包。');
+ assert.equal(section.querySelector('.setup-instructions').lastElementChild.querySelector('.authorization-title').textContent,'回到此页面，等待检测通过，自动进入下一步。');
  assert.equal(section.querySelectorAll('.setup-step-panel').length,3);assert.equal(section.querySelectorAll('.setup-step-dot').length,3);assert.equal(section.querySelector('.companion-download-hint').textContent,'请下载后解压。随后进行以下步骤。');
  assert.equal(section.querySelector('.setup-install-divider').nextElementSibling.tagName,'DETAILS');
  assert.equal(section.querySelectorAll('#setup-health-message').length,1);assert.match(doc.getElementById('setup-health-message').textContent,/暂未检测到/);
@@ -133,6 +135,7 @@ test('automatic identity detection disables the other actions until it finishes'
  },refresh:async()=>{},detect:()=>{},checkHealth:()=>{},reload:()=>{}});
  guide.update({setupGuide:true,settings:{}});guide.health({binaryReady:true});await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(doc.getElementById('setup-read-name').disabled,true);
+ assert.equal(doc.getElementById('setup-import-button').disabled,false);
  assert.equal(doc.querySelector('#setup-identity button[type=submit]').disabled,true);
  resolveName({name:'Example Student'});await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(doc.getElementById('setup-read-name').disabled,false);
